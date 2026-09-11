@@ -10,7 +10,8 @@
 #define MAX_CLK 12 //Clock for MAX72xx matrixes if used
 #define MAX_MOSI 11 //Data for MAX72xx matrixes if used
 #define MAX_CS 10 //ChipSelect for MAX72xx matrixes if used
-#define animBtn 4 //Pulling this pin LOW cycles through animations
+#define animBtn 17 //Momentary button: short press = next face, hold 1.5s = displays off/on
+#define animBtnGnd 18 //Driven LOW as the button's ground, so both button wires sit on neighbouring pins
 #define fanPWM 13 //PWM pin to control 4pin fan
 
 #define visorType "MAX72XX" // What displays are you using? (WS2812 or MAX72XX so far)
@@ -635,6 +636,8 @@ void setup() {
   Serial.begin(115200);
 
   pinMode(animBtn, INPUT_PULLUP);
+  pinMode(animBtnGnd, OUTPUT); //the button's other leg
+  digitalWrite(animBtnGnd, LOW);
   pinMode(0, INPUT_PULLUP);
   pinMode(fanPWM, OUTPUT);
 
