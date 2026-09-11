@@ -122,6 +122,17 @@
   .inline .btn { flex:none; min-height:46px; padding:8px 14px; }
   .hint { font-size:13px; color:var(--dim); margin:12px 0 0; }
 
+  /* system monitor */
+  .stats { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
+  .stat { display:grid; gap:4px; align-content:start; background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+  .stat span { font-size:12px; color:var(--dim); }
+  .stat b { font-size:16px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stat.ok b { color:#3ddc97; }
+  .stat.bad b { color:var(--bad); }
+  .bar { display:block; height:6px; margin-top:2px; border-radius:3px; background:#2a3448; overflow:hidden; }
+  .bar > i { display:block; height:100%; width:0; background:var(--accent); transition:width .4s; }
+  .stat.warn .bar > i { background:#ffb84d; }
+
   /* scrolling text */
   .textform { display:flex; gap:8px; }
   .textform input { flex:1; min-width:0; }
@@ -207,6 +218,23 @@
       <label class="switch">OLED <input type="checkbox" id="oled"></label>
     </div>
     <button class="btn primary block" type="button" onclick="saveFeatures()">Save features</button>
+  </section>
+
+  <section class="card">
+    <h2>System</h2>
+    <div class="stats">
+      <div class="stat"><span>Uptime</span><b id="stUptime">—</b></div>
+      <div class="stat"><span>Chip temperature</span><b id="stTemp">—</b></div>
+      <div class="stat"><span>Loop speed</span><b id="stLoop">—</b></div>
+      <div class="stat"><span>WiFi devices</span><b id="stClients">—</b></div>
+      <div class="stat"><span>Memory</span><b id="stHeap">—</b><i class="bar"><i id="stHeapBar"></i></i></div>
+      <div class="stat"><span>PSRAM</span><b id="stPsram">—</b><i class="bar"><i id="stPsramBar"></i></i></div>
+      <div class="stat"><span>Storage</span><b id="stFs">—</b><i class="bar"><i id="stFsBar"></i></i></div>
+      <div class="stat"><span>Face frame</span><b id="stFrame">—</b></div>
+      <div class="stat"><span>Tilt sensor</span><b id="stTilt">—</b></div>
+      <div class="stat"><span>Boop sensor</span><b id="stBoop">—</b></div>
+    </div>
+    <p class="hint">Updates every 2 seconds while this page is open.</p>
   </section>
 
   <section class="card">
@@ -540,6 +568,44 @@
     }
   });
 
+  /* ---------- system monitor ---------- */
+  function fmtBytes(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB'; }
+  function fmtUptime(s) {
+    const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+    return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + m + 'm' : m + 'm ' + (s % 60) + 's';
+  }
+  function setBar(id, used, total) {
+    const pct = total ? used / total * 100 : 0;
+    $(id).style.width = pct + '%';
+    $(id).closest('.stat').classList.toggle('warn', pct > 85);
+  }
+  function setSensor(id, found) {
+    $(id).textContent = found ? 'Found' : 'Not found';
+    $(id).closest('.stat').classList.toggle('ok', found);
+    $(id).closest('.stat').classList.toggle('bad', !found);
+  }
+  async function refreshStats() {
+    if (document.hidden) return;   // no polling while the phone screen is off or the tab is in the background
+    try {
+      const s = await (await fetch('/stats', NO_CACHE)).json();
+      $('stUptime').textContent = fmtUptime(s.uptime);
+      $('stTemp').textContent = typeof s.tempC === 'number' ? s.tempC.toFixed(1) + ' °C' : '—';
+      $('stLoop').textContent = s.loopHz + ' /s';
+      $('stClients').textContent = s.wifiClients;
+      $('stHeap').textContent = fmtBytes(s.heapFree) + ' free';
+      setBar('stHeapBar', s.heapSize - s.heapFree, s.heapSize);
+      $('stPsram').textContent = fmtBytes(s.psramFree) + ' free';
+      setBar('stPsramBar', s.psramSize - s.psramFree, s.psramSize);
+      $('stFs').textContent = fmtBytes(s.fsUsed) + ' of ' + fmtBytes(s.fsTotal);
+      setBar('stFsBar', s.fsUsed, s.fsTotal);
+      $('stFrame').textContent = s.frames ? (s.frame + 1) + ' of ' + s.frames : '—';
+      setSensor('stTilt', s.tilt);
+      setSensor('stBoop', s.boop);
+    } catch (e) { /* mask out of reach or older firmware: keep the last values */ }
+  }
+  setInterval(refreshStats, 2000);
+  document.addEventListener('visibilitychange', refreshStats);
+
   /* ---------- brightness and fan ---------- */
   // Brightness (MAX7219, 0-15): the panels follow the slider live, saved on release.
   function sendBrightness(save) {
@@ -724,6 +790,7 @@
       await loadFiles();   // fills the face pickers before the config selects a value in them
       await loadConfig();
       await loadPower();
+      refreshStats();
     } catch (e) {
       toast('Could not reach the mask', true);
     }

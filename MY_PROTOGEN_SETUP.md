@@ -115,6 +115,8 @@ When you tested with numbers, panel "1" was t0, "2" was t1, and so on.
 | `data/index.html`, `data/animator.html`, `data/saved.html` | Redesigned for phones: face previews, cards, switches, bigger touch targets | The old pages were built for desktop screens. The pre-redesign pages are kept in `ui_backup/before-redesign-2026-09-11/` and git tag `ui-before-redesign`. |
 | `src/main.cpp`, `data/index.html` | `/display` endpoint and a top-bar power button | Turns the panels off (MAX7219 shutdown mode) while the ESP32 keeps running. Not saved, so the displays are always on after a restart. |
 | `src/main.cpp` | Optional `then` field in animations | When a one-shot animation (scrolling text set to Play once) reaches its last frame, the firmware loads that face |
+| `src/main.cpp` | Frame index widened from 8 to 16 bits | Animations over 255 frames (scrolling text over about 30 characters) restarted early and Play once never fired |
+| `src/main.cpp`, `data/index.html` | `/stats` endpoint and a System card | Resource monitor on the homepage; it only reports stored values, so it never touches the sensor wires |
 | `src/main.cpp` | Button: a short press goes to the face after the current one; holding 1.5 s toggles the displays. Moved from GPIO 4 to GPIO 21, with GPIO 47 held low as its ground. | The original skipped a press on every lap of the face list and kept its own place in the list. The new pins put both button wires side by side on the right header, away from the display wires. GPIO 19 and 20 were avoided because they're the USB data lines. |
 | `platformio.ini:12` | partitions | `8MB_20-20-40.csv` | More room: 2MB app, 3.9MB for faces |
 | `data/visType.txt` | layout | your chain order | See section 3 |
@@ -181,6 +183,7 @@ python -m platformio device monitor -p COM113 -b 115200
 7. The physical button across GPIO 21 and 47 (the 13mm button that came with the face) works without your phone. A short press goes to the next face after the one showing. Holding it for 1.5 seconds turns the displays off or on. The homepage doesn't refresh by itself, so reload it to see the change.
 8. **Tilt:** open Tilt calibration. Hold your head normally and press Read on Idle, tilt your head sideways and press Read on Tilt, look up and press Read on Up, then press Save tilt. Then turn on **Tilt** under Features and press Save features. The Read buttons work even with Tilt switched off.
 9. **Boop** (once the APDS9960 is wired): in Advanced settings, press **Read** next to Boop distance with nothing near the visor, then again with your hand on the visor. Set Boop distance between the two numbers and press Save settings; a boop triggers when the reading drops below it. Then turn on **Boop** under Features. With Boop on, the mask looks for the sensor every 5 seconds, so it's picked up without a restart.
+10. The **System** card shows how the mask is doing: uptime, chip temperature, loop speed (how many times a second the main loop runs; a lower number means it's busier), connected WiFi devices, memory, PSRAM and storage use, the current face frame, and whether the tilt and boop sensors were found. It updates every 2 seconds while the page is open.
 
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
@@ -299,6 +302,7 @@ See `ProtoESP-Controller/readme.md` and `touchSensors.md` for sensor wiring.
 | Board restarts when you change faces | Fixed on 2026-09-11. The web server used to replace a face's frames while the drawing loop was still reading them. If it ever happens again, read the crash report (below). |
 | Upload can't connect | Check the COM port. As a last resort, hold BOOT, tap RESET, release BOOT. |
 | Mask stays dark after flashing through the right port | Tap RESET. |
+| USB disconnects soon after the mask boots | The panels and WiFi draw through the same USB cable, and the voltage dip resets the board's USB chip. Flash through the right-hand (native USB) port, turn the displays off first, or power the panels from a separate 5V supply. The one-connection flash in the memory notes also avoids the gap between steps. |
 | Build fails: `xtensa-esp32s3-elf-g++ is not recognized` or `MSys/Mingw is not supported` | You built from Git Bash. Use PowerShell or VS Code. |
 | Build fails: `WindowsLongPathError` | Windows long paths are off. Already turned on for this PC on 2026-09-09. Using `C:\pio` as the PlatformIO folder also avoids it. |
 

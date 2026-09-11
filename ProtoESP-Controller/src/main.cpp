@@ -148,6 +148,7 @@ AsyncWebServer server(80);
 bool instantReload = false, oledInitDone = false, tiltInitDone = false, getfilesProper = true, ToFInitDone = false;
 bool brightnessDirty = false; //set by /brightness, applied to the panels in loop()
 bool displayOn = true, displayDirty = false; //set by /display; panels stay powered down until turned back on (not saved)
+uint32_t loopCount = 0, loopsPerSec = 0; unsigned long loopRateStart = 0; //loop() runs per second, for the system monitor
 uint16_t currentEarsFrame = 0, currentVisorFrame = 0; //frame indexes: scrolling text can have hundreds of frames
 uint8_t numOfSegm, numAnimBlush, totalAnims;
 uint16_t visorLedsNum = MATRIXESNUM*64;
@@ -594,6 +595,32 @@ void startWiFiWeb() {
     }
   });
   
+  server.on("/stats", HTTP_GET, [](AsyncWebServerRequest *request){ //system monitor for the homepage; no I2C here, sensor state is what loop() found
+    xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+    String anim = currentAnim;
+    xSemaphoreGive(animQueueMutex);
+    JsonDocument st;
+    st["uptime"] = millis() / 1000;
+    st["heapFree"] = ESP.getFreeHeap();
+    st["heapSize"] = ESP.getHeapSize();
+    st["psramFree"] = ESP.getFreePsram();
+    st["psramSize"] = ESP.getPsramSize();
+    st["fsUsed"] = LittleFS.usedBytes();
+    st["fsTotal"] = LittleFS.totalBytes();
+    st["tempC"] = temperatureRead();
+    st["loopHz"] = loopsPerSec;
+    st["wifiClients"] = WiFi.softAPgetStationNum();
+    st["tilt"] = tiltInitDone;
+    st["boop"] = ToFInitDone;
+    st["display"] = displayOn;
+    st["anim"] = anim;
+    st["frame"] = currentVisorFrame;
+    st["frames"] = visorNow ? visorNow->numOfFrames : 0;
+    String out;
+    serializeJson(st, out);
+    request->send(200, "application/json", out);
+  });
+
   server.on("/display", HTTP_GET, [](AsyncWebServerRequest *request){ //visor panels on/off while the ESP keeps running: state=on|off|toggle, no param = report
     if(request->hasParam("state")) {
       String state = request->getParam("state")->value();
@@ -880,6 +907,12 @@ void loop() {
     displayDirty = false;
     mx.control(MD_MAX72XX::SHUTDOWN, displayOn ? MD_MAX72XX::OFF : MD_MAX72XX::ON);
     logPrint(displayOn ? F("[I] Displays on") : F("[I] Displays off"));
+  }
+  loopCount++; //loop() runs per second, shown by the homepage system monitor
+  if(millis() - loopRateStart >= 1000) {
+    loopsPerSec = loopCount;
+    loopCount = 0;
+    loopRateStart = millis();
   }
   //--------------------------------//EAR Leds render
   if(earPresent) {
