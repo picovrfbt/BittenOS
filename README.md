@@ -15,6 +15,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - Touch drawing in the Animator: drag a finger across pixels to draw or erase
 - A power button that turns the displays off while the mask keeps running, also on the physical button (hold 1.5 s)
 - Head tilt (BMI270) and boop (APDS9960) sensors on one shared I2C bus, with calibration from the web page
+- A System card on the homepage: uptime, chip temperature, loop speed, memory, storage and sensor status
 - Supports ProtoESP's other optional extras: microphone, OLED and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
 
 ## Hardware
@@ -71,6 +72,8 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Physical button | `src/main.cpp` | A short press goes to the face after the one showing (the original skipped a press every lap and kept its own place in the list). Holding it for 1.5 s turns the displays off or on. |
 | BMI270 tilt sensor | `platformio.ini`, `src/main.cpp` | Replaces the LSM6DS3 driver (whose chip check also rejects common LSM6DS3TR-C clones). The loop reads it every 100 ms and the web page gets the stored value. It tries addresses 0x68 and 0x69, and the calibration Read buttons work with Tilt switched off. |
 | Boop sensor | `src/main.cpp`, `data/index.html` | APDS9960 selected, started at power-on even with Boop off, and looked for every 5 s if missing. The original switched Boop off after one failed start. `/tof` fixed (it could send two replies) and a Read button added next to Boop distance. |
+| Long animations | `src/main.cpp` | The frame counter was 8-bit, so animations over 255 frames (scrolling text over about 30 characters) restarted early; it's 16-bit now |
+| System monitor | `src/main.cpp` (`/stats`), `data/index.html` | A System card showing uptime, chip temperature, loop speed, WiFi devices, memory, PSRAM, storage, the current frame, and whether each sensor was found |
 | Setup guide | `MY_PROTOGEN_SETUP.md` | Everything needed to rebuild, flash and maintain this mask |
 
 The crash fix and the homepage change aren't specific to this mask. They apply to upstream ProtoESP as well.

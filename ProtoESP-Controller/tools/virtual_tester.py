@@ -30,6 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(os.path.dirname(HERE), 'data')
 BOARD_DIR = os.path.join(HERE, '.virtual_board')
 TESTER_PAGE = os.path.join(HERE, 'tester.html')
+START = time.time()  # for the emulated uptime
 
 # Settings /saveconfig accepts, in the same order as src/main.cpp
 SAVECONFIG_KEYS = [
@@ -289,6 +290,19 @@ class Handler(BaseHTTPRequestHandler):
             board.save_config()
             board.log('[I] Config saved')
             return self.redirect('/saved.html?main')
+
+        if path == '/stats':   # system monitor: plausible numbers shaped like the firmware's reply
+            try:
+                frames = len(json.loads(board.current_anim_text())['visor']['frames'])
+            except (ValueError, KeyError, TypeError):
+                frames = 0
+            anims_bytes = sum(os.path.getsize(board.anim_path(f)) for f in board.anims())
+            return self.reply(200, json.dumps({
+                'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,
+                'psramFree': 8200000, 'psramSize': 8388608, 'fsUsed': 160000 + anims_bytes, 'fsTotal': 4063232,
+                'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': False,
+                'display': board.display_on, 'anim': board.current, 'frame': 0, 'frames': frames,
+            }), 'application/json')
 
         if path == '/display':
             if 'state' in q:
