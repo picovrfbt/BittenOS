@@ -11,7 +11,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - Includes ProtoESP's web Animator for drawing faces pixel by pixel and testing them live on the mask
 - Ships with 8 faces (default, happy, sad, angry, upset, confused, boop, bsod), converted to this 14-panel layout
 - A redesigned, phone-friendly web page: face tiles with previews, a live brightness slider for the MAX7219 panels (0–15), feature switches, and no RGB, ear-LED or other-helmet controls
-- Scrolling text: type a message on the web page and press Enter to scroll it across the mouth panels
+- Scrolling text: type a message on the web page and press Enter to scroll it across the mouth panels, on repeat or just once, at four speeds
 - Touch drawing in the Animator: drag a finger across pixels to draw or erase
 - A power button that turns the displays off while the mask keeps running
 - Supports ProtoESP's optional extras: boop sensor, microphone, accelerometer, OLED and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
@@ -62,7 +62,7 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | MAX7219-only web pages | `data/index.html`, `data/animator.html`, `data/visType.txt` | RGB, ear-LED, cheek-LED and other-helmet controls removed from view. Some Animator controls are hidden rather than deleted, because loading a face still writes its ear data into them. |
 | Live brightness slider (0–15) | `data/index.html`; new `/brightness` endpoint replacing `/rgb` in `src/main.cpp`; default 5 in `src/fileOp.cpp` | The old setting was a 0–255 number box meant for RGB panels. The main loop applies the change, since the web server can't safely drive the panels mid-draw. |
 | Phone-friendly redesign | `data/index.html`, `data/animator.html`, `data/saved.html` | Face tiles with previews, cards, switches and bigger touch targets; the Animator scales its drawing grid to the screen. The old pages are kept in `ui_backup/` and git tag `ui-before-redesign`. |
-| Scrolling text | `data/index.html` | The browser turns the message into an animation (5×7 font from MD_MAX72XX) and sends it the same way as the Animator's "Try animation", so no firmware change was needed |
+| Scrolling text | `data/index.html`, `src/main.cpp` | The browser turns the message into an animation (5×7 font from MD_MAX72XX) and sends it the same way as the Animator's "Try animation". "Play once" uses a new optional `then` field: when the animation reaches its end, the firmware loads that face. |
 | Touch drawing | `data/animator.html` | Finger drags draw or erase, depending on the first pixel touched. Drags that start between panels still scroll. |
 | Display power button | `src/main.cpp` (`/display`), `data/index.html` | Turns the panels off with the MAX7219 shutdown mode while the ESP32, WiFi and current face keep running, and brings the picture back instantly. Not saved, so the displays are always on after a restart. |
 | Setup guide | `MY_PROTOGEN_SETUP.md` | Everything needed to rebuild, flash and maintain this mask |

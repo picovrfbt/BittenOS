@@ -124,11 +124,13 @@
   .textform input { flex:1; min-width:0; }
   .textform .btn { flex:none; }
   .btn:disabled { opacity:.6; cursor:wait; }
-  .seg { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:10px; }
+  .seg { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-top:10px; }
+  .seg.two { grid-template-columns:repeat(2, 1fr); }
   .seg label { position:relative; display:flex; align-items:center; justify-content:center; min-height:42px; cursor:pointer;
                border:1px solid var(--line); border-radius:10px; background:var(--surface2); font-weight:600; font-size:14px; }
   .seg input { position:absolute; opacity:0; pointer-events:none; }
   .seg label.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .seg label { font-size:13px; padding:4px 6px; text-align:center; line-height:1.15; }
 
   footer { text-align:center; color:var(--dim); font-size:13px; padding:4px 16px 28px; }
   .rainbow-text { font-weight:bold; text-decoration:none;
@@ -168,11 +170,16 @@
       <button class="btn primary" type="submit">Show</button>
     </form>
     <div class="seg" id="speedSeg" role="radiogroup" aria-label="Scroll speed">
+      <label><input type="radio" name="speed" value="160">Very slow</label>
       <label><input type="radio" name="speed" value="90">Slow</label>
       <label class="on"><input type="radio" name="speed" value="55" checked>Normal</label>
       <label><input type="radio" name="speed" value="30">Fast</label>
     </div>
-    <p class="hint">Scrolls across the mouth panels while the eyes keep the current face. Tap any face to stop.</p>
+    <div class="seg two" id="repeatSeg" role="radiogroup" aria-label="Repeat">
+      <label class="on"><input type="radio" name="repeat" value="loop" checked>Repeat</label>
+      <label><input type="radio" name="repeat" value="once">Play once</label>
+    </div>
+    <p class="hint">Scrolls across the mouth panels while the eyes keep the current face. Repeat keeps going until you tap a face; Play once goes back to that face after one pass.</p>
   </section>
 
   <section class="card">
@@ -327,6 +334,7 @@
   // The mask replies with a redirect to saved.html when the face was queued.
   // redirect:'manual' stops the browser following it, so we stay on this page.
   async function changeFace(name, btn) {
+    clearTimeout(textTimer);
     btn.classList.add('busy');
     try {
       const r = await fetch('/change?anim=' + encodeURIComponent(name), {redirect: 'manual'});
@@ -399,6 +407,7 @@
   // Each character is a list of columns; bit 0 is the top row.
   const FONT = [[0,0],[95],[7,0,7],[20,127,20,127,20],[68,74,255,74,50],[99,19,8,100,99],[54,73,73,54,72],[7],[62,65,65],[65,65,62],[8,42,28,42,8],[8,8,62,8,8],[96,224],[8,8,8,8],[96,96],[96,16,8,4,3],[62,81,73,69,62],[4,2,127],[113,73,73,73,70],[65,73,73,73,54],[15,8,8,8,127],[79,73,73,73,49],[62,73,73,73,48],[3,1,1,1,127],[54,73,73,73,54],[6,73,73,73,62],[108,108],[108,236],[8,20,34],[20,20,20,20],[34,20,8],[1,89,9,9,6],[62,65,93,89,78],[126,9,9,9,126],[127,73,73,73,54],[62,65,65,65,65],[127,65,65,65,62],[127,73,73,73,65],[127,9,9,9,1],[62,65,65,73,121],[127,8,8,8,127],[65,127,65],[48,65,65,65,63],[127,8,20,34,65],[127,64,64,64,64],[127,2,12,2,127],[127,4,8,16,127],[62,65,65,65,62],[127,9,9,9,6],[62,65,65,97,126],[127,9,25,41,70],[70,73,73,73,49],[1,1,127,1,1],[63,64,64,64,63],[31,32,64,32,31],[63,64,56,64,63],[99,20,8,20,99],[3,4,120,4,3],[97,81,73,69,67],[127,65,65],[3,4,8,16,96],[65,65,127],[4,2,1,2,4],[128,128,128,128],[1,2,4],[56,68,68,124],[127,68,68,56],[56,68,68,68],[56,68,68,127],[56,84,84,88],[4,126,5,1],[24,164,164,124],[127,4,4,120],[125],[132,133,124],[127,16,40,68],[127],[124,4,120,4,120],[124,4,4,120],[56,68,68,56],[252,36,36,24],[24,36,36,252],[124,4,4,8],[88,84,84,52],[4,127,4],[60,64,64,124],[28,32,64,124],[60,64,48,64,60],[108,16,16,108],[28,160,160,124],[100,84,84,76],[8,54,65,65],[127],[65,65,54,8],[2,1,2,1]];
   let lastFace = '';   // last face file shown; the text keeps its eyes and nose
+  let textTimer = null;  // Play once: puts the face label back when the text ends
 
   function textColumns(text) {
     const cols = [];
@@ -456,6 +465,10 @@
     }
     // isMouth all false so the speech effect can't distort the text
     const anim = {ears: {type: 'none'}, visor: {type: 'custom', isMouth: new Array(count).fill(false), frames}};
+    // Play once: the mask loads this face when the text reaches its end (the firmware's "then")
+    const once = document.querySelector('input[name=repeat]:checked').value === 'once';
+    const returnTo = lastFace || (availableAnims.includes('default.json') ? 'default.json' : '');
+    if (once && returnTo) anim.visor.then = returnTo;
 
     // Sent like the Animator's "Try animation", but as multipart so the upload isn't URL-encoded
     const form = new FormData();
@@ -464,6 +477,12 @@
     if (r.type !== 'opaqueredirect') throw new Error(await r.text());
     setActive('POSTAnimLoad');
     $('activeAnim').textContent = text;
+    clearTimeout(textTimer);
+    if (anim.visor.then) {   // follow the mask back to the face once the text has gone by
+      const total = frames.reduce((ms, f) => ms + f.timespan, 0);
+      textTimer = setTimeout(() => setActive(anim.visor.then), total + 300);
+    }
+    return !!anim.visor.then;
   }
 
   $('textForm').addEventListener('submit', async e => {
@@ -473,8 +492,7 @@
     const btn = e.target.querySelector('button');
     btn.disabled = true;
     try {
-      await showText(text);
-      toast('Showing your text');
+      toast(await showText(text) ? 'Showing your text once' : 'Showing your text');
     } catch (err) {
       toast(err instanceof TypeError ? 'Could not reach the mask' : err.message, true);
     }
@@ -486,9 +504,10 @@
     if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('textForm').requestSubmit(); }
   });
 
-  $('speedSeg').addEventListener('change', () => {
-    document.querySelectorAll('#speedSeg label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
-  });
+  // segmented pickers: highlight the chosen option
+  document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('change', () => {
+    seg.querySelectorAll('label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+  }));
 
   /* ---------- display power ---------- */
   // Puts the MAX7219 panels into shutdown: the LEDs go dark, but the ESP32, WiFi and
