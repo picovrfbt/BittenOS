@@ -790,6 +790,7 @@ bool FdisplayVisor = false, FdisplayBlush = false, FdisplayEar = false, booping 
 float zAx,yAx,finalMicAvg,avgMicArr[10], micAttack = 0.35f, micRelease = 0.2f, env = 0.0f;
 int boopRead, startIndex = 1, micVolume, currentMicAvg = 0, btnNum = 0, currFade = 1, apdsprox = 255;
 unsigned long lastMillsEars = 0, lastMillsVisor = 0, lastMillsTilt = 0, laskSpeakCheck = 0, lastMillsBoop = 0, lastFLED = 0, vaStatLast = 0, btnPressTime = 0, tiltChange = 0, check0button = 0, looptime = 0, fadeTime = 0, laskSpeakAnim = 0, lastBoopCheck = 0;
+bool btnHeld = false, btnLongDone = false; //button: held down now / hold action already fired
 
 void dynamicSpeak(uint64_t *leds, bool isMouth[MATRIXESNUM], int volume) {
   int mouthIndexes[MATRIXESNUM];
@@ -1067,19 +1068,29 @@ void loop() {
   }
   //Serial.println(">SPK1:"+String(micros()-looptime));
 
-  //--------------------------------//Single button anim change
+  //--------------------------------//Single button: short press = next face, hold 1.5s = displays off/on
   hwBtn.loop();
   if(hwBtn.isPressed()) { //detect press
     btnPressTime = millis();
+    btnHeld = true;
+    btnLongDone = false;
+  }
+  if(btnHeld && !btnLongDone && millis()-btnPressTime >= 1500) { //held 1.5s: toggle the displays right away, like the web power button
+    btnLongDone = true;
+    displayOn = !displayOn;
+    displayDirty = true;
   }
   if(hwBtn.isReleased()) {
-    if(millis()-btnPressTime < 1500) { //short press
-      btnNum++;
-      if(btnNum >= totalAnims) {
-        btnNum = 0;
-      } else {
-        animToLoad = availAnims[btnNum];
+    btnHeld = false;
+    if(!btnLongDone && totalAnims > 0) { //short press: the face after the one showing, wherever it was picked
+      int next = btnNum + 1;
+      for(int i = 0; i < totalAnims; i++) {
+        if(availAnims[i] == currentAnim) { next = i + 1; break; }
       }
+      btnNum = next % totalAnims;
+      xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+      animToLoad = availAnims[btnNum];
+      xSemaphoreGive(animQueueMutex);
       logPrint("Changing to "+availAnims[btnNum]+", amount of anims: "+String(totalAnims));
     }
   }

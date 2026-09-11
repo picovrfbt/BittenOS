@@ -240,6 +240,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/__anim':
             return self.reply(200, board.current_anim_text(), 'application/json')
         if path == '/__button' and method == 'POST':
+            if 'hold' in q:   # held 1.5 s: displays off/on, like the firmware
+                board.display_on = not board.display_on
+                board.log('[I] Button held: displays ' + ('on' if board.display_on else 'off'))
+                return self.text('OK')
             anims = board.anims()
             if anims:
                 i = anims.index(board.current) + 1 if board.current in anims else 0
