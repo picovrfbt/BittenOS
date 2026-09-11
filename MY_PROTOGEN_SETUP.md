@@ -112,6 +112,7 @@ When you tested with numbers, panel "1" was t0, "2" was t1, and so on.
 | `src/main.cpp` | `/rgb` endpoint replaced by `/brightness` | Live brightness for the slider |
 | `src/fileOp.cpp` | Default brightness 5 instead of 100 | 100 was an RGB value; MAX7219 brightness only goes to 15 |
 | `data/index.html`, `data/animator.html`, `data/saved.html` | Redesigned for phones: face previews, cards, switches, bigger touch targets | The old pages were built for desktop screens. The pre-redesign pages are kept in `ui_backup/before-redesign-2026-09-11/` and git tag `ui-before-redesign`. |
+| `src/main.cpp`, `data/index.html` | `/display` endpoint and a top-bar power button | Turns the panels off (MAX7219 shutdown mode) while the ESP32 keeps running. Not saved, so the displays are always on after a restart. |
 | `platformio.ini:12` | partitions | `8MB_20-20-40.csv` | More room: 2MB app, 3.9MB for faces |
 | `data/visType.txt` | layout | your chain order | See section 3 |
 | `data/visTypeMouth.txt` | mouth mask | 14 entries | Which panels move when talking |
@@ -173,6 +174,7 @@ python -m platformio device monitor -p COM113 -b 115200
 3. Open `192.168.4.1`. Tap a face tile to show that face; each tile previews the face. The **Brightness** slider (0–15) changes the panels live and saves when you let go. The feature switches, Advanced settings and Tilt calibration each have their own Save button.
 4. Open `192.168.4.1/animator.html` to draw faces.
 5. To show a message, type it into **Scrolling text** and press Enter (up to 64 characters). It scrolls across the mouth panels while the eyes keep the current face. Pick Slow, Normal or Fast before sending. Tap any face to stop.
+6. The **power button** at the top right turns the displays off while the mask stays on. WiFi, the web page and the current face keep running, and tapping it again brings the face straight back. The displays always come back on after a restart.
 
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
@@ -279,7 +281,7 @@ See `ProtoESP-Controller/readme.md` and `touchSensors.md` for sensor wiring.
 |---|---|
 | Panels mirrored or upside down | Change `HARDWARE_TYPE` (`src/main.cpp:17`): `PAROLA_HW` flips left-right, `DR1CR0RR1_HW` flips up-down, `ICSTATION_HW` flips both, `FC16_HW` is stock. Then Upload. |
 | Right shapes on the wrong panels | Panel order in `data/visType.txt` is wrong. Fix it, then upload the filesystem. |
-| Nothing lights | Check the shared GND, then whether CS and CLK are swapped, then 5V at the panels. |
+| Nothing lights | Check the top-bar power button isn't off. Then check the shared GND, whether CS and CLK are swapped, and 5V at the panels. |
 | Random glitches, worse when warm | Fit the 74AHCT125 (section 2) and check the 5V under load. |
 | Junk on some panels with one face | It's an 11-panel face. Run the converter. |
 | No web page, or "file not found" in the log | The filesystem wasn't uploaded. Upload it. |

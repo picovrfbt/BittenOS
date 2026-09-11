@@ -84,7 +84,7 @@
   const ctx = canvas.getContext('2d');
   const PITCH = 10, GAP = 6;            // pixel pitch and gap between panels
   let layout = [], anim = null, frameIdx = 0, frameUntil = 0;
-  let brightness = 5, lastVersion = -1, lastAnimVersion = -1, drawnKey = '';
+  let brightness = 5, displayOn = true, lastVersion = -1, lastAnimVersion = -1, drawnKey = '';
 
   function showPage(path) {
     frame.src = path;
@@ -130,8 +130,8 @@
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const leds = anim && anim.visor && anim.visor.frames && anim.visor.frames[frameIdx]
-      ? anim.visor.frames[frameIdx].leds : [];
+    const leds = displayOn && anim && anim.visor && anim.visor.frames && anim.visor.frames[frameIdx]
+      ? anim.visor.frames[frameIdx].leds : [];   // panels in shutdown show nothing
     const duty = (2 * brightness + 1) / 32;              // MAX7219 intensity steps
     const alpha = 0.2 + 0.8 * Math.sqrt(duty);
     layout.forEach((row, ry) => row.forEach((cell, cx) => {
@@ -163,7 +163,7 @@
       frameIdx = (frameUntil === 0) ? 0 : (frameIdx + 1) % frames.length;
       frameUntil = now + Math.max(20, frames[frameIdx].timespan || 500);
     }
-    const key = frameIdx + '|' + brightness + '|' + lastAnimVersion + '|' + layout.length;
+    const key = frameIdx + '|' + brightness + '|' + displayOn + '|' + lastAnimVersion + '|' + layout.length;
     if (key !== drawnKey) { draw(); drawnKey = key; }
     requestAnimationFrame(tick);
   }
@@ -182,10 +182,12 @@
         frameIdx = 0; frameUntil = 0;
       }
       brightness = s.brightness;
+      displayOn = s.displayOn !== false;
       if (s.version !== lastVersion) {
         lastVersion = s.version;
         const t = s.toggles, onoff = v => v ? 'on' : 'off';
         document.getElementById('stats').innerHTML =
+          chip('Display', s.displayOn === false ? 'off' : 'on') +
           chip('Face', s.anim) + chip('Brightness', s.brightness + '/15') + chip('Fan', s.fan) +
           chip('Boop', onoff(t.boopEna)) + chip('Speech', onoff(t.speechEna)) + chip('Tilt', onoff(t.tiltEna)) +
           chip('BLE', onoff(t.bleEna)) + chip('OLED', onoff(t.oledEna)) + chip('WiFi', s.wifi);

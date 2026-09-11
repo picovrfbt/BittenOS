@@ -13,6 +13,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - A redesigned, phone-friendly web page: face tiles with previews, a live brightness slider for the MAX7219 panels (0–15), feature switches, and no RGB, ear-LED or other-helmet controls
 - Scrolling text: type a message on the web page and press Enter to scroll it across the mouth panels
 - Touch drawing in the Animator: drag a finger across pixels to draw or erase
+- A power button that turns the displays off while the mask keeps running
 - Supports ProtoESP's optional extras: boop sensor, microphone, accelerometer, OLED and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
 
 ## Hardware
@@ -63,6 +64,7 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Phone-friendly redesign | `data/index.html`, `data/animator.html`, `data/saved.html` | Face tiles with previews, cards, switches and bigger touch targets; the Animator scales its drawing grid to the screen. The old pages are kept in `ui_backup/` and git tag `ui-before-redesign`. |
 | Scrolling text | `data/index.html` | The browser turns the message into an animation (5×7 font from MD_MAX72XX) and sends it the same way as the Animator's "Try animation", so no firmware change was needed |
 | Touch drawing | `data/animator.html` | Finger drags draw or erase, depending on the first pixel touched. Drags that start between panels still scroll. |
+| Display power button | `src/main.cpp` (`/display`), `data/index.html` | Turns the panels off with the MAX7219 shutdown mode while the ESP32, WiFi and current face keep running, and brings the picture back instantly. Not saved, so the displays are always on after a restart. |
 | Setup guide | `MY_PROTOGEN_SETUP.md` | Everything needed to rebuild, flash and maintain this mask |
 
 The crash fix and the homepage change aren't specific to this mask. They apply to upstream ProtoESP as well.
