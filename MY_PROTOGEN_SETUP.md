@@ -172,13 +172,14 @@ python -m platformio device monitor -p COM113 -b 115200
 2. On your phone, turn **mobile data off** and join `ProtoWiFi`, password `Proto1234`.
 3. Open `192.168.4.1`. Tap a face tile to show that face; each tile previews the face. The **Brightness** slider (0–15) changes the panels live and saves when you let go. The feature switches, Advanced settings and Tilt calibration each have their own Save button.
 4. Open `192.168.4.1/animator.html` to draw faces.
+5. To show a message, type it into **Scrolling text** and press Enter (up to 64 characters). It scrolls across the mouth panels while the eyes keep the current face. Pick Slow, Normal or Fast before sending. Tap any face to stop.
 
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
 ### Drawing and testing a face in the Animator
 
 1. The Animator opens straight into your 14-panel layout. On a phone, turn it sideways for bigger pixels. The drawing area scrolls sideways if it doesn't fit.
-2. Tap pixels to toggle them one at a time, or press **Select**, tap a panel, then **Toggle** to light the whole panel.
+2. Tap pixels to toggle them one at a time, or press **Select**, tap a panel, then **Toggle** to light the whole panel. On a phone, drag your finger across pixels to draw. Start the drag on a lit pixel to erase instead. Drags that start between panels scroll the grid.
 3. Set **Timespan** (milliseconds the frame shows), then **Add frame**. Repeat for more frames.
 4. **1. Generate final JSON**
 5. **3. Try animation** plays it on the mask right away. It's lost on restart.
