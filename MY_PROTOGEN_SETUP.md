@@ -1,0 +1,309 @@
+# My Protogen Setup
+
+ProtoESP firmware ([NCPlyn/ProtogenHelmet-ESP32](https://github.com/NCPlyn/ProtogenHelmet-ESP32), GPL-3.0) running a FurBitten Studios premade face (14 × MAX7219) on an ESP32-S3.
+
+Last updated: 2026-09-11. Everything below was tested on this mask and this PC.
+
+---
+
+## 1. Hardware
+
+| Part | Details |
+|---|---|
+| Controller | Lonely Binary ESP32-S3 "Gold Edition", module ESP32-S3-N16R8 (16MB flash, 8MB PSRAM) |
+| Displays | FurBitten premade face, 14 × MAX7219 8×8 panels, already chained together |
+| Original controller | Arduino Nano with FurBitten's closed firmware. **Unplugged and kept as a backup. Don't reflash it**; their firmware can't be recovered. |
+| Connected right now | Displays only. No mic, boop sensor, OLED, cheek LEDs or button wired yet. |
+
+### USB ports on the board
+
+| Port | Shows up as | Use it for |
+|---|---|---|
+| Left USB-C, labelled **UART** | `USB-SERIAL CH340K`, was **COM113** | Flashing **and** reading the startup messages |
+| Right USB-C, labelled **USB** | `303A:1001`, was **COM114** | Flashing only (no startup messages on this one) |
+
+COM numbers can change. Run `python -m platformio device list` (see section 5) to check.
+You never need the BOOT button. Both ports put the board into flashing mode automatically.
+
+---
+
+## 2. Wiring
+
+### Displays (the only thing wired right now)
+
+Connect to the **first panel in the chain: left eye, back panel**.
+
+| ESP32-S3 pin | MAX7219 pad |
+|---|---|
+| GPIO 11 | DIN |
+| GPIO 10 | CS (sometimes labelled LOAD) |
+| GPIO 12 | CLK |
+| GND | GND |
+
+- **Panel power:** the panels currently run from the board's `5V0` pin with the board on USB. That measured about 3W with the stock faces at brightness 5, which is fine. Each lit pixel draws roughly 1.7mA at brightness 5. The bsod face lights every pixel (about 1.5A, 7.6W), and that, or much higher brightness, is more than USB can supply through the board. For the helmet, wire a power bank's 5V to both the board's `5V0` pin and the panels in parallel, so the panel current doesn't go through the board. Worst case, with every pixel on at full brightness, is about 4.5A.
+- **Ground must be shared** between the supply and the ESP32. With no shared ground you get garbage or nothing.
+- GPIO 10, 11 and 12 sit next to each other on the left header, with GND at the bottom of the same header.
+
+### Level shifter (not fitted, currently works without)
+
+The ESP32 outputs 3.3V; the MAX7219 officially wants 3.5V at 5V supply. It works on the bench. If you ever see glitches, especially once the helmet is warm, fit a **74AHCT125** between the ESP32 and the first panel:
+
+```
+ESP32 GPIO 11 -> pin 2  (1A)    pin 3  (1Y) -> DIN
+ESP32 GPIO 10 -> pin 5  (2A)    pin 6  (2Y) -> CS
+ESP32 GPIO 12 -> pin 9  (3A)    pin 8  (3Y) -> CLK
+pins 1, 4, 10 -> GND            pin 14 -> 5V     pin 7 -> GND
+pin 13 -> 5V, pin 12 -> GND     0.1uF capacitor between pins 14 and 7
+```
+
+### Other pins, for when you add parts later
+
+| GPIO | Part |
+|---|---|
+| 4 | Expression button (other side to GND) |
+| 5 | Cheek/blush WS2812 LEDs |
+| 8 / 9 | I2C SDA / SCL (OLED, accelerometer, INA219, APDS9960 boop sensor) |
+| 1 | Microphone (MAX9814) |
+| 2 / 42 | KY-032 boop sensor in / enable |
+| 13 | 4-pin fan PWM |
+
+**Never use GPIO 35, 36 or 37.** They're printed on the board, but the PSRAM uses them internally.
+
+---
+
+## 3. Panel layout
+
+Panel order along the chain (t0 = first):
+
+1. t0: left eye, back
+2. t1: left eye, front
+3. t2 to t5: left mouth, back to front
+4. t6: left nose
+5. t7: right nose
+6. t8 to t11: right mouth, front to back
+7. t12: right eye, front
+8. t13: right eye, back
+
+How the Animator draws it (as someone facing the mask sees it, so the left of the screen is the wearer's right):
+
+```
+t13 t12  .   .   .   .   .   .  t1  t0      eyes
+b3  b2   .  t7   .   .  t6   .  b1  b0      noses (b = unused blush slots)
+t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
+```
+
+When you tested with numbers, panel "1" was t0, "2" was t1, and so on.
+
+---
+
+## 4. What's changed from the stock project
+
+| File | Setting | Value | Why |
+|---|---|---|---|
+| `src/main.cpp:16` | `visorType` | `"MAX72XX"` | MAX7219 panels, not RGB |
+| `src/main.cpp:17` | `HARDWARE_TYPE` | `PAROLA_HW` | Stock value mirrored every panel left-to-right |
+| `src/main.cpp:18` | `MATRIXESNUM` | `14` | 14 panels |
+| `src/main.cpp:30` | `boopMode` | `""` | No boop sensor fitted |
+| `src/main.cpp`: `/change` handlers, BLE handler, `loop()` | Web and remote face changes are queued; `loop()` does the load | Changing faces from the homepage crashed the board (see section 9) |
+| `data/index.html` | Face buttons change the face in the background | Tapping a face used to jump to a "Saved/changed OK" page and back |
+| `platformio.ini:12` | partitions | `8MB_20-20-40.csv` | More room: 2MB app, 3.9MB for faces |
+| `data/visType.txt` | layout | your chain order | See section 3 |
+| `data/visTypeMouth.txt` | mouth mask | 14 entries | Which panels move when talking |
+| `data/config.json` | speech, boop, BLE, OLED | off | Parts not fitted (speech on with no mic makes the mouth flap randomly) |
+| `data/anims/*.json` | all 8 faces | converted to 14 panels | See section 7 |
+
+Build size: RAM 18.6%, flash 62.9%.
+
+---
+
+## 5. Building and flashing
+
+There are two ways. Both do the same thing.
+
+### Option A: PowerShell commands (what was used to set this up)
+
+Open **PowerShell** (not Git Bash, see the warning below) and run:
+
+```powershell
+$env:PLATFORMIO_CORE_DIR = 'C:\pio'
+cd C:\Users\MainPC\Documents\protogen-fw\ProtoESP-Controller
+
+# find the board's COM port
+python -m platformio device list
+
+# 1. build and flash the firmware (the code)
+python -m platformio run -e esp32-s3 -t upload --upload-port COM114
+
+# 2. flash the filesystem (web pages, layout, faces, settings)
+python -m platformio run -e esp32-s3 -t uploadfs --upload-port COM114
+
+# watch the startup messages (left UART port only, Ctrl+C to stop)
+python -m platformio device monitor -p COM113 -b 115200
+```
+
+- The `$env:` line only lasts for that PowerShell window. Run it again in a new window.
+- To build without flashing, use `python -m platformio run -e esp32-s3`.
+
+### Option B: VS Code
+
+1. Install VS Code and the **PlatformIO IDE** extension.
+2. Before the first use, delete `C:\Users\MainPC\.platformio`. It's a broken half-install from the first attempt. The extension will download a fresh copy.
+3. `File > Open Folder` and choose `protogen-fw\ProtoESP-Controller` (the inner folder).
+4. In the PlatformIO sidebar under `esp32-s3`: **Upload** for the firmware, then **Platform > Upload Filesystem Image** for the filesystem.
+
+### Rules that matter
+
+- **Firmware and filesystem are separate.** Changes in `src/` or `platformio.ini` need **Upload**. Changes in `data/` (faces, layout, `config.json`) need **Upload Filesystem Image**.
+- **Uploading the filesystem replaces everything stored on the board.** Settings changed in the web page go back to what's in `data/config.json`, and any face saved with "Save to SPIFFS" is deleted. Copy faces into `data/anims/` first if you want to keep them.
+- **Don't build from Git Bash.** Espressif's installer refuses to run there, and the build then fails with `'xtensa-esp32s3-elf-g++' is not recognized`. Use PowerShell or VS Code.
+- If you edit `data/config.json` by hand, its checksum is regenerated automatically when the filesystem is built. If the startup log says the CRC check failed, run `python genCRC-manual.py` and upload the filesystem again.
+
+---
+
+## 6. Using the mask
+
+1. Power up. The board creates a WiFi network.
+2. On your phone, turn **mobile data off** and join `ProtoWiFi`, password `Proto1234`.
+3. Open `192.168.4.1` to pick faces, change brightness and turn features on or off. Press **Save** after changing settings.
+4. Open `192.168.4.1/animator.html` to draw faces.
+
+If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
+
+### Drawing and testing a face in the Animator
+
+1. **Config: `custom_file`** loads your 14-panel layout from the board.
+2. Tap pixels to toggle them one at a time, or press **Select**, tap a panel, then **Toggle** to light the whole panel.
+3. Set **Timespan** (milliseconds the frame shows), then **Add frame**. Repeat for more frames.
+4. **1. Generate final JSON**
+5. **3. Try animation** plays it on the mask right away. It's lost on restart.
+6. To keep it, type a name in **2.** and press **4. Save to SPIFFS**.
+
+To edit an existing face: pick it under **Load animation**, press **Load selected anim**, edit, then save it again.
+
+### Drawing without the mask
+
+The online Animator at <https://foxxo.cz/proto/animator.html> works with no hardware. Set **Config** to **custom**, paste these two lines, then press **Load config**:
+
+```
+t13;t12;-;-;-;-;-;-;t1;t0;_;blush3;blush2;-;t7;-;-;t6;-;blush1;blush0;_;t11;t10;t9;t8;-;-;t5;t4;t3;t2
+```
+```
+[false,false,true,true,true,true,false,false,true,true,true,true,false,false]
+```
+
+Save the file to your PC, put it in `data/anims/`, then upload the filesystem.
+
+---
+
+## 7. Tools
+
+### `tools/convert_mk2_to_14.py`: convert 11-panel faces to 14 panels
+
+The stock ProtoESP faces (and many shared online) are drawn for the 11-panel "M16 mk2" layout. On this mask they show junk on the last panels. This script converts them.
+
+```powershell
+cd C:\Users\MainPC\Documents\protogen-fw\ProtoESP-Controller
+python tools\convert_mk2_to_14.py
+```
+
+- Converts every 11-panel file in `data/anims/` in place. Skips files that are already 14-panel.
+- The first time it runs, it copies the originals to `anims_original_11panel/`. That folder is outside `data/`, so it isn't uploaded to the board.
+- How it adapts a face:
+  - **Eyes:** copied as-is (2 panels per eye on both layouts).
+  - **Mouth:** 3 panels per side become 4 by repeating the panel nearest the centre, which adds one tooth.
+  - **Nose:** the single centre nose is split in half, and each half is stretched to fill one nose panel.
+- It refuses faces that use per-pixel colour. The stock faces don't have any.
+- After running it, upload the filesystem.
+
+### `genCRC-manual.py`: fix the settings checksum
+
+Only needed if the startup log reports a CRC failure after editing `data/config.json`:
+
+```powershell
+python genCRC-manual.py
+```
+
+Then upload the filesystem.
+
+### `python -m platformio device list`: find the board
+
+Lists COM ports. The board is the `CH340K` entry (left port) or `303A:1001` (right port). Ignore "Standard Serial over Bluetooth" entries.
+
+---
+
+## 8. Adding parts later
+
+Some features are switched on in the web page, but some need a firmware change first:
+
+| Part | Firmware change (`src/main.cpp`, then Upload) | Then in the web page |
+|---|---|---|
+| APDS9960 boop sensor | `boopMode "APDS9960"` (line 30) | turn Boop on |
+| KY-032 boop sensor | `boopMode "KY-032"` | turn Boop on |
+| Cheek LEDs | `blushPresent = true`, set `blushLedsNum` | none |
+| INA219 power meter | `INApresent = true` | none |
+| Microphone | none | turn Speech on |
+| OLED | none | turn OLED on |
+| Accelerometer | none | turn Tilt on |
+| Wireless remote | none | turn BLE on |
+
+See `ProtoESP-Controller/readme.md` and `touchSensors.md` for sensor wiring.
+
+---
+
+## 9. Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Panels mirrored or upside down | Change `HARDWARE_TYPE` (`src/main.cpp:17`): `PAROLA_HW` flips left-right, `DR1CR0RR1_HW` flips up-down, `ICSTATION_HW` flips both, `FC16_HW` is stock. Then Upload. |
+| Right shapes on the wrong panels | Panel order in `data/visType.txt` is wrong. Fix it, then upload the filesystem. |
+| Nothing lights | Check the shared GND, then whether CS and CLK are swapped, then 5V at the panels. |
+| Random glitches, worse when warm | Fit the 74AHCT125 (section 2) and check the 5V under load. |
+| Junk on some panels with one face | It's an 11-panel face. Run the converter. |
+| No web page, or "file not found" in the log | The filesystem wasn't uploaded. Upload it. |
+| Can't open `192.168.4.1` | Phone must be on `ProtoWiFi` with mobile data off. |
+| Mouth moves by itself | Speech is on with no microphone. Turn Speech off. |
+| Board restarts when you change faces | Fixed on 2026-09-11. The web server used to replace a face's frames while the drawing loop was still reading them. If it ever happens again, read the crash report (below). |
+| Upload can't connect | Check the COM port. As a last resort, hold BOOT, tap RESET, release BOOT. |
+| Mask stays dark after flashing through the right port | Tap RESET. |
+| Build fails: `xtensa-esp32s3-elf-g++ is not recognized` or `MSys/Mingw is not supported` | You built from Git Bash. Use PowerShell or VS Code. |
+| Build fails: `WindowsLongPathError` | Windows long paths are off. Already turned on for this PC on 2026-09-09. Using `C:\pio` as the PlatformIO folder also avoids it. |
+
+Harmless build warnings you can ignore: `CONFIG_BT_NIMBLE_MAX_CONNECTIONS redefined`, `ARDUINO SPI interface selected`, and warnings from the SparkFun and Adafruit libraries.
+
+### Reading a crash report
+
+When the firmware crashes, it saves a report in flash (the `coredump` area). A power dip resets the board without saving one, so an empty report after a restart points to power instead. With the board plugged in, in PowerShell:
+
+```powershell
+cd C:\Users\MainPC\Documents\protogen-fw\ProtoESP-Controller
+& C:\pio\penv\Scripts\python.exe -m esptool --chip esp32s3 -p COM114 read-flash 0x7f0000 0x10000 "$env:TEMP\coredump.bin"
+python -c "import struct,os;b=open(os.environ['TEMP']+'/coredump.bin','rb').read();n=struct.unpack('<I',b[:4])[0];open(os.environ['TEMP']+'/core.elf','wb').write(b[24:n]) if b[24:28]==b'\x7fELF' else print('no crash report saved')"
+& C:\pio\packages\tool-xtensa-esp-elf-gdb\bin\xtensa-esp32s3-elf-gdb.exe -batch -ex "bt" .pio\build\esp32-s3\firmware.elf "$env:TEMP\core.elf"
+```
+
+The last line prints the file and line number where it crashed. This only works while `.pio\build\esp32-s3\firmware.elf` matches the firmware on the board, so read the report before you rebuild. To clear an old report:
+
+```powershell
+& C:\pio\penv\Scripts\python.exe -m esptool --chip esp32s3 -p COM114 erase-region 0x7f0000 0x10000
+```
+
+---
+
+## 10. Housekeeping and undo
+
+- **The real project is `C:\Users\MainPC\Documents\protogen-fw`.** The folder `protogen fw` (with a space) is an old copy. Delete it; a space in the path breaks PlatformIO.
+- `C:\pio` is a working PlatformIO install (over 1GB). Keep it for the PowerShell commands, or delete it if you switch to VS Code only.
+- `C:\Users\MainPC\.platformio` is a broken half-install. Safe to delete.
+- **Backed up on GitHub:** private repo <https://github.com/picovrfbt/protogen-fw>, branch `furbitten-14panel`. After you change something, save and upload a new snapshot:
+  ```powershell
+  cd C:\Users\MainPC\Documents\protogen-fw
+  git add -A
+  git commit -m "describe what you changed"
+  git push
+  ```
+  Your repo is the remote called `mine`. `origin` still points at NCPlyn's repository, so you can check for their updates with `git fetch origin`.
+- **Undo options:**
+  - Original faces are in `anims_original_11panel/`.
+  - `git checkout ProtoESP -- <file>` restores any file to NCPlyn's original.
+  - The Arduino Nano still has FurBitten's firmware. Plug it back in for the original mask.
+- License: GPL-3.0. Keep NCPlyn's credit line in `index.html` and `animator.html`.

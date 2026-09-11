@@ -13,9 +13,9 @@
 #define animBtn 4 //Pulling this pin LOW cycles through animations
 #define fanPWM 13 //PWM pin to control 4pin fan
 
-#define visorType "WS2812" // What displays are you using? (WS2812 or MAX72XX so far)
-#define HARDWARE_TYPE MD_MAX72XX::FC16_HW //flip up-down: ::DR1CR0RR1_HW , flip left-right: ::PAROLA_HW , flip both: ::ICSTATION_HW
-#define MATRIXESNUM 11 // How many matrices for visor? 11
+#define visorType "MAX72XX" // What displays are you using? (WS2812 or MAX72XX so far)
+#define HARDWARE_TYPE MD_MAX72XX::PAROLA_HW //flip up-down: ::DR1CR0RR1_HW , flip left-right: ::PAROLA_HW , flip both: ::ICSTATION_HW
+#define MATRIXESNUM 14 // How many matrices for visor? 14 (FurBitten 14-string: 2x eye, 4x maw, 1x nose per side)
 #define FADESTEPS 4 //how many steps when fading between frames? (0=disabled; only for WS2812 displays)
 
 bool earPresent = false; // Are you using ear leds?
@@ -27,7 +27,7 @@ bool useRGBblush = true; //Swaps red-green for RGB strip
 
 bool INApresent = false; //Are you using INA219?
 
-#define boopMode "APDS9960" //"KY-032" for KY-032, "Capac" for capacitive sensor/boop when HIGH, "APDS9960" for ADPS9960, "VL53L1X" for VL53L1X, leave empty for none
+#define boopMode "" //"KY-032" for KY-032, "Capac" for capacitive sensor/boop when HIGH, "APDS9960" for ADPS9960, "VL53L1X" for VL53L1X, leave empty for none
 
 #define revertTilt 8000 //The maximum time that animation caused by tilt gets shown (used as if tilt bugs out etc)
 
@@ -125,6 +125,10 @@ bool instantReload = false, oledInitDone = false, tiltInitDone = false, getfiles
 uint8_t currentEarsFrame = 0, currentVisorFrame = 0, numOfSegm, numAnimBlush, totalAnims;
 uint16_t visorLedsNum = MATRIXESNUM*64;
 String currentAnim = "", animToLoad = "", availAnims[50], getfilesCache;
+// Web and BLE requests run on other tasks while loop() draws from visorNow->frames.
+// They only queue a load here; loop() does the actual loadAnim() between frames.
+String postAnimToLoad = "";
+SemaphoreHandle_t animQueueMutex = NULL;
 float micDC = 800;
 
 //--------------------------------//getting stored anims names and count
@@ -252,7 +256,9 @@ bool loadAnim(String anim, String temp) {
     if (earsNow->frames) { free(earsNow->frames); earsNow->frames = nullptr; }
     if (visorNow->frames) { free(visorNow->frames); visorNow->frames = nullptr; }
 
+    xSemaphoreTake(animQueueMutex, portMAX_DELAY);
     currentAnim = anim;
+    xSemaphoreGive(animQueueMutex);
 
     //Ears anim type
     for(int o=0;o<earTypeSize;o++) {
@@ -362,11 +368,15 @@ class MyCallbacks: public NimBLECharacteristicCallbacks {
             oled.writeSet(temp.toInt()+1);
         }
       } else if (temp.toInt() > 0 && temp.toInt() <= totalAnims){ //legacy remote reasons
+        xSemaphoreTake(animQueueMutex, portMAX_DELAY);
         animToLoad = availAnims[temp.toInt()-1];
+        xSemaphoreGive(animQueueMutex);
       } else {
         for(int i = 0; i < totalAnims; i++) {
           if(temp == availAnims[i].substring(0, availAnims[i].length() - 5)) {
+            xSemaphoreTake(animQueueMutex, portMAX_DELAY);
             animToLoad = availAnims[i];
+            xSemaphoreGive(animQueueMutex);
           }
         }
       }
@@ -418,7 +428,10 @@ void startWiFiWeb() {
     if(getfilesProper) {
       getFilesFunc();
     }
-    request->send(200, "text/plain", currentAnim+";"+getfilesCache);
+    xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+    String cur = currentAnim;
+    xSemaphoreGive(animQueueMutex);
+    request->send(200, "text/plain", cur+";"+getfilesCache);
   });
 
   server.on("/saveconfig", HTTP_GET, [](AsyncWebServerRequest *request){ //saves config
@@ -503,11 +516,13 @@ void startWiFiWeb() {
     }
   });
 
-  server.on("/change", HTTP_GET, [](AsyncWebServerRequest *request){ //loads anim from selected avaible anims
+  server.on("/change", HTTP_GET, [](AsyncWebServerRequest *request){ //queues anim from selected avaible anims, loop() loads it
     if(request->hasParam("anim")) {
-      if(request->getParam("anim")->value() == currentAnim) {
-        request->redirect("/saved.html?main");
-      } else if(loadAnim(request->getParam("anim")->value(),"")) {
+      String anim = request->getParam("anim")->value();
+      if(LittleFS.exists("/anims/"+anim)) {
+        xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+        animToLoad = anim;
+        xSemaphoreGive(animQueueMutex);
         request->redirect("/saved.html?main");
       } else {
         request->send(200, "text/plain", F("Loading animation has failed!"));
@@ -517,13 +532,12 @@ void startWiFiWeb() {
     }
   });
 
-  server.on("/change", HTTP_POST, [](AsyncWebServerRequest *request){ //loads anim from POST request
+  server.on("/change", HTTP_POST, [](AsyncWebServerRequest *request){ //queues anim from POST request, loop() loads it
     if(request->hasParam("anim", true)) {
-      if(loadAnim("POSTAnimLoad",request->getParam("anim", true)->value())) {
-        request->redirect("/saved.html?main");
-      } else {
-        request->send(200, "text/plain", F("Loading animation has failed!"));
-      }
+      xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+      postAnimToLoad = request->getParam("anim", true)->value();
+      xSemaphoreGive(animQueueMutex);
+      request->redirect("/saved.html?main");
     } else {
       request->send(200, "text/plain", F("No valid parameters detected!"));
     }
@@ -593,6 +607,7 @@ void startWiFiWeb() {
 
 //--------------------------------//Setup
 void setup() {
+  animQueueMutex = xSemaphoreCreateMutex();
   Serial.begin(115200);
 
   pinMode(animBtn, INPUT_PULLUP);
@@ -1267,10 +1282,17 @@ void loop() {
     check0button = millis();
   }
 
-  if(animToLoad != "") {
-    loadAnim(animToLoad,"");
-    animToLoad = "";
+  String queuedAnim, queuedPost;
+  xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+  queuedAnim = animToLoad; animToLoad = "";
+  queuedPost = postAnimToLoad; postAnimToLoad = "";
+  xSemaphoreGive(animQueueMutex);
+  if(queuedAnim != "") {
+    loadAnim(queuedAnim,"");
     wasTilt = false;
     booping = false;
+  }
+  if(queuedPost != "") {
+    loadAnim("POSTAnimLoad",queuedPost);
   }
 }
