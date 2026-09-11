@@ -131,6 +131,7 @@ String currentAnim = "", animToLoad = "", availAnims[50], getfilesCache;
 // They only queue a load here; loop() does the actual loadAnim() between frames.
 String postAnimToLoad = "";
 SemaphoreHandle_t animQueueMutex = NULL;
+String visorThen = ""; //optional "then" of the current animation: the face to load after one pass (loop task only)
 float micDC = 800;
 
 //--------------------------------//getting stored anims names and count
@@ -285,6 +286,8 @@ bool loadAnim(String anim, String temp) {
         break;
       }
     }
+    //One-shot animations (e.g. scrolling text set to play once) name the face to go back to
+    visorThen = doc["visor"]["then"] | "";
     //isMouth
     for(int y = 0; y < doc["visor"]["isMouth"].size(); y++) {
       visorNow->isMouth[y] = doc["visor"]["isMouth"][y].as<bool>();
@@ -931,7 +934,15 @@ void loop() {
     if(lastMillsVisor+visorNow->frames[currentVisorFrame].timespan <= millis() || instantReload) {
       currentVisorFrame++;
       lastMillsVisor = millis();
-      if(currentVisorFrame == visorNow->numOfFrames) { currentVisorFrame = 0; }
+      if(currentVisorFrame == visorNow->numOfFrames) {
+        currentVisorFrame = 0;
+        if(visorThen != "") { //one pass done: queue the face this animation hands over to
+          xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+          animToLoad = visorThen;
+          xSemaphoreGive(animQueueMutex);
+          visorThen = "";
+        }
+      }
       setAllVisor(visorLedsNEW,0,currentVisorFrame); //set visor leds
       if(blushPresent) {
         for(int x = 0; x<blushLedsNum; x++) { blushLeds[x] = visorNow->frames[currentVisorFrame].ledsBlush[x]; } //set blush leds

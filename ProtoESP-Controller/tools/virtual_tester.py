@@ -80,6 +80,7 @@ class VirtualBoard:
         self.version = 0               # bumps on any change the dashboard shows
         self.anim_version = 0          # bumps when the face changes
         self.display_on = True         # /display: panels powered down while the board keeps running
+        self.then_timer = None         # one-shot animations: switches to their "then" face after one pass
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -107,6 +108,26 @@ class VirtualBoard:
         self.post_anim = post_json
         self.anim_version += 1
         self.log('[I] POST load' if post_json is not None else '[I] Animation file opened! ' + name)
+        # "then": a one-shot animation hands over to that face after one pass, like the firmware
+        if self.then_timer:
+            self.then_timer.cancel()
+            self.then_timer = None
+        try:
+            visor = json.loads(post_json)['visor'] if post_json is not None else None
+        except (ValueError, KeyError, TypeError):
+            visor = None
+        then = visor.get('then') if isinstance(visor, dict) else None
+        if then:
+            total = sum(f.get('timespan', 0) for f in visor.get('frames', [])) / 1000.0
+            self.then_timer = threading.Timer(total, self._play_then, [self.anim_version, then])
+            self.then_timer.daemon = True
+            self.then_timer.start()
+
+    def _play_then(self, version, name):
+        with self.lock:
+            if self.anim_version == version and safe_name(name) and os.path.isfile(self.anim_path(name)):
+                self.log('[I] Played once, back to ' + name)
+                self.show(name)
 
     def current_anim_text(self):
         if self.current == 'POSTAnimLoad':
