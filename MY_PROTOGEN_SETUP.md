@@ -220,6 +220,22 @@ python tools\convert_mk2_to_14.py
 - It refuses faces that use per-pixel colour. The stock faces don't have any.
 - After running it, upload the filesystem.
 
+### `tools/virtual_tester.py`: test the web pages without the mask
+
+Runs the homepage and Animator on your PC with a pretend mask behind them, so you can try web page changes without uploading to the board.
+
+```powershell
+cd C:\Users\MainPC\Documents\protogen-fw\ProtoESP-Controller
+python tools\virtual_tester.py
+```
+
+- It opens the dashboard at `http://localhost:8080/__tester`. The mask's web page is on the left. On the right, a virtual 14-panel face plays the current face at the current brightness. The board log underneath shows every request the page makes.
+- It answers the page's requests the way the firmware does: changing faces, Try animation, saving settings, brightness, fan, and saving and deleting faces.
+- **Web pages come live from `data/`.** Edit `index.html`, `animator.html` or `visType.txt`, then press **Reload** to see the change.
+- **Faces and settings belong to a virtual board** in `tools\.virtual_board\`, copied from `data/` the first time it runs. Saving there never changes `data/`, and the folder isn't committed. Start it with `--reset` to copy them from `data/` again.
+- Stop it with Ctrl+C. Other options: `--port 9000` and `--no-browser`.
+- It doesn't run the firmware, so changes in `src/` still need a real build and flash. The mic, boop sensor and tilt aren't simulated.
+
 ### `genCRC-manual.py`: fix the settings checksum
 
 Only needed if the startup log reports a CRC failure after editing `data/config.json`:

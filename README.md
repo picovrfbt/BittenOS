@@ -90,12 +90,23 @@ python tools/convert_mk2_to_14.py
 
 It converts every 11-panel face in place and skips faces that are already 14-panel. Eyes are copied as-is. Each mouth side gains a fourth panel by repeating the panel nearest the centre, and the single centre nose is split across the two nose panels. Upload the filesystem afterwards.
 
+## Testing the web pages without the mask
+
+`tools/virtual_tester.py` runs the homepage and Animator on your PC against a pretend mask, so web page changes can be tried without uploading to the board:
+
+```
+cd ProtoESP-Controller
+python tools/virtual_tester.py
+```
+
+The dashboard at `http://localhost:8080/__tester` shows the page next to a virtual 14-panel face that plays the current face at the current brightness, plus a log of every request. Pages are served live from `data/`. Faces and settings live on a separate virtual board (`tools/.virtual_board/`, not committed), so testing never changes `data/`. Firmware changes still need a real build and flash.
+
 ## Repository layout
 
 | Path | Contents |
 |---|---|
 | `ProtoESP-Controller/` | The firmware (PlatformIO project), with the web pages and faces in `data/` |
-| `ProtoESP-Controller/tools/` | The face converter |
+| `ProtoESP-Controller/tools/` | The face converter and the virtual tester |
 | `MY_PROTOGEN_SETUP.md` | Full setup and usage guide for this mask |
 | `README-ProtoESP-upstream.md` | NCPlyn's original README, with links to the upstream docs |
 | `ProtoESP-Remote/`, `RGBMatrix/` | Upstream wireless remote and RGB panel projects, unchanged and not used here |

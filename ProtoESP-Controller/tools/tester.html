@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProtoESP Virtual Tester</title>
+<link rel="shortcut icon" href="data:," />
+<style>
+  :root { --bg:#333743; --panel:#282c34; --line:#3f444d; --text:#e8e8ec; --dim:#9aa0ad; --accent:#6fb6ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: Verdana, sans-serif; font-size:14px; }
+  header { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:18px; }
+  header p { margin:0; color:var(--dim); font-size:12px; }
+  #conn { margin-left:auto; font-size:12px; color:var(--dim); }
+  #conn.down { color:#ff8a80; }
+  main { display:flex; gap:20px; padding:20px; flex-wrap:wrap; align-items:flex-start; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
+  h2 { margin:0 0 10px; font-size:14px; color:var(--dim); font-weight:normal; text-transform:uppercase; letter-spacing:.06em; }
+  #pageCol { flex: 0 0 auto; }
+  #pageCol.wide { flex: 1 1 100%; }
+  .tabs { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+  button { background:#21252b; color:var(--text); border:1px solid var(--line); border-radius:4px; padding:6px 12px; font:inherit; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.on { border-color:var(--accent); color:var(--accent); }
+  #frameWrap { width:390px; height:760px; border:1px solid var(--line); border-radius:6px; overflow:hidden; background:#333743; }
+  #pageCol.wide #frameWrap { width:100%; height:820px; }
+  iframe { width:100%; height:100%; border:0; display:block; }
+  #sideCol { flex: 1 1 520px; min-width:320px; display:flex; flex-direction:column; gap:20px; }
+  #visorBox { background:#07090f; border-radius:6px; padding:14px; overflow-x:auto; }
+  canvas { display:block; margin:0 auto; max-width:100%; height:auto; }
+  .stats { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip { background:#21252b; border:1px solid var(--line); border-radius:12px; padding:3px 10px; font-size:12px; color:var(--dim); }
+  .chip b { color:var(--text); font-weight:normal; }
+  .row { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  #log { height:260px; overflow:auto; background:#1d2026; border-radius:6px; padding:8px 10px; font:12px/1.5 Consolas, monospace; color:#c9ced8; white-space:pre-wrap; }
+  .note { color:var(--dim); font-size:12px; margin:10px 0 0; line-height:1.5; }
+  code { background:#1d2026; padding:1px 5px; border-radius:3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ProtoESP virtual tester</h1>
+  <p>The real pages from <code>data/</code>, talking to a pretend mask.</p>
+  <span id="conn">connecting…</span>
+</header>
+<main>
+  <section id="pageCol">
+    <h2>Mask web page</h2>
+    <div class="tabs">
+      <button id="tabHome" class="on" onclick="showPage('/')">Homepage</button>
+      <button id="tabAnim" onclick="showPage('/animator.html')">Animator</button>
+      <button onclick="frame.contentWindow.location.reload()">Reload</button>
+      <button id="sizeBtn" onclick="toggleWide()">Wide</button>
+      <button onclick="window.open(frame.contentWindow.location.href)">Open in new tab</button>
+    </div>
+    <div id="frameWrap"><iframe id="frame" src="/"></iframe></div>
+  </section>
+
+  <div id="sideCol">
+    <section>
+      <h2>Virtual face</h2>
+      <div id="visorBox"><canvas id="visor"></canvas></div>
+      <div class="stats" id="stats"></div>
+      <div class="row">
+        <button onclick="fetch('/__button', {method:'POST'})">Press expression button</button>
+      </div>
+      <p class="note">Plays frames with their timespans, as MAX7219 panels at the current brightness (0–15).
+        Layout comes from <code>data/visType.txt</code>. Mic, boop and tilt aren't simulated.</p>
+    </section>
+    <section>
+      <h2>Board log</h2>
+      <div id="log"></div>
+      <p class="note">Web pages are served live from <code>data/</code>, so reload to see your edits.
+        Faces and settings belong to the virtual board in <code>tools/.virtual_board/</code>;
+        start with <code>--reset</code> to copy them from <code>data/</code> again.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+  const frame = document.getElementById('frame');
+  const canvas = document.getElementById('visor');
+  const ctx = canvas.getContext('2d');
+  const PITCH = 10, GAP = 6;            // pixel pitch and gap between panels
+  let layout = [], anim = null, frameIdx = 0, frameUntil = 0;
+  let brightness = 5, lastVersion = -1, lastAnimVersion = -1, drawnKey = '';
+
+  function showPage(path) {
+    frame.src = path;
+    document.getElementById('tabHome').classList.toggle('on', path === '/');
+    document.getElementById('tabAnim').classList.toggle('on', path !== '/');
+    if (path !== '/' && !document.getElementById('pageCol').classList.contains('wide')) toggleWide();
+  }
+  function toggleWide() {
+    const col = document.getElementById('pageCol');
+    col.classList.toggle('wide');
+    document.getElementById('sizeBtn').classList.toggle('on', col.classList.contains('wide'));
+  }
+
+  // visType.txt: ';'-separated cells, '_' starts a new row, '-' is empty, 'tN' is panel N
+  function parseLayout(txt) {
+    const rows = [[]];
+    for (const tok of txt.trim().split(';')) {
+      if (tok === '_') rows.push([]); else rows[rows.length - 1].push(tok);
+    }
+    return rows;
+  }
+  // same encoding as the Animator: last byte is the top row, lowest bit is the leftmost pixel
+  function panelRows(hex) {
+    hex = ('0000000000000000' + (hex || '0')).slice(-16);
+    const out = [];
+    for (let i = 1; i <= 8; i++) {
+      const b = parseInt(hex.substr(16 - 2 * i, 2), 16);
+      const r = [];
+      for (let j = 1; j <= 8; j++) r.push((b >> (j - 1)) & 1);
+      out.push(r);
+    }
+    return out;
+  }
+
+  function draw() {
+    const cols = Math.max(1, ...layout.map(r => r.length));
+    const panel = 8 * PITCH;
+    const w = cols * (panel + GAP) - GAP, h = layout.length * (panel + GAP) - GAP;
+    const dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== w * dpr) {
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      canvas.style.width = w + 'px';   // height follows the aspect ratio, so it can shrink to fit
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const leds = anim && anim.visor && anim.visor.frames && anim.visor.frames[frameIdx]
+      ? anim.visor.frames[frameIdx].leds : [];
+    const duty = (2 * brightness + 1) / 32;              // MAX7219 intensity steps
+    const alpha = 0.2 + 0.8 * Math.sqrt(duty);
+    layout.forEach((row, ry) => row.forEach((cell, cx) => {
+      if (!/^t\d+$/.test(cell)) return;
+      const px = cx * (panel + GAP), py = ry * (panel + GAP);
+      ctx.fillStyle = '#0e1220';
+      ctx.fillRect(px, py, panel, panel);
+      const bits = panelRows(leds[parseInt(cell.slice(1), 10)]);
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+        ctx.beginPath();
+        ctx.arc(px + c * PITCH + PITCH / 2, py + r * PITCH + PITCH / 2, PITCH * 0.36, 0, Math.PI * 2);
+        if (bits[r][c]) {
+          ctx.fillStyle = 'rgba(90,170,255,' + alpha + ')';
+          ctx.shadowColor = 'rgba(90,170,255,' + alpha + ')';
+          ctx.shadowBlur = 6 * alpha;
+        } else {
+          ctx.fillStyle = '#1a2033';
+          ctx.shadowBlur = 0;
+        }
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    }));
+  }
+
+  function tick(now) {
+    const frames = anim && anim.visor && anim.visor.frames;
+    if (frames && frames.length && now >= frameUntil) {
+      frameIdx = (frameUntil === 0) ? 0 : (frameIdx + 1) % frames.length;
+      frameUntil = now + Math.max(20, frames[frameIdx].timespan || 500);
+    }
+    const key = frameIdx + '|' + brightness + '|' + lastAnimVersion + '|' + layout.length;
+    if (key !== drawnKey) { draw(); drawnKey = key; }
+    requestAnimationFrame(tick);
+  }
+
+  function chip(label, value) { return '<span class="chip">' + label + ' <b>' + value + '</b></span>'; }
+
+  async function poll() {
+    try {
+      const s = await (await fetch('/__state', {cache: 'no-store'})).json();
+      document.getElementById('conn').textContent = 'connected';
+      document.getElementById('conn').className = '';
+      if (s.animVersion !== lastAnimVersion) {
+        lastAnimVersion = s.animVersion;
+        try { anim = JSON.parse(await (await fetch('/__anim', {cache: 'no-store'})).text()); }
+        catch (e) { anim = null; }
+        frameIdx = 0; frameUntil = 0;
+      }
+      brightness = s.brightness;
+      if (s.version !== lastVersion) {
+        lastVersion = s.version;
+        const t = s.toggles, onoff = v => v ? 'on' : 'off';
+        document.getElementById('stats').innerHTML =
+          chip('Face', s.anim) + chip('Brightness', s.brightness + '/15') + chip('Fan', s.fan) +
+          chip('Boop', onoff(t.boopEna)) + chip('Speech', onoff(t.speechEna)) + chip('Tilt', onoff(t.tiltEna)) +
+          chip('BLE', onoff(t.bleEna)) + chip('OLED', onoff(t.oledEna)) + chip('WiFi', s.wifi);
+        const log = document.getElementById('log');
+        const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
+        log.textContent = s.log.join('\n');
+        if (atBottom) log.scrollTop = log.scrollHeight;
+      }
+    } catch (e) {
+      document.getElementById('conn').textContent = 'tester server not running';
+      document.getElementById('conn').className = 'down';
+    }
+  }
+
+  async function loadLayout() {
+    try { layout = parseLayout(await (await fetch('/visType.txt', {cache: 'no-store'})).text()); }
+    catch (e) { layout = []; }
+    drawnKey = '';
+  }
+
+  loadLayout();
+  frame.addEventListener('load', loadLayout);   // pick up visType.txt edits on page reload
+  setInterval(poll, 300);
+  poll();
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>

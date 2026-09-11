@@ -1,3 +1,4 @@
 .pio
 .vscode
 data/configCRC.txt
+tools/.virtual_board/
