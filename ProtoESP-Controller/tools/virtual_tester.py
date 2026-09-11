@@ -79,6 +79,7 @@ class VirtualBoard:
         self.post_anim = None          # JSON text from the Animator's "Try animation"
         self.version = 0               # bumps on any change the dashboard shows
         self.anim_version = 0          # bumps when the face changes
+        self.display_on = True         # /display: panels powered down while the board keeps running
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -208,6 +209,7 @@ class Handler(BaseHTTPRequestHandler):
                 'version': board.version,
                 'animVersion': board.anim_version,
                 'anim': board.current,
+                'displayOn': board.display_on,
                 'brightness': min(15, max(0, to_int(str(cfg.get('bVisor', 5))))),
                 'fan': cfg.get('fanDuty'),
                 'toggles': {k: cfg.get(k) for k in ('boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna')},
@@ -262,6 +264,15 @@ class Handler(BaseHTTPRequestHandler):
             board.save_config()
             board.log('[I] Config saved')
             return self.redirect('/saved.html?main')
+
+        if path == '/display':
+            if 'state' in q:
+                state = q['state']
+                if state not in ('on', 'off', 'toggle'):
+                    return self.text('Invalid state')
+                board.display_on = (not board.display_on) if state == 'toggle' else state == 'on'
+                board.log('[I] Displays on' if board.display_on else '[I] Displays off')
+            return self.text('on' if board.display_on else 'off')
 
         if path == '/brightness':
             if 'value' not in q:

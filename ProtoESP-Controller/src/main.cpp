@@ -123,6 +123,7 @@ AsyncWebServer server(80);
 //--------------------------------//Config vars
 bool instantReload = false, oledInitDone = false, tiltInitDone = false, getfilesProper = true, ToFInitDone = false;
 bool brightnessDirty = false; //set by /brightness, applied to the panels in loop()
+bool displayOn = true, displayDirty = false; //set by /display; panels stay powered down until turned back on (not saved)
 uint8_t currentEarsFrame = 0, currentVisorFrame = 0, numOfSegm, numAnimBlush, totalAnims;
 uint16_t visorLedsNum = MATRIXESNUM*64;
 String currentAnim = "", animToLoad = "", availAnims[50], getfilesCache;
@@ -565,6 +566,19 @@ void startWiFiWeb() {
     }
   });
   
+  server.on("/display", HTTP_GET, [](AsyncWebServerRequest *request){ //visor panels on/off while the ESP keeps running: state=on|off|toggle, no param = report
+    if(request->hasParam("state")) {
+      String state = request->getParam("state")->value();
+      if(state != "on" && state != "off" && state != "toggle") {
+        request->send(200, "text/plain", F("Invalid state"));
+        return;
+      }
+      displayOn = (state == "toggle") ? !displayOn : (state == "on");
+      displayDirty = true;
+    }
+    request->send(200, "text/plain", displayOn ? "on" : "off");
+  });
+
   server.on("/brightness", HTTP_GET, [](AsyncWebServerRequest *request){ //MAX7219 brightness 0-15, save=1 also stores it
     if(request->hasParam("value")) {
       int value = request->getParam("value")->value().toInt();
@@ -835,6 +849,11 @@ void loop() {
   if(brightnessDirty && visorType == "MAX72XX") {
     brightnessDirty = false;
     mx.control(MD_MAX72XX::INTENSITY, cfg.bVisor);
+  }
+  if(displayDirty && visorType == "MAX72XX") { //from /display: MAX7219 shutdown turns the LEDs off but keeps the picture
+    displayDirty = false;
+    mx.control(MD_MAX72XX::SHUTDOWN, displayOn ? MD_MAX72XX::OFF : MD_MAX72XX::ON);
+    logPrint(displayOn ? F("[I] Displays on") : F("[I] Displays off"));
   }
   //--------------------------------//EAR Leds render
   if(earPresent) {
