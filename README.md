@@ -14,7 +14,8 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - Scrolling text: type a message on the web page and press Enter to scroll it across the mouth panels, on repeat or just once, at four speeds
 - Touch drawing in the Animator: drag a finger across pixels to draw or erase
 - A power button that turns the displays off while the mask keeps running, also on the physical button (hold 1.5 s)
-- Supports ProtoESP's optional extras: boop sensor, microphone, accelerometer, OLED and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
+- Head tilt (BMI270) and boop (APDS9960) sensors on one shared I2C bus, with calibration from the web page
+- Supports ProtoESP's other optional extras: microphone, OLED and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
 
 ## Hardware
 
@@ -22,6 +23,8 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 |---|---|
 | Controller | ESP32-S3 board with an ESP32-S3-N16R8 module (16MB flash, 8MB PSRAM). PSRAM is required. Built on a Lonely Binary "Gold Edition" board. |
 | Display | FurBitten Studios premade face: 14 × MAX7219 8×8 panels, already chained |
+| Tilt sensor | BMI270 on I2C (SDA GPIO 8, SCL GPIO 9, 3V3) |
+| Boop sensor | APDS9960 on the same I2C wires (3V3) |
 | Power | 5V. About 3W with the stock faces at brightness 5 |
 
 Wiring, to the first panel in the chain (left eye, back):
@@ -66,6 +69,8 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Touch drawing | `data/animator.html` | Finger drags draw or erase, depending on the first pixel touched. Drags that start between panels still scroll. |
 | Display power button | `src/main.cpp` (`/display`), `data/index.html` | Turns the panels off with the MAX7219 shutdown mode while the ESP32, WiFi and current face keep running, and brings the picture back instantly. Not saved, so the displays are always on after a restart. |
 | Physical button | `src/main.cpp` | A short press goes to the face after the one showing (the original skipped a press every lap and kept its own place in the list). Holding it for 1.5 s turns the displays off or on. |
+| BMI270 tilt sensor | `platformio.ini`, `src/main.cpp` | Replaces the LSM6DS3 driver (whose chip check also rejects common LSM6DS3TR-C clones). The loop reads it every 100 ms and the web page gets the stored value. It tries addresses 0x68 and 0x69, and the calibration Read buttons work with Tilt switched off. |
+| Boop sensor | `src/main.cpp`, `data/index.html` | APDS9960 selected, started at power-on even with Boop off, and looked for every 5 s if missing. The original switched Boop off after one failed start. `/tof` fixed (it could send two replies) and a Read button added next to Boop distance. |
 | Setup guide | `MY_PROTOGEN_SETUP.md` | Everything needed to rebuild, flash and maintain this mask |
 
 The crash fix and the homepage change aren't specific to this mask. They apply to upstream ProtoESP as well.

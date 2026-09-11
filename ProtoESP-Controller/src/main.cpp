@@ -28,7 +28,7 @@ bool useRGBblush = true; //Swaps red-green for RGB strip
 
 bool INApresent = false; //Are you using INA219?
 
-#define boopMode "" //"KY-032" for KY-032, "Capac" for capacitive sensor/boop when HIGH, "APDS9960" for ADPS9960, "VL53L1X" for VL53L1X, leave empty for none
+#define boopMode "APDS9960" //"KY-032" for KY-032, "Capac" for capacitive sensor/boop when HIGH, "APDS9960" for ADPS9960, "VL53L1X" for VL53L1X, leave empty for none
 
 #define revertTilt 8000 //The maximum time that animation caused by tilt gets shown (used as if tilt bugs out etc)
 
@@ -72,15 +72,38 @@ Config cfg;
 #include "oled.h"
 SSDOLED oled;
 
-#include "SparkFunLSM6DS3.h"
+#include "SparkFun_BMI270_Arduino_Library.h"
 #include <Wire.h>
-LSM6DS3 myIMU;
+BMI270 imu; //tilt sensor, shares the I2C bus (SDA 8, SCL 9) with the boop sensor
+float accelX = 0, accelY = 0, accelZ = 0; //latest accelerometer reading in g, updated by readAccel() in loop()
+
+bool imuBegin() { //the I2C address depends on the board's SDO pin
+  if(imu.beginI2C(BMI2_I2C_PRIM_ADDR) == BMI2_OK) return true; //0x68
+  return imu.beginI2C(BMI2_I2C_SEC_ADDR) == BMI2_OK;           //0x69
+}
+
+void readAccel() {
+  if(imu.getSensorData() == BMI2_OK) {
+    accelX = imu.data.accelX;
+    accelY = imu.data.accelY;
+    accelZ = imu.data.accelZ;
+  }
+}
 
 #include <Adafruit_INA219.h> //edited library in this sketch (replace 0.1R with 0.03R resistor on the board)
 Adafruit_INA219 ina219;
 
 #include "Adafruit_APDS9960.h"
 Adafruit_APDS9960 apds;
+
+int apdsprox = 255; //latest APDS9960 proximity (0-255, higher = closer), read by loop() every 100 ms
+
+bool apdsStart() { //proximity only, with the pulse setting the boop threshold is tuned for
+  if(!apds.begin()) return false;
+  apds.enableProximity(true);
+  apds.setProxPulse(APDS9960_PPULSELEN_8US, 8);
+  return true;
+}
 
 #include "Adafruit_VL53L1X.h"
 Adafruit_VL53L1X vl53;
@@ -601,21 +624,27 @@ void startWiFiWeb() {
     }
   });
 
-  server.on("/gyro", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/plain", String(floor(myIMU.readFloatAccelX()*100)/100)+";"+String(floor(myIMU.readFloatAccelY()*100)/100)+";"+String(floor(myIMU.readFloatAccelZ()*100)/100));
+  server.on("/gyro", HTTP_GET, [](AsyncWebServerRequest *request){ //latest accelerometer reading (x;y;z in g), read by loop()
+    if(!tiltInitDone) {
+      request->send(200, "text/plain", F("Tilt sensor (BMI270) not found"));
+      return;
+    }
+    request->send(200, "text/plain", String(floor(accelX*100)/100)+";"+String(floor(accelY*100)/100)+";"+String(floor(accelZ*100)/100));
   });
 
-  server.on("/tof", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/tof", HTTP_GET, [](AsyncWebServerRequest *request){ //current boop sensor reading, for setting the Boop distance
     if(!ToFInitDone) {
-      request->send(200, "text/plain", "ToF not initialized!");
-    }
-    if (boopMode == "APDS9960") {
-        request->send(200, "text/plain", String(255 - apds.readProximity()));
+      request->send(200, "text/plain", F("Boop sensor not found"));
+    } else if (boopMode == "APDS9960") {
+      request->send(200, "text/plain", String(255 - apdsprox)); //read by loop(), not from the web task
     } else if (boopMode == "VL53L1X") {
       if (vl53.dataReady()) {
         request->send(200, "text/plain", String(vl53.distance()));
+      } else {
+        request->send(200, "text/plain", F("Data not ready!"));
       }
-      request->send(200, "text/plain", "Data not ready!");
+    } else {
+      request->send(200, "text/plain", F("No distance sensor configured"));
     }
   });
   
@@ -718,17 +747,11 @@ void setup() {
 
   //I2C things
   Wire.setPins(I2C_SDA, I2C_SCL);
-  Wire.begin();
+  Wire.begin(I2C_SDA, I2C_SCL);
   Wire.setClock(400000); //100k = 113ms; 400k = 33ms; (800k = 20ms; 1mhz / 2mhz = 17ms = breaks apds)
 
-  if(cfg.tiltEna) {
-    if(myIMU.begin()) {
-      logPrint(F("[E] An Error has occurred while initializing LSM!"));
-      cfg.tiltEna = false;
-    } else {
-      tiltInitDone = true;
-    }
-  }
+  tiltInitDone = imuBegin(); //set up even with tilt off, so the calibration Read buttons work
+  logPrint(tiltInitDone ? F("[I] BMI270 ready") : F("[E] BMI270 not found on I2C (0x68/0x69)"));
 
   if(cfg.oledEna) {
     if(!oled.init(oledAddr,cfg.bOled,INApresent)) {
@@ -750,15 +773,9 @@ void setup() {
     }
   }
 
-  if(boopMode == "APDS9960" && cfg.boopEna) {
-    if(!apds.begin()){
-      cfg.boopEna = false;
-      logPrint(F("[E] An Error has occurred while initializing APDS9960 chip!"));
-    } else {
-      ToFInitDone = true;
-      apds.enableProximity(true);
-      apds.setProxPulse(APDS9960_PPULSELEN_8US, 8);
-    }
+  if(boopMode == "APDS9960") { //set up even with boop off, so the boop reading can be checked while calibrating
+    ToFInitDone = apdsStart();
+    logPrint(ToFInitDone ? F("[I] APDS9960 ready") : F("[E] APDS9960 not found on I2C (0x39)"));
   } else if (boopMode == "VL53L1X" && cfg.boopEna) {
     Wire.beginTransmission(0x29);
     if(Wire.endTransmission() != 0) {
@@ -791,9 +808,10 @@ void setup() {
 String oldanim, boopoldanim;
 bool FdisplayVisor = false, FdisplayBlush = false, FdisplayEar = false, booping = false, wasTilt = false, boopRea = false, remoteSign = false, speaking = true;
 float zAx,yAx,finalMicAvg,avgMicArr[10], micAttack = 0.35f, micRelease = 0.2f, env = 0.0f;
-int boopRead, startIndex = 1, micVolume, currentMicAvg = 0, btnNum = 0, currFade = 1, apdsprox = 255;
+int boopRead, startIndex = 1, micVolume, currentMicAvg = 0, btnNum = 0, currFade = 1;
 unsigned long lastMillsEars = 0, lastMillsVisor = 0, lastMillsTilt = 0, laskSpeakCheck = 0, lastMillsBoop = 0, lastFLED = 0, vaStatLast = 0, btnPressTime = 0, tiltChange = 0, check0button = 0, looptime = 0, fadeTime = 0, laskSpeakAnim = 0, lastBoopCheck = 0;
 bool btnHeld = false, btnLongDone = false; //button: held down now / hold action already fired
+unsigned long lastImuRetry = 0, lastApdsRetry = 0; //sensor not found yet: when it was last looked for
 
 void dynamicSpeak(uint64_t *leds, bool isMouth[MATRIXESNUM], int volume) {
   int mouthIndexes[MATRIXESNUM];
@@ -970,31 +988,35 @@ void loop() {
   }
 
   //--------------------------------//TILT
-  if(lastMillsTilt+100<=millis() && cfg.tiltEna) {
-    if(isApproxEqual(myIMU.readFloatAccelX(),myIMU.readFloatAccelY(),myIMU.readFloatAccelZ(),cfg.upX,cfg.upY,cfg.upZ,cfg.tiltTol) && !wasTilt) {
-      logPrint(F("[I] Tilt: UP!"));
-      wasTilt = true;
-      oldanim = currentAnim;
-      tiltChange = millis();
-      loadAnim(cfg.aUp,"");
-    } else if (isApproxEqual(myIMU.readFloatAccelX(),myIMU.readFloatAccelY(),myIMU.readFloatAccelZ(),cfg.tiltX,cfg.tiltY,cfg.tiltZ,cfg.tiltTol) && !wasTilt) {
-      logPrint(F("[I] Tilt: Side!"));
-      wasTilt = true;
-      oldanim = currentAnim;
-      tiltChange = millis();
-      loadAnim(cfg.aTilt,"");
-    } else if ((tiltChange+revertTilt<millis() || isApproxEqual(myIMU.readFloatAccelX(),myIMU.readFloatAccelY(),myIMU.readFloatAccelZ(),cfg.neutralX,cfg.neutralY,cfg.neutralZ,cfg.tiltTol)) && wasTilt) {
-      logPrint(F("[I] Tilt: Neutral!"));
-      wasTilt = false;
-      loadAnim(oldanim,"");
-    }
+  //--------------------------------//I2C sensors: read every 100 ms on the loop task; the web pages use these cached values
+  if(lastMillsTilt+100<=millis()) {
     lastMillsTilt = millis();
-  } else if (!tiltInitDone && cfg.tiltEna) {
-    if(myIMU.begin()) {
-      logPrint(F("[E] An Error has occurred while connecting to LSM!"));
-      cfg.tiltEna = false;
-    } else {
-      tiltInitDone = true;
+    if(boopMode == "APDS9960" && ToFInitDone) apdsprox = apds.readProximity();
+    if(tiltInitDone) {
+      readAccel();
+      if(cfg.tiltEna) {
+        if(isApproxEqual(accelX,accelY,accelZ,cfg.upX,cfg.upY,cfg.upZ,cfg.tiltTol) && !wasTilt) {
+          logPrint(F("[I] Tilt: UP!"));
+          wasTilt = true;
+          oldanim = currentAnim;
+          tiltChange = millis();
+          loadAnim(cfg.aUp,"");
+        } else if (isApproxEqual(accelX,accelY,accelZ,cfg.tiltX,cfg.tiltY,cfg.tiltZ,cfg.tiltTol) && !wasTilt) {
+          logPrint(F("[I] Tilt: Side!"));
+          wasTilt = true;
+          oldanim = currentAnim;
+          tiltChange = millis();
+          loadAnim(cfg.aTilt,"");
+        } else if ((tiltChange+revertTilt<millis() || isApproxEqual(accelX,accelY,accelZ,cfg.neutralX,cfg.neutralY,cfg.neutralZ,cfg.tiltTol)) && wasTilt) {
+          logPrint(F("[I] Tilt: Neutral!"));
+          wasTilt = false;
+          loadAnim(oldanim,"");
+        }
+      }
+    } else if(cfg.tiltEna && lastImuRetry+5000<=millis()) { //tilt on but no BMI270 yet: look again every 5 s
+      lastImuRetry = millis();
+      tiltInitDone = imuBegin();
+      logPrint(tiltInitDone ? F("[I] BMI270 found") : F("[E] BMI270 not found on I2C (0x68/0x69)"));
     }
   }
 
@@ -1141,8 +1163,7 @@ void loop() {
       }
     } else if (boopMode == "APDS9960") {
       if(ToFInitDone) {
-        apdsprox = apds.readProximity();
-        //Serial.println(String(apdsprox));
+        //apdsprox is read every 100 ms in the I2C sensor section
         if(booping == false && (255 - apdsprox) < cfg.boopThresh) {
           logPrint(F("[I] ToF BOOP"));
           booping = true;
@@ -1156,14 +1177,10 @@ void loop() {
             loadAnim(boopoldanim,"");
           }
         }
-      } else {
-        if(!apds.begin()){
-          cfg.boopEna = false;
-          logPrint(F("[E] An Error has occurred while initializing APDS9960 chip!"));
-        } else {
-          ToFInitDone = true;
-          apds.enableProximity(true);
-        }
+      } else if(lastApdsRetry+5000<=millis()) { //boop on but no APDS9960 yet: look again every 5 s, e.g. after plugging it in
+        lastApdsRetry = millis();
+        ToFInitDone = apdsStart();
+        logPrint(ToFInitDone ? F("[I] APDS9960 found") : F("[E] APDS9960 not found on I2C (0x39)"));
       }
     } else if (boopMode == "VL53L1X") {
       if(ToFInitDone) {

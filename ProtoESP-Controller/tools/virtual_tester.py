@@ -344,7 +344,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/gyro':
             return self.text('%.2f;%.2f;%.2f' % (cfg.get('neutralX', 0), cfg.get('neutralY', 0), cfg.get('neutralZ', 0)))
         if path == '/tof':
-            return self.text('ToF not initialized!')
+            return self.text('238')   # APDS9960-style reading with nothing near the visor
         if path == '/log':
             return self.text('\n'.join(board.log_lines))
         if path == '/update':

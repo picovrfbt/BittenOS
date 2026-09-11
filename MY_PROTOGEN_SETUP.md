@@ -13,7 +13,7 @@ Last updated: 2026-09-11. Everything below was tested on this mask and this PC.
 | Controller | Lonely Binary ESP32-S3 "Gold Edition", module ESP32-S3-N16R8 (16MB flash, 8MB PSRAM) |
 | Displays | FurBitten premade face, 14 × MAX7219 8×8 panels, already chained together |
 | Original controller | Arduino Nano with FurBitten's closed firmware. **Unplugged and kept as a backup. Don't reflash it**; their firmware can't be recovered. |
-| Connected right now | Displays only. No mic, boop sensor, OLED, cheek LEDs or button wired yet. |
+| Connected right now | Displays and a BMI270 tilt sensor. The APDS9960 boop sensor is set up in the firmware but not wired yet. No mic, OLED or cheek LEDs. |
 
 ### USB ports on the board
 
@@ -62,7 +62,7 @@ pin 13 -> 5V, pin 12 -> GND     0.1uF capacitor between pins 14 and 7
 |---|---|
 | 21 + 47 | Momentary button across these two neighbouring pins on the right header (47 is directly above 21). The firmware holds 47 low as the button's ground, so no GND wire or resistor is needed. Short press: next face. Hold 1.5 s: displays off/on. |
 | 5 | Cheek/blush WS2812 LEDs |
-| 8 / 9 | I2C SDA / SCL (OLED, accelerometer, INA219, APDS9960 boop sensor) |
+| 8 / 9 | I2C SDA / SCL, shared by all I2C parts: BMI270 tilt sensor (address 0x68 or 0x69), APDS9960 boop sensor (0x39), and later an OLED. Power the sensors from **3V3**, not 5V. |
 | 1 | Microphone (MAX9814) |
 | 2 / 42 | KY-032 boop sensor in / enable |
 | 13 | 4-pin fan PWM |
@@ -103,7 +103,8 @@ When you tested with numbers, panel "1" was t0, "2" was t1, and so on.
 | `src/main.cpp:16` | `visorType` | `"MAX72XX"` | MAX7219 panels, not RGB |
 | `src/main.cpp:17` | `HARDWARE_TYPE` | `PAROLA_HW` | Stock value mirrored every panel left-to-right |
 | `src/main.cpp:18` | `MATRIXESNUM` | `14` | 14 panels |
-| `src/main.cpp:30` | `boopMode` | `""` | No boop sensor fitted |
+| `src/main.cpp` | `boopMode` | `"APDS9960"` | APDS9960 boop sensor on the shared I2C bus |
+| `platformio.ini`, `src/main.cpp` | Tilt sensor | BMI270 (SparkFun library) instead of the LSM6DS3 | Any mounting orientation; calibrate with the Read buttons. Tries I2C address 0x68, then 0x69. |
 | `src/main.cpp`: `/change` handlers, BLE handler, `loop()` | Web and remote face changes are queued; `loop()` does the load | Changing faces from the homepage crashed the board (see section 9) |
 | `data/index.html` | Face buttons change the face in the background | Tapping a face used to jump to a "Saved/changed OK" page and back |
 | `data/index.html` | RGB-only button and settings removed; brightness is a 0–15 slider | This mask only has MAX7219 panels |
@@ -178,6 +179,8 @@ python -m platformio device monitor -p COM113 -b 115200
 5. To show a message, type it into **Scrolling text** and press Enter (up to 64 characters). It scrolls across the mouth panels while the eyes keep the current face. Before sending, pick a speed (Very slow, Slow, Normal or Fast) and **Repeat** or **Play once**. Repeat keeps going until you tap a face. Play once goes back to the face you had after one pass; the mask does that itself, so it works even if your phone locks.
 6. The **power button** at the top right turns the displays off while the mask stays on. WiFi, the web page and the current face keep running, and tapping it again brings the face straight back. The displays always come back on after a restart.
 7. The physical button across GPIO 21 and 47 (the 13mm button that came with the face) works without your phone. A short press goes to the next face after the one showing. Holding it for 1.5 seconds turns the displays off or on. The homepage doesn't refresh by itself, so reload it to see the change.
+8. **Tilt:** open Tilt calibration. Hold your head normally and press Read on Idle, tilt your head sideways and press Read on Tilt, look up and press Read on Up, then press Save tilt. Then turn on **Tilt** under Features and press Save features. The Read buttons work even with Tilt switched off.
+9. **Boop** (once the APDS9960 is wired): in Advanced settings, press **Read** next to Boop distance with nothing near the visor, then again with your hand on the visor. Set Boop distance between the two numbers and press Save settings; a boop triggers when the reading drops below it. Then turn on **Boop** under Features. With Boop on, the mask looks for the sensor every 5 seconds, so it's picked up without a restart.
 
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
@@ -265,13 +268,13 @@ Some features are switched on in the web page, but some need a firmware change f
 
 | Part | Firmware change (`src/main.cpp`, then Upload) | Then in the web page |
 |---|---|---|
-| APDS9960 boop sensor | `boopMode "APDS9960"` (line 30) | turn Boop on |
+| APDS9960 boop sensor | already set up | calibrate, then turn Boop on (section 6, step 9) |
 | KY-032 boop sensor | `boopMode "KY-032"` | turn Boop on |
 | Cheek LEDs (WS2812) | `blushPresent = true`, set `blushLedsNum`, and add the `blush0`–`blush3` cells back to `data/visType.txt` | none |
 | INA219 power meter | `INApresent = true` | none |
 | Microphone | none | turn Speech on |
 | OLED | none | turn OLED on |
-| Accelerometer | none | turn Tilt on |
+| BMI270 tilt sensor | already set up | calibrate, then turn Tilt on (section 6, step 8) |
 | Wireless remote | none | turn BLE on |
 
 See `ProtoESP-Controller/readme.md` and `touchSensors.md` for sensor wiring.
@@ -290,6 +293,9 @@ See `ProtoESP-Controller/readme.md` and `touchSensors.md` for sensor wiring.
 | No web page, or "file not found" in the log | The filesystem wasn't uploaded. Upload it. |
 | Can't open `192.168.4.1` | Phone must be on `ProtoWiFi` with mobile data off. |
 | Mouth moves by itself | Speech is on with no microphone. Turn Speech off. |
+| Tilt Read says "Tilt sensor (BMI270) not found" | Check the BMI270's 3V3, GND, SDA (GPIO 8) and SCL (GPIO 9) wires. The firmware looks for it at addresses 0x68 and 0x69 at startup, and again every 5 s while Tilt is on. |
+| Boop Read says "Boop sensor not found" | Same checks for the APDS9960 (address 0x39). It shares SDA and SCL with the BMI270. |
+| Tilt or boop triggers at the wrong time | Recalibrate (section 6, steps 8 and 9). Raise Tolerance for tilt if it triggers too easily, or lower it if it doesn't trigger. |
 | Board restarts when you change faces | Fixed on 2026-09-11. The web server used to replace a face's frames while the drawing loop was still reading them. If it ever happens again, read the crash report (below). |
 | Upload can't connect | Check the COM port. As a last resort, hold BOOT, tap RESET, release BOOT. |
 | Mask stays dark after flashing through the right port | Tap RESET. |
