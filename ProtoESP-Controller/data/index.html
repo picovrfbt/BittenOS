@@ -107,6 +107,17 @@
   }
   .hint { font-size:13px; color:var(--dim); margin:12px 0 0; }
 
+  /* scrolling text */
+  .textform { display:flex; gap:8px; }
+  .textform input { flex:1; min-width:0; }
+  .textform .btn { flex:none; }
+  .btn:disabled { opacity:.6; cursor:wait; }
+  .seg { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:10px; }
+  .seg label { position:relative; display:flex; align-items:center; justify-content:center; min-height:42px; cursor:pointer;
+               border:1px solid var(--line); border-radius:10px; background:var(--surface2); font-weight:600; font-size:14px; }
+  .seg input { position:absolute; opacity:0; pointer-events:none; }
+  .seg label.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+
   footer { text-align:center; color:var(--dim); font-size:13px; padding:4px 16px 28px; }
   .rainbow-text { font-weight:bold; text-decoration:none;
     background-image:repeating-linear-gradient(45deg, violet, indigo, blue, green, yellow, orange, red, violet); background-size:800% 800%;
@@ -133,6 +144,20 @@
   <section class="card">
     <h2>Faces</h2>
     <div class="faces" id="faces"><p class="empty">Loading faces…</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Scrolling text</h2>
+    <form id="textForm" class="textform" autocomplete="off">
+      <input type="text" id="scrollText" maxlength="64" placeholder="Type a message, press Enter" enterkeyhint="send" aria-label="Message">
+      <button class="btn primary" type="submit">Show</button>
+    </form>
+    <div class="seg" id="speedSeg" role="radiogroup" aria-label="Scroll speed">
+      <label><input type="radio" name="speed" value="90">Slow</label>
+      <label class="on"><input type="radio" name="speed" value="55" checked>Normal</label>
+      <label><input type="radio" name="speed" value="30">Fast</label>
+    </div>
+    <p class="hint">Scrolls across the mouth panels while the eyes keep the current face. Tap any face to stop.</p>
   </section>
 
   <section class="card">
@@ -235,7 +260,7 @@
   const $ = id => document.getElementById(id);
   const byName = n => document.getElementsByName(n)[0];
   const NO_CACHE = {cache: 'no-store'};
-  let availableAnims = [], layout = null, lastBrightness = null;
+  let availableAnims = [], layout = null, lastBrightness = null, animCache = {};
 
   function toast(msg, isError) {
     const t = $('toast');
@@ -251,7 +276,8 @@
 
   /* ---------- faces ---------- */
   function setActive(name) {
-    $('activeAnim').textContent = name.replace(/\.json$/, '') || '—';
+    if (/\.json$/.test(name)) lastFace = name;
+    $('activeAnim').textContent = name === 'POSTAnimLoad' ? 'Custom' : (name.replace(/\.json$/, '') || '—');
     document.querySelectorAll('.face').forEach(b => b.classList.toggle('on', b.dataset.anim === name));
   }
 
@@ -346,11 +372,108 @@
     for (const b of document.querySelectorAll('.face')) {
       try {
         const anim = await (await fetch('/anims/' + encodeURIComponent(b.dataset.anim), NO_CACHE)).json();
+        animCache[b.dataset.anim] = anim;
         const first = anim.visor && anim.visor.frames && anim.visor.frames[0];
         drawFace(b.querySelector('canvas'), (first && first.leds) || []);
       } catch (e) { /* leave the tile dark */ }
     }
   }
+
+  /* ---------- scrolling text ---------- */
+  // 5x7 font from the MD_MAX72XX library's system font (LGPL-2.1), ASCII 32-126.
+  // Each character is a list of columns; bit 0 is the top row.
+  const FONT = [[0,0],[95],[7,0,7],[20,127,20,127,20],[68,74,255,74,50],[99,19,8,100,99],[54,73,73,54,72],[7],[62,65,65],[65,65,62],[8,42,28,42,8],[8,8,62,8,8],[96,224],[8,8,8,8],[96,96],[96,16,8,4,3],[62,81,73,69,62],[4,2,127],[113,73,73,73,70],[65,73,73,73,54],[15,8,8,8,127],[79,73,73,73,49],[62,73,73,73,48],[3,1,1,1,127],[54,73,73,73,54],[6,73,73,73,62],[108,108],[108,236],[8,20,34],[20,20,20,20],[34,20,8],[1,89,9,9,6],[62,65,93,89,78],[126,9,9,9,126],[127,73,73,73,54],[62,65,65,65,65],[127,65,65,65,62],[127,73,73,73,65],[127,9,9,9,1],[62,65,65,73,121],[127,8,8,8,127],[65,127,65],[48,65,65,65,63],[127,8,20,34,65],[127,64,64,64,64],[127,2,12,2,127],[127,4,8,16,127],[62,65,65,65,62],[127,9,9,9,6],[62,65,65,97,126],[127,9,25,41,70],[70,73,73,73,49],[1,1,127,1,1],[63,64,64,64,63],[31,32,64,32,31],[63,64,56,64,63],[99,20,8,20,99],[3,4,120,4,3],[97,81,73,69,67],[127,65,65],[3,4,8,16,96],[65,65,127],[4,2,1,2,4],[128,128,128,128],[1,2,4],[56,68,68,124],[127,68,68,56],[56,68,68,68],[56,68,68,127],[56,84,84,88],[4,126,5,1],[24,164,164,124],[127,4,4,120],[125],[132,133,124],[127,16,40,68],[127],[124,4,120,4,120],[124,4,4,120],[56,68,68,56],[252,36,36,24],[24,36,36,252],[124,4,4,8],[88,84,84,52],[4,127,4],[60,64,64,124],[28,32,64,124],[60,64,48,64,60],[108,16,16,108],[28,160,160,124],[100,84,84,76],[8,54,65,65],[127],[65,65,54,8],[2,1,2,1]];
+  let lastFace = '';   // last face file shown; the text keeps its eyes and nose
+
+  function textColumns(text) {
+    const cols = [];
+    for (const ch of text) {
+      const code = ch.charCodeAt(0);
+      cols.push(...FONT[(code >= 32 && code <= 126 ? code : 63) - 32], 0);  // '?' for anything else, gap after each letter
+    }
+    return cols;
+  }
+
+  // 8 columns (bit 0 = top) -> the Animator's panel hex (last byte = top row, bit 0 = leftmost)
+  function panelHex(cols) {
+    let hex = '';
+    for (let r = 7; r >= 0; r--) {
+      let b = 0;
+      for (let k = 0; k < 8; k++) if ((cols[k] >> r) & 1) b |= 1 << k;
+      hex += b.toString(16).padStart(2, '0');
+    }
+    return hex.replace(/^0+/, '') || '0';
+  }
+
+  async function faceLeds(name) {
+    if (!name) return null;
+    if (!animCache[name]) {
+      try { animCache[name] = await (await fetch('/anims/' + encodeURIComponent(name), NO_CACHE)).json(); }
+      catch (e) { return null; }
+    }
+    const first = animCache[name].visor && animCache[name].visor.frames && animCache[name].visor.frames[0];
+    return first ? first.leds : null;
+  }
+
+  async function showText(text) {
+    if (!layout) layout = parseLayout(await (await fetch('/visType.txt', NO_CACHE)).text());
+    const panelsIn = row => row.filter(c => /^t\d+$/.test(c)).map(c => parseInt(c.slice(1), 10));
+    const count = Math.max(...layout.flatMap(panelsIn)) + 1;
+    const strip = layout.map(panelsIn).reduce((a, b) => (b.length > a.length ? b : a), []);  // the mouth row, left to right
+    const width = strip.length * 8;
+    const cols = textColumns(text);
+    const speed = parseInt(document.querySelector('input[name=speed]:checked').value, 10);
+    const eyes = (await faceLeds(lastFace)) || (await faceLeds(availableAnims.includes('default.json') ? 'default.json' : '')) || [];
+    const base = Array.from({length: count}, (_, i) => eyes[i] || '0');
+
+    const frames = [];
+    for (let shift = 0; shift < cols.length + width; shift++) {   // enters on the right, leaves on the left
+      const leds = base.slice();
+      strip.forEach((panel, p) => {
+        const c8 = [];
+        for (let k = 0; k < 8; k++) {
+          const t = p * 8 + k + shift - width;
+          c8.push(t >= 0 && t < cols.length ? cols[t] : 0);
+        }
+        leds[panel] = panelHex(c8);
+      });
+      frames.push({timespan: speed, leds});
+    }
+    // isMouth all false so the speech effect can't distort the text
+    const anim = {ears: {type: 'none'}, visor: {type: 'custom', isMouth: new Array(count).fill(false), frames}};
+
+    // Sent like the Animator's "Try animation", but as multipart so the upload isn't URL-encoded
+    const form = new FormData();
+    form.append('anim', JSON.stringify(anim));
+    const r = await fetch('/change', {method: 'POST', body: form, redirect: 'manual'});
+    if (r.type !== 'opaqueredirect') throw new Error(await r.text());
+    setActive('POSTAnimLoad');
+    $('activeAnim').textContent = text;
+  }
+
+  $('textForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const text = $('scrollText').value.trim();
+    if (!text) { toast('Type a message first', true); return; }
+    const btn = e.target.querySelector('button');
+    btn.disabled = true;
+    try {
+      await showText(text);
+      toast('Showing your text');
+    } catch (err) {
+      toast(err instanceof TypeError ? 'Could not reach the mask' : err.message, true);
+    }
+    btn.disabled = false;
+  });
+
+  // Enter always sends, on every keyboard (and blocks the built-in submit so it can't send twice)
+  $('scrollText').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('textForm').requestSubmit(); }
+  });
+
+  $('speedSeg').addEventListener('change', () => {
+    document.querySelectorAll('#speedSeg label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+  });
 
   /* ---------- brightness and fan ---------- */
   // Brightness (MAX7219, 0-15): the panels follow the slider live, saved on release.
