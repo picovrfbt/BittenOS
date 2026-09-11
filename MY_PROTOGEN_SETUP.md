@@ -111,6 +111,7 @@ When you tested with numbers, panel "1" was t0, "2" was t1, and so on.
 | `data/visType.txt` | Cheek-LED (blush) cells removed | No RGB cheek LEDs on this mask |
 | `src/main.cpp` | `/rgb` endpoint replaced by `/brightness` | Live brightness for the slider |
 | `src/fileOp.cpp` | Default brightness 5 instead of 100 | 100 was an RGB value; MAX7219 brightness only goes to 15 |
+| `data/index.html`, `data/animator.html`, `data/saved.html` | Redesigned for phones: face previews, cards, switches, bigger touch targets | The old pages were built for desktop screens. The pre-redesign pages are kept in `ui_backup/before-redesign-2026-09-11/` and git tag `ui-before-redesign`. |
 | `platformio.ini:12` | partitions | `8MB_20-20-40.csv` | More room: 2MB app, 3.9MB for faces |
 | `data/visType.txt` | layout | your chain order | See section 3 |
 | `data/visTypeMouth.txt` | mouth mask | 14 entries | Which panels move when talking |
@@ -169,14 +170,14 @@ python -m platformio device monitor -p COM113 -b 115200
 
 1. Power up. The board creates a WiFi network.
 2. On your phone, turn **mobile data off** and join `ProtoWiFi`, password `Proto1234`.
-3. Open `192.168.4.1` to pick faces and turn features on or off. The **Brightness** slider (0–15) changes the panels live and saves when you let go. Press **Save** after changing other settings.
+3. Open `192.168.4.1`. Tap a face tile to show that face; each tile previews the face. The **Brightness** slider (0–15) changes the panels live and saves when you let go. The feature switches, Advanced settings and Tilt calibration each have their own Save button.
 4. Open `192.168.4.1/animator.html` to draw faces.
 
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
 ### Drawing and testing a face in the Animator
 
-1. The Animator opens straight into your 14-panel layout.
+1. The Animator opens straight into your 14-panel layout. On a phone, turn it sideways for bigger pixels. The drawing area scrolls sideways if it doesn't fit.
 2. Tap pixels to toggle them one at a time, or press **Select**, tap a panel, then **Toggle** to light the whole panel.
 3. Set **Timespan** (milliseconds the frame shows), then **Add frame**. Repeat for more frames.
 4. **1. Generate final JSON**
@@ -325,6 +326,7 @@ The last line prints the file and line number where it crashed. This only works 
   Your repo is the remote called `mine`. `origin` still points at NCPlyn's repository, so you can check for their updates with `git fetch origin`.
 - **Undo options:**
   - Original faces are in `anims_original_11panel/`.
+  - The web pages from before the redesign are in `ProtoESP-Controller/ui_backup/before-redesign-2026-09-11/` (see `RESTORE.txt` there), and in git tag `ui-before-redesign`.
   - `git checkout ProtoESP -- <file>` restores any file to NCPlyn's original.
   - The Arduino Nano still has FurBitten's firmware. Plug it back in for the original mask.
 - License: GPL-3.0. Keep NCPlyn's credit line in `index.html` and `animator.html`.

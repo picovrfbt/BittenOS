@@ -1,579 +1,534 @@
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>ProtoESP</title>
-    <meta name="viewport" content="width=device-width, initial-scale=0.95" />
-    <link rel="shortcut icon" href="data:," />
-  </head>
-  <body>
-    <main>
-      <h1>ProtoESP</h1>
-      <div>
-        <p>Active animation:</p>
-        <h4 id="activeAnim"></h4>
-        <div class="anim_buttons1"></div>
-        <div class="anim_buttons2"></div>
-        <br>
-      </div>
-      <div>
-        <a href="/animator.html" class="small-btn">Animator</a>
-        <a href="/update" class="small-btn">OTA Update</a><br><br>
-        
-        <input type="file" id="cfgFile" style="display:none" accept=".json">
-        <a class="small-btn" onclick="document.getElementById('cfgFile').click()">Load config.json</a>
-        <a href="/config.json" class="small-btn" download>Download config</a><br><br>
-        
-        <input type="file" id="zipInput" style="display:none" accept=".zip,.json">
-        <a class="small-btn" onclick="document.getElementById('zipInput').click()">Upload anims .json/.zip</a>
-        <a class="small-btn" onclick="downloadZip()">Download animations</a><br><br>
-      </div>
-      <h1>Configuration</h1>
-      <div class="config">
-        <h2>Basic</h2>
-        <form>
-          <label for="fanspeed">Fan</label>
-          <input type="range" min="0" max="255" value="200" id="fanspeed">
-          <label for="brightness">Brightness <span id="brightnessVal">5</span>/15</label>
-          <input type="range" min="0" max="15" value="5" id="brightness">
-          <label for="boop">Boop</label>
-          <input type="checkbox" id="boop">
-          <label for="speech">Speech</label>
-          <input type="checkbox" id="speech">
-          <label for="tilt">Tilt</label>
-          <input type="checkbox" id="tilt">
-          <label for="ble">BLE</label>
-          <input type="checkbox" id="ble">
-          <label for="oled">OLED</label>
-          <input type="checkbox" id="oled">
-          <br>
-          <button type="button" onclick="saveConfig()">Save config</button>
-        </form>
-      </div>
-      <div class="config">
-        <h2>Advanced</h2>
-        <form action="./saveconfig" method="get">
-          <i><label>Name</label></i>
-          <i><span>Value</span></i>
-          <label for="bOled">Brightness OLED <sup onclick="alert('Range: 0-2\nDefault: 2')">&#9432;</sup></label>
-          <input type="number" name="bOled" min="0" max="2">
-          <label for="spMin">Speak quiet <sup onclick="alert('Range: 100-2000ms\nDefault: 850')">&#9432;</sup></label>
-          <input type="number" name="spMin" min="100" max="2000">
-          <label for="spMax">Speak range <sup onclick="alert('Range: 200-800ms\nDefault: 500')">&#9432;</sup></label>
-          <input type="number" name="spMax" min="200" max="800">
-          <label for="spTrig">Speak trigger point <sup onclick="alert('Range: 2-100\nDefault: 10')">&#9432;</sup></label>
-          <input type="number" name="spTrig" min="2" max="100">
-          <label for="boopThresh">Boop distance threshold <sup onclick="alert('Range: 1-250\nDefault: 15')">&#9432;</sup></label>
-          <input type="number" name="boopThresh" min="1" max="250">
-          <label for="aTilt">Tilt sideways animation <sup onclick="alert('Default: confused.json')">&#9432;</sup></label>
-          <select id="aTilt" name="aTilt"></select>
-          <label for="aUp">Tilt up animation <sup onclick="alert('Default: upset.json')">&#9432;</sup></label>
-          <select id="aUp" name="aUp"></select>
-          <label for="aBoop">Boop animation <sup onclick="alert('Default: boop.json')">&#9432;</sup></label>
-          <select id="aBoop" name="aBoop"></select>
-          <label for="wifiName">WiFi AP SSID <sup onclick="alert('Default: ProtoWiFi\nChange this so other people remotes don\'t connect to your protogen if multiple people running ProtoESP are at the same place!')">&#9432;</sup></label>
-          <input type="text" name="wifiName" minlength="9">
-          <label for="wifiPass">WiFi AP Password <sup onclick="alert('Default: Proto1234\nSame applies here as for the SSID!')">&#9432;</sup></label>
-          <input type="text" name="wifiPass" minlength="9"><br>
-          <button type="submit">Save config</button>
-        </form>
-      </div>
-      <div>
-        <h2>Tilt</h2>
-        <form action="./saveconfig" method="get">
-          <i><p>X Y Z</p></i>
-          Idle: 
-          <input type="number" name="neutralX" step="any" min="-1" max="1">
-          <input type="number" name="neutralY" step="any" min="-1" max="1">
-          <input type="number" name="neutralZ" step="any" min="-1" max="1">
-          <button type="button" onclick="pullFor('Neutral')">Pull data</button>
-          <br>
-          Tilt: 
-          <input type="number" name="tiltX" step="any" min="-1" max="1">
-          <input type="number" name="tiltY" step="any" min="-1" max="1">
-          <input type="number" name="tiltZ" step="any" min="-1" max="1">
-          <button type="button" onclick="pullFor('Tilt')">Pull data</button>
-          <br>
-          Up: 
-          <input type="number" name="upX" step="any" min="-1" max="1">
-          <input type="number" name="upY" step="any" min="-1" max="1">
-          <input type="number" name="upZ" step="any" min="-1" max="1">
-          <button type="button" onclick="pullFor('Up')">Pull data</button>
-          <br>
-          Tilt toleration:
-          <input type="number" name="tiltTol" step="any" min="0.01" max="1">
-          <br>
-          <button type="submit">Save tilt</button>
-        </form>
-      </div>
-      <p style="text-align:center">Coded by <a target=”_blank” href="https://github.com/ncplyn" class="rainbow-text">@NCPlyn</a></p>
-    </main>
-  </body>
-</html>
-
+<head>
+<meta charset="utf-8">
+<title>ProtoESP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f17">
+<link rel="shortcut icon" href="data:,">
 <style>
-  p,h4 {
-    margin:0.3em;
+  :root {
+    --bg:#0b0f17; --surface:#131a26; --surface2:#1a2333; --line:#253047;
+    --text:#e8edf6; --dim:#8c97ad; --faint:#5f6b82;
+    --accent:#4da3ff; --accent-soft:rgba(77,163,255,.14); --bad:#ff6b6b;
+    --radius:16px;
+    color-scheme: dark;
   }
-  .anim_buttons1 {
-    display: inline-block;
-  }
-  .anim_buttons2 {
-    display: inline-block;
-    vertical-align:top;
-  }
-  .config form {
-    display:grid;
-    grid-template-columns: max-content max-content;
-    grid-gap:5px;
-    justify-content: center;
-  }
-  .config form label       { text-align:right; }
-  .config form label:after { content: ":"; }
-  h1,h2 {
-    margin-block-start: 0.4em;
-    margin-block-end: 0.4em;
-  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--text); }
   body {
-    font-family:Verdana;
-    margin:0;
-    background-color:#333743;
-    color:white;
-    text-align:center;
+    font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
-  main {
-    width: fit-content;
-    margin: auto;
+
+  /* top bar */
+  .topbar { position:sticky; top:0; z-index:10; background:rgba(11,15,23,.86); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
+  .topbar-in { max-width:760px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:12px; }
+  .brand { font-weight:700; font-size:18px; letter-spacing:.02em; line-height:1.15; }
+  .brand small { display:block; font-weight:400; font-size:12px; color:var(--dim); letter-spacing:0; }
+  .now { margin-left:auto; display:flex; align-items:center; gap:8px; min-width:0; max-width:60%;
+         background:var(--accent-soft); color:var(--accent); border-radius:999px; padding:7px 12px; font-size:13px; font-weight:600; }
+  .now span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-transform:capitalize; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent); flex:none; }
+
+  main { max-width:760px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; }
+  .card h2 { margin:0 0 12px; font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; }
+
+  /* faces */
+  .faces { display:grid; grid-template-columns:repeat(auto-fill, minmax(145px, 1fr)); gap:10px; }
+  .face { appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:var(--surface2); color:var(--text);
+          border-radius:12px; padding:8px; cursor:pointer; font:inherit; text-align:left;
+          display:flex; flex-direction:column; gap:7px; transition:border-color .15s, box-shadow .15s, transform .08s; }
+  .face:active { transform:scale(.97); }
+  .face canvas { width:100%; aspect-ratio:213 / 78; display:block; border-radius:6px; background:#05070c; image-rendering:pixelated; }
+  .face span { font-size:14px; font-weight:600; text-transform:capitalize; padding:0 2px; }
+  .face.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 0 18px rgba(77,163,255,.22); }
+  .face.busy { opacity:.55; }
+  .empty { color:var(--dim); font-size:14px; }
+
+  /* sliders */
+  .control { display:grid; gap:6px; }
+  .control + .control { margin-top:14px; }
+  .control-head { display:flex; justify-content:space-between; align-items:baseline; font-weight:600; }
+  .control-head output { color:var(--accent); font-variant-numeric:tabular-nums; }
+  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:34px; background:transparent; margin:0; cursor:pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height:8px; border-radius:4px;
+    background:linear-gradient(90deg, var(--accent) var(--fill, 50%), #2a3448 var(--fill, 50%)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:26px; height:26px; margin-top:-9px; border-radius:50%;
+    background:#fff; border:3px solid var(--accent); box-shadow:0 2px 8px rgba(0,0,0,.45); }
+  input[type=range]::-moz-range-track { height:8px; border-radius:4px; background:#2a3448; }
+  input[type=range]::-moz-range-progress { height:8px; border-radius:4px; background:var(--accent); }
+  input[type=range]::-moz-range-thumb { width:20px; height:20px; border-radius:50%; background:#fff; border:3px solid var(--accent); }
+
+  /* switches */
+  .switches { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
+  .switch { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:50px;
+            background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:600; }
+  .switch input { -webkit-appearance:none; appearance:none; flex:none; width:46px; height:28px; margin:0; border-radius:14px;
+                  background:#2a3448; position:relative; cursor:pointer; transition:background .15s; }
+  .switch input::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:#fff; transition:transform .15s; }
+  .switch input:checked { background:var(--accent); }
+  .switch input:checked::after { transform:translateX(18px); }
+
+  /* buttons */
+  .btn { -webkit-appearance:none; appearance:none; border:1px solid var(--line); background:var(--surface2); color:var(--text);
+         border-radius:12px; padding:12px 14px; min-height:48px; font:inherit; font-weight:600; cursor:pointer; text-decoration:none;
+         display:inline-flex; align-items:center; justify-content:center; text-align:center; }
+  .btn:active { transform:scale(.98); }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#04101f; }
+  .btn.block { width:100%; margin-top:14px; }
+  .tools { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
+
+  /* collapsible sections */
+  details.card { padding:0; }
+  details.card > summary { list-style:none; cursor:pointer; padding:16px; display:flex; align-items:center; justify-content:space-between;
+    font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; }
+  details.card > summary::-webkit-details-marker { display:none; }
+  details.card > summary::after { content:"›"; font-size:22px; line-height:1; transform:rotate(90deg); transition:transform .15s; }
+  details[open].card > summary::after { transform:rotate(-90deg); }
+  details.card > form { padding:0 16px 16px; }
+
+  .fields { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
+  .field { display:grid; gap:6px; }
+  .field label { font-size:13px; color:var(--dim); }
+  .field label small { color:var(--faint); }
+  input[type=text], input[type=number], select { width:100%; min-height:46px; background:var(--bg); color:var(--text);
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; font:inherit; }
+  input:focus-visible, select:focus-visible, .btn:focus-visible, .face:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+  .xyz { display:grid; grid-template-columns:48px 1fr 1fr 1fr auto; gap:8px; align-items:center; }
+  .xyz + .xyz { margin-top:10px; }
+  .xyz > span { font-size:13px; font-weight:600; color:var(--dim); }
+  .xyz .btn { min-height:46px; padding:8px 12px; font-size:14px; }
+  @media (max-width:430px) {
+    .xyz { grid-template-columns:1fr 1fr 1fr; }
+    .xyz > span, .xyz .btn { grid-column:1 / -1; }
   }
-  main > div {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border-radius: 12px;
-    padding: 10px 25px;
-    margin-bottom: 15px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  }
-  input:not(#fanspeed):not(#brightness), select {
-    background-color:#21252B;
-    color:white;
-    border:3px solid #3f444d;
-    border-radius:4px;
-    padding: 5px 8px;
-    margin-top:3px;
-  }
-  label,span {
-    margin-top:7px;
-  }
-  button, a {
-    cursor: pointer;
-    text-decoration: none;
-    background-color:#24282b;
-    border:2px solid #3B4048;
-    border-radius:12px;
-    color:#f5f5f5;
-    padding: 0.45rem 0.75rem;
-    font-size: 1rem;
-    transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
-  }
-  button:hover, a:hover {
-    background-color:#474a4d;
-  }
-  button:active, a:active {
-    position:relative;
-    top:1px;
-  }
-  .small-btn {
-    line-height: 1;
-    font-size: 0.7rem;
-  }
-  input[type="color"] {
-    padding: 1px 5px !important;
-    width: auto !important;
-  }
-  .animbtn {
-    line-height: 2.5;
-  }
-  .rainbow-text {
-    font-weight: bold;
-    background-image: repeating-linear-gradient(45deg, violet, indigo, blue, green, yellow, orange, red, violet);
-    background-size: 800% 800%;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: rainbow 8s ease infinite;
-    border: none;
-    padding: 0;
-  }
-  @keyframes rainbow {
-    0% {background-position: 0% 50%}
-    50% {background-position: 100% 25%}
-    100% {background-position: 0% 50%}
-  }
-  sup {
-    cursor: pointer;
-    color: #64b5f6;
-    font-weight: bold;
-    transition: color 0.1s ease;
-    vertical-align: middle !important;
-  }
-  sup:hover {
-    color: #90caf9;
-  }
+  .hint { font-size:13px; color:var(--dim); margin:12px 0 0; }
+
+  footer { text-align:center; color:var(--dim); font-size:13px; padding:4px 16px 28px; }
+  .rainbow-text { font-weight:bold; text-decoration:none;
+    background-image:repeating-linear-gradient(45deg, violet, indigo, blue, green, yellow, orange, red, violet); background-size:800% 800%;
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:rainbow 8s ease infinite; }
+  @keyframes rainbow { 0% {background-position:0% 50%} 50% {background-position:100% 25%} 100% {background-position:0% 50%} }
+
+  .toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:20; max-width:calc(100% - 32px);
+    transform:translate(-50%, 16px); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+    background:#1f2a3d; border:1px solid var(--line); border-radius:12px; padding:12px 18px; font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,.45); }
+  .toast.show { opacity:1; transform:translate(-50%, 0); }
+  .toast.err { border-color:var(--bad); color:#ffd2d2; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
 </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">ProtoESP<small>FurBitten 14-panel</small></div>
+    <div class="now" title="Face on the mask now"><i class="dot"></i><span id="activeAnim">…</span></div>
+  </div>
+</header>
 
-<script src="jquerymin.js"></script>
+<main>
+  <section class="card">
+    <h2>Faces</h2>
+    <div class="faces" id="faces"><p class="empty">Loading faces…</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Display</h2>
+    <div class="control">
+      <div class="control-head"><label for="brightness">Brightness</label><output id="brightnessVal">5</output></div>
+      <input type="range" min="0" max="15" value="5" id="brightness">
+    </div>
+    <div class="control">
+      <div class="control-head"><label for="fanspeed">Fan</label><output id="fanVal">100%</output></div>
+      <input type="range" min="0" max="255" value="255" id="fanspeed">
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Features</h2>
+    <div class="switches">
+      <label class="switch">Boop <input type="checkbox" id="boop"></label>
+      <label class="switch">Speech <input type="checkbox" id="speech"></label>
+      <label class="switch">Tilt <input type="checkbox" id="tilt"></label>
+      <label class="switch">Remote (BLE) <input type="checkbox" id="ble"></label>
+      <label class="switch">OLED <input type="checkbox" id="oled"></label>
+    </div>
+    <button class="btn primary block" type="button" onclick="saveFeatures()">Save features</button>
+  </section>
+
+  <section class="card">
+    <h2>Tools</h2>
+    <div class="tools">
+      <a class="btn" href="/animator.html">Animator</a>
+      <button class="btn" type="button" onclick="document.getElementById('zipInput').click()">Upload faces</button>
+      <button class="btn" type="button" onclick="downloadZip()">Download faces</button>
+      <button class="btn" type="button" onclick="document.getElementById('cfgFile').click()">Load config</button>
+      <a class="btn" href="/config.json" download>Download config</a>
+      <a class="btn" href="/update">OTA update</a>
+    </div>
+    <input type="file" id="cfgFile" hidden accept=".json">
+    <input type="file" id="zipInput" hidden accept=".zip,.json">
+    <p class="hint">Upload faces takes a single .json face or a .zip of them. Faces with the same name are replaced.</p>
+  </section>
+
+  <details class="card">
+    <summary>Advanced settings</summary>
+    <form id="advForm">
+      <div class="fields">
+        <div class="field"><label for="bOled">OLED brightness <small>0–2, default 2</small></label>
+          <input type="number" id="bOled" name="bOled" min="0" max="2"></div>
+        <div class="field"><label for="spMin">Speech quiet level <small>100–2000, default 850</small></label>
+          <input type="number" id="spMin" name="spMin" min="100" max="2000"></div>
+        <div class="field"><label for="spMax">Speech range <small>200–800, default 500</small></label>
+          <input type="number" id="spMax" name="spMax" min="200" max="800"></div>
+        <div class="field"><label for="spTrig">Speech trigger point <small>2–100, default 10</small></label>
+          <input type="number" id="spTrig" name="spTrig" min="2" max="100"></div>
+        <div class="field"><label for="boopThresh">Boop distance <small>1–250, default 15</small></label>
+          <input type="number" id="boopThresh" name="boopThresh" min="1" max="250"></div>
+        <div class="field"><label for="aTilt">Tilt-sideways face</label><select id="aTilt" name="aTilt"></select></div>
+        <div class="field"><label for="aUp">Tilt-up face</label><select id="aUp" name="aUp"></select></div>
+        <div class="field"><label for="aBoop">Boop face</label><select id="aBoop" name="aBoop"></select></div>
+        <div class="field"><label for="wifiName">WiFi name <small>9+ characters</small></label>
+          <input type="text" id="wifiName" name="wifiName" minlength="9" autocomplete="off"></div>
+        <div class="field"><label for="wifiPass">WiFi password <small>9+ characters</small></label>
+          <input type="text" id="wifiPass" name="wifiPass" minlength="9" autocomplete="off"></div>
+      </div>
+      <p class="hint">Change the WiFi name if other ProtoESP protogens are nearby, so their remotes don't connect to yours. You'll need to reconnect after the mask restarts.</p>
+      <button class="btn primary block" type="submit">Save settings</button>
+    </form>
+  </details>
+
+  <details class="card">
+    <summary>Tilt calibration</summary>
+    <form id="tiltForm">
+      <div class="xyz"><span>Idle</span>
+        <input type="number" name="neutralX" step="any" min="-1" max="1" placeholder="X" aria-label="Idle X">
+        <input type="number" name="neutralY" step="any" min="-1" max="1" placeholder="Y" aria-label="Idle Y">
+        <input type="number" name="neutralZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Idle Z">
+        <button class="btn" type="button" onclick="pullFor('Neutral')">Read</button></div>
+      <div class="xyz"><span>Tilt</span>
+        <input type="number" name="tiltX" step="any" min="-1" max="1" placeholder="X" aria-label="Tilt X">
+        <input type="number" name="tiltY" step="any" min="-1" max="1" placeholder="Y" aria-label="Tilt Y">
+        <input type="number" name="tiltZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Tilt Z">
+        <button class="btn" type="button" onclick="pullFor('Tilt')">Read</button></div>
+      <div class="xyz"><span>Up</span>
+        <input type="number" name="upX" step="any" min="-1" max="1" placeholder="X" aria-label="Up X">
+        <input type="number" name="upY" step="any" min="-1" max="1" placeholder="Y" aria-label="Up Y">
+        <input type="number" name="upZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Up Z">
+        <button class="btn" type="button" onclick="pullFor('Up')">Read</button></div>
+      <div class="field" style="margin-top:14px"><label for="tiltTol">Tolerance <small>0.01–1</small></label>
+        <input type="number" id="tiltTol" name="tiltTol" step="any" min="0.01" max="1"></div>
+      <p class="hint">Hold your head in each position and press Read to capture it from the accelerometer.</p>
+      <button class="btn primary block" type="submit">Save tilt</button>
+    </form>
+  </details>
+
+  <footer>Coded by <a target="_blank" href="https://github.com/ncplyn" class="rainbow-text">@NCPlyn</a></footer>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
 <script>
-  let availableAnims = [];
+  const $ = id => document.getElementById(id);
+  const byName = n => document.getElementsByName(n)[0];
+  const NO_CACHE = {cache: 'no-store'};
+  let availableAnims = [], layout = null, lastBrightness = null;
 
-	function fillSelect(id,val) {
-		var select, option;
-		select = document.getElementById(id);
-		option = document.createElement('option');
-		option.value = option.text = val;
-		select.add(option);
-	}
+  function toast(msg, isError) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' err' : '');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => { t.className = 'toast'; }, 2400);
+  }
 
-  $("#fanspeed").change(function() {
-    var xhr = new XMLHttpRequest();
-		xhr.open("GET", "/fanpwm?duty="+$("#fanspeed").val(), true);
-    xhr.onload = function() {
-      if (xhr.status === 200) {
-        if (xhr.responseText.includes("Set")) {
-          //do nothing
-        } else {
-          alert(xhr.responseText);
-        }
-      }
+  function setFill(range) {
+    range.style.setProperty('--fill', ((range.value - range.min) / (range.max - range.min) * 100) + '%');
+  }
+
+  /* ---------- faces ---------- */
+  function setActive(name) {
+    $('activeAnim').textContent = name.replace(/\.json$/, '') || '—';
+    document.querySelectorAll('.face').forEach(b => b.classList.toggle('on', b.dataset.anim === name));
+  }
+
+  async function loadFiles() {
+    const parts = (await (await fetch('/getfiles', NO_CACHE)).text()).split(';');
+    parts.pop();                          // trailing ';'
+    const current = parts.shift() || '';  // first entry is the face on the mask now
+    availableAnims = parts;
+
+    const grid = $('faces');
+    grid.innerHTML = parts.length ? '' : '<p class="empty">No faces on the mask yet.</p>';
+    for (const name of parts) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'face';
+      b.dataset.anim = name;
+      b.innerHTML = '<canvas width="213" height="78"></canvas><span></span>';
+      b.querySelector('span').textContent = name.replace(/\.json$/, '');
+      b.addEventListener('click', () => changeFace(name, b));
+      grid.appendChild(b);
     }
-	  xhr.send(null);
-  });
+    // face pickers in Advanced settings, keeping their current choice
+    for (const id of ['aTilt', 'aUp', 'aBoop']) {
+      const sel = $(id), keep = sel.value;
+      sel.innerHTML = '';
+      for (const name of parts) sel.add(new Option(name, name));
+      if (keep) sel.value = keep;
+    }
+    setActive(current);
+  }
 
-  // Brightness (MAX7219, 0-15): the panels follow the slider live,
-  // and the value is saved when the slider is released.
-  var lastBrightness = null;
+  // The mask replies with a redirect to saved.html when the face was queued.
+  // redirect:'manual' stops the browser following it, so we stay on this page.
+  async function changeFace(name, btn) {
+    btn.classList.add('busy');
+    try {
+      const r = await fetch('/change?anim=' + encodeURIComponent(name), {redirect: 'manual'});
+      if (r.type === 'opaqueredirect') setActive(name);
+      else toast(await r.text(), true);
+    } catch (e) {
+      toast('Could not reach the mask', true);
+    }
+    btn.classList.remove('busy');
+  }
+
+  // visType.txt: ';'-separated cells, '_' starts a new row, '-' is empty, 'tN' is panel N
+  function parseLayout(txt) {
+    const rows = [[]];
+    for (const tok of txt.trim().split(';')) {
+      if (tok === '_') rows.push([]); else rows[rows.length - 1].push(tok);
+    }
+    return rows;
+  }
+
+  // same encoding as the Animator: last byte is the top row, lowest bit is the leftmost pixel
+  function panelBits(hex) {
+    hex = ('0000000000000000' + (hex || '0')).slice(-16);
+    const rows = [];
+    for (let i = 1; i <= 8; i++) {
+      const b = parseInt(hex.substr(16 - 2 * i, 2), 16), r = [];
+      for (let j = 1; j <= 8; j++) r.push((b >> (j - 1)) & 1);
+      rows.push(r);
+    }
+    return rows;
+  }
+
+  function drawFace(canvas, leds) {
+    const isPanel = c => /^t\d+$/.test(c || '');
+    const width = Math.max(...layout.map(r => r.length));
+    const cols = [];  // skip columns that are empty in every row so the face fills the tile
+    for (let c = 0; c < width; c++) if (layout.some(r => isPanel(r[c]))) cols.push(c);
+    const P = 3, GAP = 3, PANEL = 8 * P;
+    canvas.width = cols.length * (PANEL + GAP) - GAP;
+    canvas.height = layout.length * (PANEL + GAP) - GAP;
+    canvas.style.aspectRatio = canvas.width + ' / ' + canvas.height;
+    const ctx = canvas.getContext('2d');
+    layout.forEach((row, ry) => cols.forEach((c, cx) => {
+      if (!isPanel(row[c])) return;
+      const bits = panelBits(leds[parseInt(row[c].slice(1), 10)]);
+      const x0 = cx * (PANEL + GAP), y0 = ry * (PANEL + GAP);
+      for (let r = 0; r < 8; r++) for (let k = 0; k < 8; k++) {
+        ctx.fillStyle = bits[r][k] ? '#5fb0ff' : '#141b2b';
+        ctx.fillRect(x0 + k * P, y0 + r * P, P - 1, P - 1);
+      }
+    }));
+  }
+
+  // one request at a time so the mask isn't flooded
+  async function loadPreviews() {
+    try { layout = parseLayout(await (await fetch('/visType.txt', NO_CACHE)).text()); }
+    catch (e) { return; }
+    for (const b of document.querySelectorAll('.face')) {
+      try {
+        const anim = await (await fetch('/anims/' + encodeURIComponent(b.dataset.anim), NO_CACHE)).json();
+        const first = anim.visor && anim.visor.frames && anim.visor.frames[0];
+        drawFace(b.querySelector('canvas'), (first && first.leds) || []);
+      } catch (e) { /* leave the tile dark */ }
+    }
+  }
+
+  /* ---------- brightness and fan ---------- */
+  // Brightness (MAX7219, 0-15): the panels follow the slider live, saved on release.
   function sendBrightness(save) {
-    var v = $("#brightness").val();
-    $("#brightnessVal").text(v);
+    const v = $('brightness').value;
+    $('brightnessVal').textContent = v;
+    setFill($('brightness'));
     if (v === lastBrightness && !save) return;
     lastBrightness = v;
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", "/brightness?value=" + v + (save ? "&save=1" : ""), true);
-    xhr.send(null);
+    fetch('/brightness?value=' + v + (save ? '&save=1' : '')).catch(() => toast('Could not reach the mask', true));
   }
-  $("#brightness").on("input", function() { sendBrightness(false); });
-  $("#brightness").on("change", function() { sendBrightness(true); });
+  $('brightness').addEventListener('input', () => sendBrightness(false));
+  $('brightness').addEventListener('change', () => sendBrightness(true));
 
-	function loadFiles() {
-		xmlhttp=new XMLHttpRequest();
-		xmlhttp.onreadystatechange=function()
-		{
-			if (xmlhttp.readyState==4 && xmlhttp.status==200)
-			{
-				var partsArray = xmlhttp.responseText.split(';');
-				partsArray.pop();
-				document.getElementById("activeAnim").innerHTML = partsArray[0];
-				var arrayLength = partsArray.length;
-				for (var i = 1; i < arrayLength; i++) {
-          if(i % 2 === 0) {
-            $('.anim_buttons1').append('<a class="animbtn" href="/change?anim=' + partsArray[i] + '">' + partsArray[i].replace('.json','') + '</a><br>');
-          } else {
-            $('.anim_buttons2').append('<a class="animbtn" href="/change?anim=' + partsArray[i] + '">' + partsArray[i].replace('.json','') + '</a><br>');
-          }
-					fillSelect("aTilt",partsArray[i]);
-					fillSelect("aUp",partsArray[i]);
-          fillSelect("aBoop",partsArray[i]);
-				}
-        partsArray.shift();
-        availableAnims = partsArray;
-			}
-		}
-		xmlhttp.open("GET", "/getfiles", false);
-		xmlhttp.send();
-	}
-	loadFiles();
-
-  // Change face without leaving the page: send /change in the background
-  // and update the label, instead of following the redirect to saved.html.
-  $(document).on('click', 'a.animbtn[href^="/change?anim="]', function(e) {
-    e.preventDefault();
-    var href = this.getAttribute('href');
-    var anim = decodeURIComponent(href.split('anim=')[1]);
-    fetch(href, {redirect: 'manual'}).then(function(r) {
-      if (r.type === 'opaqueredirect') {
-        document.getElementById('activeAnim').innerHTML = anim;
-      } else {
-        r.text().then(function(t) { alert(t); });
-      }
-    }).catch(function() { alert('Could not reach the mask'); });
+  function showFan() {
+    $('fanVal').textContent = Math.round($('fanspeed').value / 255 * 100) + '%';
+    setFill($('fanspeed'));
+  }
+  $('fanspeed').addEventListener('input', showFan);
+  $('fanspeed').addEventListener('change', async () => {
+    showFan();
+    try {
+      const t = await (await fetch('/fanpwm?duty=' + $('fanspeed').value)).text();
+      if (!t.includes('Set')) toast(t, true);
+    } catch (e) { toast('Could not reach the mask', true); }
   });
-  
-  function pullFor(what) {
-		xmlhttp=new XMLHttpRequest();
-		xmlhttp.onreadystatechange=function()
-		{
-			if (xmlhttp.readyState==4 && xmlhttp.status==200)
-			{
-				var partsArray = xmlhttp.responseText.split(';');
-        if (what == "Neutral") {
-          document.getElementsByName("neutralX")[0].value = parseFloat(partsArray[0]).toFixed(2);
-          document.getElementsByName("neutralY")[0].value = parseFloat(partsArray[1]).toFixed(2);
-          document.getElementsByName("neutralZ")[0].value = parseFloat(partsArray[2]).toFixed(2);
-        } else if (what == "Tilt") {
-          document.getElementsByName("tiltX")[0].value = parseFloat(partsArray[0]).toFixed(2);
-          document.getElementsByName("tiltY")[0].value = parseFloat(partsArray[1]).toFixed(2);
-          document.getElementsByName("tiltZ")[0].value = parseFloat(partsArray[2]).toFixed(2);
-        } else if (what == "Up") {
-          document.getElementsByName("upX")[0].value = parseFloat(partsArray[0]).toFixed(2);
-          document.getElementsByName("upY")[0].value = parseFloat(partsArray[1]).toFixed(2);
-          document.getElementsByName("upZ")[0].value = parseFloat(partsArray[2]).toFixed(2);
-        } 
-			}
-		}
-		xmlhttp.open("GET", "/gyro", false);
-		xmlhttp.send();
-	}
-  
-  function loadIntoInputs(jsonobj) {
-        var obj = JSON.parse(jsonobj);
-				document.getElementById("boop").checked = obj.boopEna;
-				document.getElementById("speech").checked = obj.speechEna;
-				document.getElementById("tilt").checked = obj.tiltEna;
-				document.getElementById("ble").checked = obj.bleEna;
-        document.getElementById("oled").checked = obj.oledEna;
-        document.getElementsByName("bOled")[0].value = obj.bOled;
-				document.getElementsByName("spMin")[0].value = obj.spMin;
-				document.getElementsByName("spMax")[0].value = obj.spMax;
-				document.getElementsByName("spTrig")[0].value = obj.spTrig;
-				document.getElementsByName("aTilt")[0].value = obj.aTilt;
-				document.getElementsByName("aUp")[0].value = obj.aUp;
-        document.getElementsByName("aBoop")[0].value = obj.aBoop;
-        document.getElementsByName("neutralX")[0].value = obj.neutralX;
-        document.getElementsByName("neutralY")[0].value = obj.neutralY;
-        document.getElementsByName("neutralZ")[0].value = obj.neutralZ;
-        document.getElementsByName("tiltX")[0].value = obj.tiltX;
-        document.getElementsByName("tiltY")[0].value = obj.tiltY;
-        document.getElementsByName("tiltZ")[0].value = obj.tiltZ;
-        document.getElementsByName("upX")[0].value = obj.upX;
-        document.getElementsByName("upY")[0].value = obj.upY;
-        document.getElementsByName("upZ")[0].value = obj.upZ;
-        document.getElementsByName("tiltTol")[0].value = obj.tiltTol;
-        document.getElementsByName("wifiName")[0].value = obj.wifiName;
-        document.getElementsByName("wifiPass")[0].value = obj.wifiPass;
-        document.getElementById("fanspeed").value = obj.fanDuty;
-        var bri = Math.min(15, Math.max(0, obj.bVisor));
-        document.getElementById("brightness").value = bri;
-        document.getElementById("brightnessVal").textContent = bri;
-        document.getElementsByName("boopThresh")[0].value = obj.boopThresh;
-  }
 
-	function loadConfig() {
-		xmlhttp=new XMLHttpRequest();
-		xmlhttp.onreadystatechange=function()
-		{
-			if (xmlhttp.readyState==4 && xmlhttp.status==200)
-			{
-				loadIntoInputs(xmlhttp.responseText);
-			}
-		}
-		xmlhttp.open("GET", "/config.json", false );
-    xmlhttp.setRequestHeader('Cache-Control', 'no-cache, no-store, max-age=0');
-    xmlhttp.setRequestHeader('Expires', 'Thu, 1 Jan 1970 00:00:00 GMT');
-    xmlhttp.setRequestHeader('Pragma', 'no-cache');
-		xmlhttp.send();
-	}
-	loadConfig();
-
-	function saveConfig() {
-		var params = "boopEna="+document.getElementById("boop").checked+"&speechEna="+document.getElementById("speech").checked+"&tiltEna="+document.getElementById("tilt").checked+"&bleEna="+document.getElementById("ble").checked+"&oledEna="+document.getElementById("oled").checked;
-		var xhr = new XMLHttpRequest();
-		xhr.open("GET", "/saveconfig?"+params, true);
-    xhr.onload = function() {
-      if (xhr.status === 200) {
-        if (xhr.responseURL.includes("saved.html?main")) {
-          window.location.replace("/saved.html?main");
-        } else {
-          alert(xhr.responseText);
-        }
-      }
+  /* ---------- settings ---------- */
+  function loadIntoInputs(jsonText) {
+    const o = JSON.parse(jsonText);
+    $('boop').checked = o.boopEna; $('speech').checked = o.speechEna; $('tilt').checked = o.tiltEna;
+    $('ble').checked = o.bleEna;   $('oled').checked = o.oledEna;
+    for (const k of ['bOled', 'spMin', 'spMax', 'spTrig', 'aTilt', 'aUp', 'aBoop', 'boopThresh', 'wifiName', 'wifiPass',
+                     'neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol']) {
+      if (o[k] !== undefined) byName(k).value = o[k];
     }
-	  xhr.send(null);
-	}
-  
-  document.getElementById("cfgFile").addEventListener("change", cfgLoad, false);
-  function cfgLoad() {
-    let fileToLoad = this.files[0];
-    if(fileToLoad === undefined || fileToLoad.name.includes("config.json") == false) {
-      alert("No selected file or not a config.json file!");
-    } else {
-      let fileReader = new FileReader();
-      fileReader.onload = function (fileLoadedEvent) {
-          if (!fileLoadedEvent.target.result.includes("wifiName")) {
-            alert("Most likely invalid file");
-            return;
-          }
-          loadIntoInputs(fileLoadedEvent.target.result);
-          alert("Config, loaded.\nPlease save!");
-      };
-      fileReader.readAsText(fileToLoad, "UTF-8");
+    $('fanspeed').value = o.fanDuty; showFan();
+    const bri = Math.min(15, Math.max(0, o.bVisor));
+    $('brightness').value = bri; $('brightnessVal').textContent = bri; setFill($('brightness'));
+    lastBrightness = String(bri);
+  }
+
+  async function loadConfig() {
+    loadIntoInputs(await (await fetch('/config.json', NO_CACHE)).text());
+  }
+
+  // /saveconfig answers with a redirect to saved.html when it worked
+  async function saveParams(params, okMsg) {
+    try {
+      const r = await fetch('/saveconfig?' + params, NO_CACHE);
+      if (r.url.includes('saved.html')) toast(okMsg);
+      else toast(await r.text(), true);
+    } catch (e) { toast('Could not reach the mask', true); }
+  }
+
+  function saveFeatures() {
+    const p = new URLSearchParams();
+    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled']]) {
+      p.set(key, $(id).checked);
     }
-  }
-  
-  function downloadZip() {
-      // Lazy load JSZip
-      const script = document.createElement('script');
-      script.src = "/jszip.min.js";
-
-      script.onload = async () => {
-        const zip = new JSZip();
-
-        for (const fileName of availableAnims) {
-          try {
-            const response = await fetch(`./anims/${fileName}`, {
-              cache: 'no-store',
-              headers: {
-                'Cache-Control': 'no-cache, no-store, max-age=0',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-              }
-            });
-            if (!response.ok) throw new Error(`Failed to load ${fileName}`);
-            const jsonText = await response.text();
-            zip.file(fileName, jsonText);
-          } catch (err) {
-            console.error(`Error fetching ${fileName}:`, err);
-          }
-        }
-
-        zip.generateAsync({ type: "blob" }).then(content => {
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(content);
-          a.download = 'anims.zip';
-          a.click();
-        });
-      };
-
-      document.head.appendChild(script);
+    saveParams(p.toString(), 'Features saved');
   }
 
-  function readFileAsText(file) {
+  $('advForm').addEventListener('submit', e => {
+    e.preventDefault();
+    saveParams(new URLSearchParams(new FormData(e.target)).toString(), 'Settings saved');
+  });
+  $('tiltForm').addEventListener('submit', e => {
+    e.preventDefault();
+    saveParams(new URLSearchParams(new FormData(e.target)).toString(), 'Tilt saved');
+  });
+
+  async function pullFor(what) {
+    const prefix = {Neutral: 'neutral', Tilt: 'tilt', Up: 'up'}[what];
+    try {
+      const xyz = (await (await fetch('/gyro', NO_CACHE)).text()).split(';');
+      ['X', 'Y', 'Z'].forEach((axis, i) => { byName(prefix + axis).value = parseFloat(xyz[i]).toFixed(2); });
+    } catch (e) { toast('Could not read the accelerometer', true); }
+  }
+
+  $('cfgFile').addEventListener('change', function () {
+    const file = this.files[0];
+    this.value = '';
+    if (!file || !file.name.includes('config.json')) { toast('Pick a config.json file', true); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      if (!e.target.result.includes('wifiName')) { toast('That doesn\'t look like a config file', true); return; }
+      loadIntoInputs(e.target.result);
+      toast('Config loaded. Save each section to keep it.');
+    };
+    reader.readAsText(file, 'UTF-8');
+  });
+
+  /* ---------- faces upload / download ---------- */
+  function loadJSZip() {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsText(file);
+      if (window.JSZip) return resolve();
+      const s = document.createElement('script');
+      s.src = '/jszip.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Failed to load JSZip library.'));
+      document.head.appendChild(s);
     });
   }
 
-  $('#zipInput').on('change', async function(event) {
-      if(confirm("This will replace same named animations!\nYou sure?") == false) {
-        return;
+  async function downloadZip() {
+    try {
+      await loadJSZip();
+      const zip = new JSZip();
+      for (const name of availableAnims) {
+        try {
+          const r = await fetch('./anims/' + name, NO_CACHE);
+          if (!r.ok) throw new Error('Failed to load ' + name);
+          zip.file(name, await r.text());
+        } catch (err) { console.error('Error fetching ' + name + ':', err); }
       }
-      const file = event.target.files[0];
-      if (!file) return;
-      if(file.name.includes(".json")) { //just json
-        const content = await readFileAsText(file);
-        if (!content.includes("frames")) {
-          alert("Most likely invalid file");
-          return;
-        }
+      const blob = await zip.generateAsync({type: 'blob'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'anims.zip';
+      a.click();
+    } catch (err) { toast(err.message, true); }
+  }
 
-        const fileName = file.name.replace(/\.json$/, '');
+  async function uploadFace(name, content) {
+    const form = new FormData();
+    form.append('file', name);
+    form.append('content', content);
+    const text = await (await fetch('/savefile', {method: 'POST', body: form, cache: 'no-store'})).text();
+    return !(text.includes('Error opening file') || text.includes('No valid parameters'));
+  }
 
-        const formData = new FormData();
-        formData.append('file', fileName);
-        formData.append('content', content);
-
-        const response = await fetch('/savefile', {
-          method: 'POST',
-          body: formData,
-          cache: 'no-store',
-          headers: {
-           'Cache-Control': 'no-cache, no-store, max-age=0',
-           'Pragma': 'no-cache',
-           'Expires': '0'
-          }
-        });
-                
-        const text = await response.text();
-
-        if (text.includes("Error opening file") || text.includes("No valid parameters")) {
-          alert("Failed to upload");
-        } else {
-          alert("Animation uploaded");
-        }
-      } else { //zip with jsons
-        const script = document.createElement('script');
-        script.src = "/jszip.min.js";
-
-        script.onload = async () => {
+  $('zipInput').addEventListener('change', async function () {
+    const file = this.files[0];
+    this.value = '';
+    if (!file) return;
+    if (!confirm('This will replace faces with the same name. Continue?')) return;
+    try {
+      if (file.name.endsWith('.json')) {
+        const content = await file.text();
+        if (!content.includes('frames')) { toast('That doesn\'t look like a face file', true); return; }
+        const ok = await uploadFace(file.name.replace(/\.json$/, ''), content);
+        toast(ok ? 'Face uploaded' : 'Upload failed', !ok);
+      } else {
+        await loadJSZip();
+        const zip = await JSZip.loadAsync(await file.arrayBuffer());
+        const entries = Object.values(zip.files).filter(f => f.name.endsWith('.json'));
+        if (!entries.length) { toast('No .json files in that zip', true); return; }
+        let good = 0, bad = 0;
+        for (const entry of entries) {
           try {
-            const zipData = await file.arrayBuffer();
-            const zip = await JSZip.loadAsync(zipData);
-
-            const jsonFiles = Object.values(zip.files).filter(f => f.name.endsWith('.json'));
-
-            if (jsonFiles.length === 0) {
-              alert('No .json files found in the ZIP.');
-              return;
-            }
-
-            let successCount = 0;
-            let failureCount = 0;
-
-            for (const fileEntry of jsonFiles) {
-              try {
-                const content = await fileEntry.async('text');
-                if(!content.includes("frames")) { //invalid json
-                  alert("Most likely invalid file within the .zip :"+fileEntry.name);
-                  failureCount++;
-                } else {
-                  const fileName = fileEntry.name.replace(/\.json$/, '');
-
-                  const formData = new FormData();
-                  formData.append('file', fileName);
-                  formData.append('content', content);
-
-                  const response = await fetch('/savefile', {
-                    method: 'POST',
-                    body: formData,
-                    cache: 'no-store',
-                    headers: {
-                      'Cache-Control': 'no-cache, no-store, max-age=0',
-                      'Pragma': 'no-cache',
-                      'Expires': '0'
-                    }
-                  });
-                  
-                  const text = await response.text();
-
-                  if (text.includes("Error opening file") || text.includes("No valid parameters")) {
-                    console.error(`Failed saving ${fileName}:`, text);
-                    failureCount++;
-                  } else {
-                    successCount++;
-                  }
-                }
-              } catch (err) {
-                console.error(`Failed to process ${fileEntry.name}`, err);
-                failureCount++;
-              }
-            }
-
-            if (failureCount === 0) {
-              alert(`All ${successCount} files saved successfully!`);
-            } else {
-              alert(`${successCount} succeeded, ${failureCount} failed.`);
-            }
-
-          } catch (err) {
-            console.error('Error reading ZIP file:', err);
-            alert('Something went wrong reading the ZIP file.');
-          }
-        };
-
-        script.onerror = () => {
-          alert('Failed to load JSZip library.');
-        };
-
-        document.head.appendChild(script);
+            const content = await entry.async('text');
+            const name = entry.name.split('/').pop().replace(/\.json$/, '');
+            if (content.includes('frames') && await uploadFace(name, content)) good++; else bad++;
+          } catch (err) { console.error('Failed to process ' + entry.name, err); bad++; }
+        }
+        toast(bad ? good + ' uploaded, ' + bad + ' failed' : 'All ' + good + ' faces uploaded', bad > 0);
       }
-    });
+      await loadFiles();
+      loadPreviews();
+    } catch (err) {
+      console.error(err);
+      toast('Something went wrong reading that file', true);
+    }
+  });
+
+  /* ---------- start ---------- */
+  setFill($('brightness'));
+  showFan();
+  (async () => {
+    try {
+      await loadFiles();   // fills the face pickers before the config selects a value in them
+      await loadConfig();
+    } catch (e) {
+      toast('Could not reach the mask', true);
+    }
+    loadPreviews();
+  })();
 </script>
+</body>
+</html>
