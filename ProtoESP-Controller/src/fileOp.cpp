@@ -27,7 +27,7 @@ void Config::setDefault() {
   bleEna = false;
   oledEna = false;
   bEar = 60;
-  bVisor = 100;
+  bVisor = 5;
   bOled = 2;
   rbSpeed = 15;
   rbWidth = 8;

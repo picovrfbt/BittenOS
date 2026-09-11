@@ -8,7 +8,7 @@
 <body>
   <main>
     <h1>ProtoESP - Animator</h1>
-    <div> <!-- START OF EARS PART -->
+    <div style="display:none"> <!-- EARS PART: hidden, this mask has no ear LEDs. Kept so faces with ear data still load and save. -->
       <h2>Ears</h2>
       <label for="typeEars">Animation: </label> <sup onclick="alert('Select custom or prefab ears animation')">&#9432;</sup>
       <select id="typeEars">
@@ -49,24 +49,18 @@
         <button onclick="stopAnim();">Stop</button>
         <button onclick="nukeAll();">Reset all</button>
       </div>
-      <div class="playBtns"> 
+      <div class="playBtns" style="display:none"> 
         Pick color: <sup onclick="alert('The color which would set the ears color (black = off) or visor RGB pixel color (black = default matrix/visor color)')">&#9432;</sup><input type="color" id="color" value="#000000"> &nbsp;&nbsp;&nbsp; Used colors:
       </div>
-      <div id="usedColors"></div>
+      <div id="usedColors" style="display:none"></div>
     </div>
     <div> <!-- START OF VISOR PART -->
       <h2>Visor</h2>
-      <label for="visorConfig">Config: </label> <sup onclick="alert('Select config/wiring of your visor\n\'custom_file\' works only if your visor files are on the ESP!')">&#9432;</sup>
-      <select id="visorConfig">
-        <option value="none">None</option>
-        <option value="M16mk2">M16 mk2</option>
-        <option value="M16mk3">M16 mk3</option>
-        <option value="BFoxCZ">BFoxCZ</option>
-        <option value="custom">custom</option>
+      <b>Layout: FurBitten 14-panel</b>
+      <select id="visorConfig" style="display:none">
         <option value="custom_file">custom_file</option>
       </select>
-      <label for="typeVisor" style="margin-left:30px">Modifier: </label> <sup onclick="alert('Select modifier for visor animation')">&#9432;</sup>
-      <select id="typeVisor">
+      <select id="typeVisor" style="display:none">
         <option value="custom">custom</option>
         <option value="all_rainbow">(RGB)all_rainbow</option>
       </select><br>
@@ -105,7 +99,7 @@
             <button type="button" onclick='matrixAction = "paste";'title="Keyboard: 'V' - Select matrix to paste to">Paste</button> <sup onclick="alert('Click on Paste and then click on matrix which you want to paste the currently selected matrix')">&#9432;</sup><br>
             <button type="button" onclick="if(confirm('Do you want to empty the current frame?')){fillBlackVisor();}">Empty visor</button>
             <button type="button" onclick="mirrorVisor()">Copy left to right</button> <sup onclick="alert('Might not work due to wierd config/wiring')">&#9432;</sup><br>
-            Segment color: <input type="color" id="fColor" value="#000000"> <sup onclick="alert('For RGB Matrices\n0;0;0 = black = Visor will have color from the config')">&#9432;</sup><br>
+            <input type="color" id="fColor" value="#000000" style="display:none">
             <label for="timespanVisor">Timespan: </label>
             <input type="number" id="timespanVisor" value="500" min="1">
             <button onclick="frameGenVisor(-1)">Add frame</button>
@@ -1757,6 +1751,7 @@
     });
   }
   loadFiles();
+  $("#visorConfig").val("custom_file").change(); // open straight into this mask's layout
   
   function loadLocalFile() {
     let fileInput = document.getElementById("localFile");

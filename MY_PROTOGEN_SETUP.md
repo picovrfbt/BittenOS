@@ -88,7 +88,7 @@ How the Animator draws it (as someone facing the mask sees it, so the left of th
 
 ```
 t13 t12  .   .   .   .   .   .  t1  t0      eyes
-b3  b2   .  t7   .   .  t6   .  b1  b0      noses (b = unused blush slots)
+ .   .   .  t7   .   .  t6   .   .   .      noses
 t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 ```
 
@@ -106,6 +106,11 @@ When you tested with numbers, panel "1" was t0, "2" was t1, and so on.
 | `src/main.cpp:30` | `boopMode` | `""` | No boop sensor fitted |
 | `src/main.cpp`: `/change` handlers, BLE handler, `loop()` | Web and remote face changes are queued; `loop()` does the load | Changing faces from the homepage crashed the board (see section 9) |
 | `data/index.html` | Face buttons change the face in the background | Tapping a face used to jump to a "Saved/changed OK" page and back |
+| `data/index.html` | RGB-only button and settings removed; brightness is a 0–15 slider | This mask only has MAX7219 panels |
+| `data/animator.html` | Ear, colour and other-helmet layout controls hidden; opens straight into this layout | Same. They're hidden rather than deleted because loading a face still writes its ear data into them. |
+| `data/visType.txt` | Cheek-LED (blush) cells removed | No RGB cheek LEDs on this mask |
+| `src/main.cpp` | `/rgb` endpoint replaced by `/brightness` | Live brightness for the slider |
+| `src/fileOp.cpp` | Default brightness 5 instead of 100 | 100 was an RGB value; MAX7219 brightness only goes to 15 |
 | `platformio.ini:12` | partitions | `8MB_20-20-40.csv` | More room: 2MB app, 3.9MB for faces |
 | `data/visType.txt` | layout | your chain order | See section 3 |
 | `data/visTypeMouth.txt` | mouth mask | 14 entries | Which panels move when talking |
@@ -164,14 +169,14 @@ python -m platformio device monitor -p COM113 -b 115200
 
 1. Power up. The board creates a WiFi network.
 2. On your phone, turn **mobile data off** and join `ProtoWiFi`, password `Proto1234`.
-3. Open `192.168.4.1` to pick faces, change brightness and turn features on or off. Press **Save** after changing settings.
+3. Open `192.168.4.1` to pick faces and turn features on or off. The **Brightness** slider (0–15) changes the panels live and saves when you let go. Press **Save** after changing other settings.
 4. Open `192.168.4.1/animator.html` to draw faces.
 
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
 ### Drawing and testing a face in the Animator
 
-1. **Config: `custom_file`** loads your 14-panel layout from the board.
+1. The Animator opens straight into your 14-panel layout.
 2. Tap pixels to toggle them one at a time, or press **Select**, tap a panel, then **Toggle** to light the whole panel.
 3. Set **Timespan** (milliseconds the frame shows), then **Add frame**. Repeat for more frames.
 4. **1. Generate final JSON**
@@ -185,7 +190,7 @@ To edit an existing face: pick it under **Load animation**, press **Load selecte
 The online Animator at <https://foxxo.cz/proto/animator.html> works with no hardware. Set **Config** to **custom**, paste these two lines, then press **Load config**:
 
 ```
-t13;t12;-;-;-;-;-;-;t1;t0;_;blush3;blush2;-;t7;-;-;t6;-;blush1;blush0;_;t11;t10;t9;t8;-;-;t5;t4;t3;t2
+t13;t12;-;-;-;-;-;-;t1;t0;_;-;-;-;t7;-;-;t6;-;-;-;_;t11;t10;t9;t8;-;-;t5;t4;t3;t2
 ```
 ```
 [false,false,true,true,true,true,false,false,true,true,true,true,false,false]
@@ -239,7 +244,7 @@ Some features are switched on in the web page, but some need a firmware change f
 |---|---|---|
 | APDS9960 boop sensor | `boopMode "APDS9960"` (line 30) | turn Boop on |
 | KY-032 boop sensor | `boopMode "KY-032"` | turn Boop on |
-| Cheek LEDs | `blushPresent = true`, set `blushLedsNum` | none |
+| Cheek LEDs (WS2812) | `blushPresent = true`, set `blushLedsNum`, and add the `blush0`–`blush3` cells back to `data/visType.txt` | none |
 | INA219 power meter | `INApresent = true` | none |
 | Microphone | none | turn Speech on |
 | OLED | none | turn OLED on |
