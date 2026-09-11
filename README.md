@@ -1,69 +1,104 @@
-# ProtoESP
-### _Protogen ESP32 controller for MAX7219 / WS2812 Matrix_
-**ESP32-S3** code which makes your protogen alive with animations and interactivity!  
+# protogen-fw
 
-##### Main features
-- Utilizes **MAX7219** matrixes using SPI or **[WS2812B RGB Matrixes](RGBMatrix)** (per pixel/matrix color) to show faces/animations
-- Has two additional WS2812 outputs:
-	1. for ring LEDs in the ears (animated or coded);
-	2. for leds under the eyes (can be repurposed for something else)
-- Provides a WiFi AP with **site to control** your protogen (choose animation; change color,brightness,tilt anims,triggers...)
-	- Has copy of an fully featured **Animator** , so you can make, edit or test the animations on the fly. Frame by frame, pixel by pixel.
-- You can change your animations/faces either by:
-	1. Cycling them using a button from the ESP;
-	2. Choosing on the WiFi site on a phone;
-	3. Using a **wireless remote** with buttons
-- & much more with these parts:
+Firmware for my protogen mask: a FurBitten Studios premade face (14 × MAX7219 8×8 LED panels) driven by an ESP32-S3, running a modified version of [ProtoESP](https://github.com/NCPlyn/ProtogenHelmet-ESP32) by NCPlyn.
 
-##### Connect and get more features from:
-- **KY-032/APDS9960**: IR Sensor for changing to different animation if booped
-- **MAX9814**: Microphone to move protogens mouth (not used to change voice!)
-- **LSM6DS3**: Accelerometer to change animations by tilting your head
-- **SSD1306**: OLED display to show current animation, speaking status, current&voltage (INA219) and more
-- **INA219**: Measure current and voltage of the protogen helmet
-- **XIAO ESP32**: Change animations remotely without wiring a single cable from the helmet
-- **PWM fan**: Connect speed signal to a 4 pin fan and control its speed
+The face originally came with an Arduino Nano running FurBitten's closed-source firmware. This repo replaces that controller with open firmware I can change. It contains no FurBitten code, and the Nano is kept untouched as a backup.
 
-![espprotopromo](https://github.com/user-attachments/assets/c8a63f7a-2e5f-45b6-80ef-6bb01c3a7538)
+## What it does
 
-- Thanks to <a href="https://www.pcbway.com/project/share/ProtoESP_Remote_66722ab2.html"><img src="https://www.electronics-lab.com/wp-content/uploads/2020/04/0x0.png" height="40"></a> for supplying these PCBs for my project! Quick and efficient, with an easy instant quote and ordering system. They offer PCBs with 1-14 layers, silkscreen colors, thicknesses & more. The manufacturing and shipping times are fast (7 days total for me). Reliable choice for prototyping, small production, and even large-batch manufacturing with PCB assembly and stencil services.
+- Drives all 14 panels as one face: 2 panels per eye, 4 per mouth side, 1 per nose side
+- Creates its own WiFi network (`ProtoWiFi`) with a web page to switch faces, change brightness and turn features on and off
+- Includes ProtoESP's web Animator for drawing faces pixel by pixel and testing them live on the mask
+- Ships with 8 faces (default, happy, sad, angry, upset, confused, boop, bsod), converted to this 14-panel layout
+- Supports ProtoESP's optional extras: boop sensor, microphone, accelerometer, OLED, cheek LEDs and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
 
-## Navigation
-- [**Controller**](ProtoESP-Controller) folder: ProtoESP controller code with all features
-- [**Remote**](ProtoESP-Remote) folder: ProtoESP *(Not legacy)*  Wireless control remote
-- [**Legacy**](../Legacy) branch: Legacy controller&remote&WS2812 matrix <- all three not supported anymore but **stable&working**
-- [**Matrix**](RGBMatrix) folder: WS2812B 8x8 RGB Matrix replacement for single color MAX7219 Matrixes
-- [**Animator**](https://foxxo.cz/proto/animator.html) site: Program to make animations for the controller
-- [**ToDo**](todo.md) .md: Checklist of To Do things
-- [**Troubleshooting / FAQ**](troublefaq.md) .md: If you have problems with anything, check firstly here before contacting me!
+## Hardware
 
-## Documentation
-- How to DIY protogen: [Imgur](https://imgur.com/a/jYpSbuZ)
-- Parts list: [Pastebin](https://pastebin.com/7z4fnVfQ)
-- Controller how to: [**MD**](ProtoESP-Controller/readme.md)
-- Remote how to: [**MD**](ProtoESP-Remote/readme.md)
-- Touch Sensor setup: [**MD**](ProtoESP-Controller/touchSensors.md)
-- Alive ProtoESP protogens / creators: [Furo](https://instagram.com/proto_furo), [Arkoss](https://www.instagram.com/snowkatark/), [Jura](https://www.instagram.com/jura_furr/), [BFoxCZ](https://www.instagram.com/bfoxcz/), & more...
+| Part | Details |
+|---|---|
+| Controller | ESP32-S3 board with an ESP32-S3-N16R8 module (16MB flash, 8MB PSRAM). PSRAM is required. Built on a Lonely Binary "Gold Edition" board. |
+| Display | FurBitten Studios premade face: 14 × MAX7219 8×8 panels, already chained |
+| Power | 5V. About 3W with the stock faces at brightness 5 |
 
-### Feature request / issues
-- If you have found an issue with this code (crashes, something not working like it should), please open a issue in this repository!
-- If you have thought of a new feature or QoL improvement you would like to see being implemented, please contact me directly on Discord or Telegram: @NCPlyn.
+Wiring, to the first panel in the chain (left eye, back):
 
-## Support
-If you found this project helpful / used it / want to support and encourage me into working more, you can do so here: [Revolut](https://revolut.me/ncplyn) (EU only, I'm getting 100%) or [PayPal](https://paypal.me/NCPlyn) (Please send in your currency, not in CZK!, I'm getting only 79%) or Crypto (DM me at [Telegram](https://t.me/NCPlyn)).
-Any amount is more than welcome! Don't forget to add contact info or DM me, so I can add you here:
+| ESP32-S3 | MAX7219 |
+|---|---|
+| GPIO 11 | DIN |
+| GPIO 10 | CS |
+| GPIO 12 | CLK |
+| GND | GND |
+| 5V | VCC |
 
-- **<a href="https://pcbway.com/g/77jC58">PCBWay</a>** has sponsored this project by providing prototype PCBs!
-- [**Arkoss**](https://www.instagram.com/snowkatsoftwear), Thank you for your donation!
-- [**NULL**](https://www.instagram.com/null_the_protogen), Thank you for your donation!
-- [**Alellv**](https://github.com/Alellv), Thank you for your donation!
-- [**Jura**](https://www.instagram.com/jura_furr/), Thank you for your donation!
-- [**buckethead_robin**](https://www.instagram.com/buckethead_robin), Thank you for your donation!
-- [**TechArtsJon**](http://instagram.com/js_dennison), Thank you for your donation!
-- **Moldepan**, Thank you for your donation!
+Running the panels from the board's 5V pin works at normal brightness. For all-pixels-on faces or higher brightness, feed the panels from the 5V supply directly. The guide has the numbers and an optional level shifter.
 
-## Personal/Business use / license
-- **If you make/sell Proots running on this Project (Software/Matrices), PLEASE make atleast one time donation, as this project has taken hundreds of hours of coding, designing, troubleshooting and more since 2020**
-- GPL 3.0 code license applies
-- If you use this code, try to make your protogen unique and change the animations up a little bit in the Animator!
-- I do **NOT** allow the removal of my credit on the bottom of the pages in the index.html & animator.html!
+## Panel layout
+
+Chain order: left eye (back, front) → left mouth (back to front) → left nose → right nose → right mouth (front to back) → right eye (front, back).
+
+Seen from the front, which is how the Animator draws it:
+
+```
+t13 t12  .   .   .   .   .   .  t1  t0      eyes
+ .   .   .  t7   .   .  t6   .   .   .      noses
+t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
+```
+
+## Changes from upstream ProtoESP
+
+| Change | Where | Why |
+|---|---|---|
+| 14-panel MAX7219 configuration | `src/main.cpp` (`visorType`, `MATRIXESNUM`), `data/visType.txt`, `data/visTypeMouth.txt` | Upstream defaults to 11 RGB panels |
+| `HARDWARE_TYPE` set to `PAROLA_HW` | `src/main.cpp` | Every panel was mirrored left to right with the stock setting |
+| 8MB partition table | `platformio.ini` | 2MB for the firmware and about 3.9MB for faces, instead of the 4MB layout |
+| Displays-only defaults | `data/config.json`, `boopMode` in `src/main.cpp` | Speech, boop, BLE and OLED stay off until those parts are fitted |
+| Stock faces converted to 14 panels | `data/anims/`, `tools/convert_mk2_to_14.py` | The bundled faces are drawn for 11 panels. Originals are kept in `anims_original_11panel/`. |
+| **Crash fix:** face changes are queued for the main loop | `src/main.cpp`: `/change` handlers, BLE handler, `loop()` | The web server freed the current face's frames while the drawing loop was still reading them, which crashed the board (null pointer at `main.cpp:886`) |
+| Homepage face buttons work in place | `data/index.html` | Tapping a face used to jump to a "Saved" page and back |
+| Setup guide | `MY_PROTOGEN_SETUP.md` | Everything needed to rebuild, flash and maintain this mask |
+
+The crash fix and the homepage change aren't specific to this mask. They apply to upstream ProtoESP as well.
+
+## Quick start
+
+1. Install [PlatformIO](https://platformio.org/) (the VS Code extension, or `pip install platformio`).
+2. Open the `ProtoESP-Controller` folder.
+3. Flash the firmware, then the filesystem:
+
+   ```
+   pio run -e esp32-s3 -t upload
+   pio run -e esp32-s3 -t uploadfs
+   ```
+
+4. Join the WiFi network `ProtoWiFi` (password `Proto1234`) and open `http://192.168.4.1`.
+
+On Windows, build from PowerShell or VS Code, not Git Bash, and turn on long path support, or the toolchain install fails.
+
+The full guide covers wiring, flashing, the Animator, the converter, adding sensors, reading crash reports and troubleshooting: **[MY_PROTOGEN_SETUP.md](MY_PROTOGEN_SETUP.md)**.
+
+## Converting other 11-panel faces
+
+Most ProtoESP faces you'll find are drawn for the 11-panel "M16 mk2" layout. To use them on this mask, put them in `data/anims/` and run:
+
+```
+cd ProtoESP-Controller
+python tools/convert_mk2_to_14.py
+```
+
+It converts every 11-panel face in place and skips faces that are already 14-panel. Eyes are copied as-is. Each mouth side gains a fourth panel by repeating the panel nearest the centre, and the single centre nose is split across the two nose panels. Upload the filesystem afterwards.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `ProtoESP-Controller/` | The firmware (PlatformIO project), with the web pages and faces in `data/` |
+| `ProtoESP-Controller/tools/` | The face converter |
+| `MY_PROTOGEN_SETUP.md` | Full setup and usage guide for this mask |
+| `README-ProtoESP-upstream.md` | NCPlyn's original README, with links to the upstream docs |
+| `ProtoESP-Remote/`, `RGBMatrix/` | Upstream wireless remote and RGB panel projects, unchanged and not used here |
+
+## Credits and license
+
+Based on [ProtoESP (ProtogenHelmet-ESP32)](https://github.com/NCPlyn/ProtogenHelmet-ESP32) by [NCPlyn](https://github.com/NCPlyn), licensed under GPL-3.0. This repo is GPL-3.0 as well (see `LICENSE`). NCPlyn's credit line in `index.html` and `animator.html` is kept, as the original project asks. If ProtoESP is useful to you, consider supporting NCPlyn; the links are in the upstream README.
+
+The face hardware is by FurBitten Studios. Their firmware is not included here.
