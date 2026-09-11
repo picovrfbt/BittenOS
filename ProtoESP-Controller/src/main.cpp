@@ -148,7 +148,8 @@ AsyncWebServer server(80);
 bool instantReload = false, oledInitDone = false, tiltInitDone = false, getfilesProper = true, ToFInitDone = false;
 bool brightnessDirty = false; //set by /brightness, applied to the panels in loop()
 bool displayOn = true, displayDirty = false; //set by /display; panels stay powered down until turned back on (not saved)
-uint8_t currentEarsFrame = 0, currentVisorFrame = 0, numOfSegm, numAnimBlush, totalAnims;
+uint16_t currentEarsFrame = 0, currentVisorFrame = 0; //frame indexes: scrolling text can have hundreds of frames
+uint8_t numOfSegm, numAnimBlush, totalAnims;
 uint16_t visorLedsNum = MATRIXESNUM*64;
 String currentAnim = "", animToLoad = "", availAnims[50], getfilesCache;
 // Web and BLE requests run on other tasks while loop() draws from visorNow->frames.
