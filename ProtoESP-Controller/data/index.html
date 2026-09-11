@@ -117,6 +117,9 @@
     .xyz { grid-template-columns:1fr 1fr 1fr; }
     .xyz > span, .xyz .btn { grid-column:1 / -1; }
   }
+  .inline { display:flex; gap:8px; }
+  .inline input { flex:1; min-width:0; }
+  .inline .btn { flex:none; min-height:46px; padding:8px 14px; }
   .hint { font-size:13px; color:var(--dim); margin:12px 0 0; }
 
   /* scrolling text */
@@ -233,8 +236,9 @@
           <input type="number" id="spMax" name="spMax" min="200" max="800"></div>
         <div class="field"><label for="spTrig">Speech trigger point <small>2–100, default 10</small></label>
           <input type="number" id="spTrig" name="spTrig" min="2" max="100"></div>
-        <div class="field"><label for="boopThresh">Boop distance <small>1–250, default 15</small></label>
-          <input type="number" id="boopThresh" name="boopThresh" min="1" max="250"></div>
+        <div class="field"><label for="boopThresh">Boop distance <small>1–250</small></label>
+          <div class="inline"><input type="number" id="boopThresh" name="boopThresh" min="1" max="250">
+            <button class="btn" type="button" onclick="readBoop()">Read</button></div></div>
         <div class="field"><label for="aTilt">Tilt-sideways face</label><select id="aTilt" name="aTilt"></select></div>
         <div class="field"><label for="aUp">Tilt-up face</label><select id="aUp" name="aUp"></select></div>
         <div class="field"><label for="aBoop">Boop face</label><select id="aBoop" name="aBoop"></select></div>
@@ -243,6 +247,7 @@
         <div class="field"><label for="wifiPass">WiFi password <small>9+ characters</small></label>
           <input type="text" id="wifiPass" name="wifiPass" minlength="9" autocomplete="off"></div>
       </div>
+      <p class="hint">Boop: press Read with nothing near the visor, then again with your hand on it, and set Boop distance between the two numbers. A boop triggers when the reading drops below it.</p>
       <p class="hint">Change the WiFi name if other ProtoESP protogens are nearby, so their remotes don't connect to yours. You'll need to reconnect after the mask restarts.</p>
       <button class="btn primary block" type="submit">Save settings</button>
     </form>
@@ -609,9 +614,20 @@
   async function pullFor(what) {
     const prefix = {Neutral: 'neutral', Tilt: 'tilt', Up: 'up'}[what];
     try {
-      const xyz = (await (await fetch('/gyro', NO_CACHE)).text()).split(';');
-      ['X', 'Y', 'Z'].forEach((axis, i) => { byName(prefix + axis).value = parseFloat(xyz[i]).toFixed(2); });
-    } catch (e) { toast('Could not read the accelerometer', true); }
+      const text = (await (await fetch('/gyro', NO_CACHE)).text()).trim();
+      const xyz = text.split(';').map(parseFloat);
+      if (xyz.length !== 3 || xyz.some(isNaN)) { toast(text, true); return; }   // e.g. "Tilt sensor (BMI270) not found"
+      ['X', 'Y', 'Z'].forEach((axis, i) => { byName(prefix + axis).value = xyz[i].toFixed(2); });
+      toast((what === 'Neutral' ? 'Idle' : what) + ' position read');
+    } catch (e) { toast('Could not read the tilt sensor', true); }
+  }
+
+  // Boop sensor reading for setting Boop distance: lower means something is closer
+  async function readBoop() {
+    try {
+      const t = (await (await fetch('/tof', NO_CACHE)).text()).trim();
+      if (isNaN(parseFloat(t))) toast(t, true); else toast('Boop sensor reads ' + t);
+    } catch (e) { toast('Could not reach the mask', true); }
   }
 
   $('cfgFile').addEventListener('change', function () {
