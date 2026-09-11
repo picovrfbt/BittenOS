@@ -122,6 +122,7 @@ AsyncWebServer server(80);
 
 //--------------------------------//Config vars
 bool instantReload = false, oledInitDone = false, tiltInitDone = false, getfilesProper = true, ToFInitDone = false;
+bool brightnessDirty = false; //set by /brightness, applied to the panels in loop()
 uint8_t currentEarsFrame = 0, currentVisorFrame = 0, numOfSegm, numAnimBlush, totalAnims;
 uint16_t visorLedsNum = MATRIXESNUM*64;
 String currentAnim = "", animToLoad = "", availAnims[50], getfilesCache;
@@ -564,16 +565,22 @@ void startWiFiWeb() {
     }
   });
   
-  server.on("/rgb", HTTP_GET, [](AsyncWebServerRequest *request){
-    if(visorType == "WS2812") {
-      visorNow->type++;
-      if(visorNow->type == visTypeSize)
-        visorNow->type = 0;
-      if(cfg.oledEna && oledInitDone)
-        oled.writeRGB(vTAcro[visorNow->type]);
-        logPrint("[I] Changing visor type to: "+visorTypes[visorNow->type]);
+  server.on("/brightness", HTTP_GET, [](AsyncWebServerRequest *request){ //MAX7219 brightness 0-15, save=1 also stores it
+    if(request->hasParam("value")) {
+      int value = request->getParam("value")->value().toInt();
+      if(value >= 0 && value <= 15) {
+        cfg.bVisor = value;
+        brightnessDirty = true;
+        if(request->hasParam("save")) {
+          cfg.save();
+        }
+        request->send(200, "text/plain", "Set brightness to: " + String(value));
+      } else {
+        request->send(200, "text/plain", F("Invalid brightness"));
+      }
+    } else {
+      request->send(200, "text/plain", F("No valid parameters detected!"));
     }
-    request->redirect("/saved.html?main");
   });
 
   server.on("/gyro", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -825,6 +832,10 @@ void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
 
 void loop() {
   ElegantOTA.loop();
+  if(brightnessDirty && visorType == "MAX72XX") {
+    brightnessDirty = false;
+    mx.control(MD_MAX72XX::INTENSITY, cfg.bVisor);
+  }
   //--------------------------------//EAR Leds render
   if(earPresent) {
     if(earsNow->type == 0) { //custom

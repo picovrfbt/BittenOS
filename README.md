@@ -10,7 +10,8 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - Creates its own WiFi network (`ProtoWiFi`) with a web page to switch faces, change brightness and turn features on and off
 - Includes ProtoESP's web Animator for drawing faces pixel by pixel and testing them live on the mask
 - Ships with 8 faces (default, happy, sad, angry, upset, confused, boop, bsod), converted to this 14-panel layout
-- Supports ProtoESP's optional extras: boop sensor, microphone, accelerometer, OLED, cheek LEDs and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
+- Web pages trimmed to what this mask has: a live brightness slider for the MAX7219 panels (0–15), and no RGB, ear-LED or other-helmet controls
+- Supports ProtoESP's optional extras: boop sensor, microphone, accelerometer, OLED and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
 
 ## Hardware
 
@@ -55,6 +56,8 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Stock faces converted to 14 panels | `data/anims/`, `tools/convert_mk2_to_14.py` | The bundled faces are drawn for 11 panels. Originals are kept in `anims_original_11panel/`. |
 | **Crash fix:** face changes are queued for the main loop | `src/main.cpp`: `/change` handlers, BLE handler, `loop()` | The web server freed the current face's frames while the drawing loop was still reading them, which crashed the board (null pointer at `main.cpp:886`) |
 | Homepage face buttons work in place | `data/index.html` | Tapping a face used to jump to a "Saved" page and back |
+| MAX7219-only web pages | `data/index.html`, `data/animator.html`, `data/visType.txt` | RGB, ear-LED, cheek-LED and other-helmet controls removed from view. Some Animator controls are hidden rather than deleted, because loading a face still writes its ear data into them. |
+| Live brightness slider (0–15) | `data/index.html`; new `/brightness` endpoint replacing `/rgb` in `src/main.cpp`; default 5 in `src/fileOp.cpp` | The old setting was a 0–255 number box meant for RGB panels. The main loop applies the change, since the web server can't safely drive the panels mid-draw. |
 | Setup guide | `MY_PROTOGEN_SETUP.md` | Everything needed to rebuild, flash and maintain this mask |
 
 The crash fix and the homepage change aren't specific to this mask. They apply to upstream ProtoESP as well.
