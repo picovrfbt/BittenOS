@@ -293,6 +293,21 @@
 		xmlhttp.send();
 	}
 	loadFiles();
+
+  // Change face without leaving the page: send /change in the background
+  // and update the label, instead of following the redirect to saved.html.
+  $(document).on('click', 'a.animbtn[href^="/change?anim="]', function(e) {
+    e.preventDefault();
+    var href = this.getAttribute('href');
+    var anim = decodeURIComponent(href.split('anim=')[1]);
+    fetch(href, {redirect: 'manual'}).then(function(r) {
+      if (r.type === 'opaqueredirect') {
+        document.getElementById('activeAnim').innerHTML = anim;
+      } else {
+        r.text().then(function(t) { alert(t); });
+      }
+    }).catch(function() { alert('Could not reach the mask'); });
+  });
   
   function pullFor(what) {
 		xmlhttp=new XMLHttpRequest();

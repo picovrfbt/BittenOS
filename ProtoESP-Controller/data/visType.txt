@@ -1,1 +1,1 @@
-t0;t1;-;-;-;-;-;-;t12;t13;_;blush0;blush1;-;t6;-;-;t7;-;blush2;blush3;_;t2;t3;t4;t5;-;-;t8;t9;t10;t11
+t13;t12;-;-;-;-;-;-;t1;t0;_;blush3;blush2;-;t7;-;-;t6;-;blush1;blush0;_;t11;t10;t9;t8;-;-;t5;t4;t3;t2
