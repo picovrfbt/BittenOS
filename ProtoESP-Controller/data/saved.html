@@ -1,42 +1,36 @@
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <link rel="shortcut icon" href="data:," />
-    <title>Saved</title>
-  </head>
-  <body>
-    <main>
-      <div>
-        <h1>Saved/changed OK</h1>
-        <h3>Redirecting in 1s</h3>
-        <script>
-          var timer = setTimeout(function() {
-            if(window.location.href.includes("main")) {
-              window.location='/';
-            } else if (window.location.href.includes("anim")) {
-              window.location='/animator.html';
-            }
-          }, 1000);
-        </script>
-      </div>
-    </main>
-  </body>
-</html>
-
+<head>
+<meta charset="utf-8">
+<title>Saved</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f17">
+<link rel="shortcut icon" href="data:,">
 <style>
-  h1,h2 {
-    margin-block-start: 0.4em;
-    margin-block-end: 0.4em;
-  }
-  body {
-    font-family:Verdana;
-    margin:0;
-    background-color:#333743;
-    color:white;
-    text-align:center;
-  }
-  main {
-    width:30em;
-    margin: auto;
-  }
+  :root { color-scheme: dark; }
+  html, body { margin:0; height:100%; background:#0b0f17; color:#e8edf6; }
+  body { font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display:grid; place-items:center; padding:24px; box-sizing:border-box; }
+  main { background:#131a26; border:1px solid #253047; border-radius:16px; padding:32px 36px; text-align:center; min-width:240px; }
+  .check { width:56px; height:56px; margin:0 auto 14px; border-radius:50%; display:grid; place-items:center;
+           background:rgba(77,163,255,.14); color:#4da3ff; font-size:30px; font-weight:700; }
+  h1 { margin:0 0 4px; font-size:20px; }
+  p { margin:0; color:#8c97ad; }
 </style>
+</head>
+<body>
+  <main>
+    <div class="check">✓</div>
+    <h1>Saved</h1>
+    <p>Going back…</p>
+  </main>
+  <script>
+    setTimeout(function() {
+      if (window.location.href.includes("main")) {
+        window.location = '/';
+      } else if (window.location.href.includes("anim")) {
+        window.location = '/animator.html';
+      }
+    }, 1000);
+  </script>
+</body>
+</html>

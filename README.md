@@ -10,7 +10,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - Creates its own WiFi network (`ProtoWiFi`) with a web page to switch faces, change brightness and turn features on and off
 - Includes ProtoESP's web Animator for drawing faces pixel by pixel and testing them live on the mask
 - Ships with 8 faces (default, happy, sad, angry, upset, confused, boop, bsod), converted to this 14-panel layout
-- Web pages trimmed to what this mask has: a live brightness slider for the MAX7219 panels (0–15), and no RGB, ear-LED or other-helmet controls
+- A redesigned, phone-friendly web page: face tiles with previews, a live brightness slider for the MAX7219 panels (0–15), feature switches, and no RGB, ear-LED or other-helmet controls
 - Supports ProtoESP's optional extras: boop sensor, microphone, accelerometer, OLED and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
 
 ## Hardware
@@ -58,6 +58,7 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Homepage face buttons work in place | `data/index.html` | Tapping a face used to jump to a "Saved" page and back |
 | MAX7219-only web pages | `data/index.html`, `data/animator.html`, `data/visType.txt` | RGB, ear-LED, cheek-LED and other-helmet controls removed from view. Some Animator controls are hidden rather than deleted, because loading a face still writes its ear data into them. |
 | Live brightness slider (0–15) | `data/index.html`; new `/brightness` endpoint replacing `/rgb` in `src/main.cpp`; default 5 in `src/fileOp.cpp` | The old setting was a 0–255 number box meant for RGB panels. The main loop applies the change, since the web server can't safely drive the panels mid-draw. |
+| Phone-friendly redesign | `data/index.html`, `data/animator.html`, `data/saved.html` | Face tiles with previews, cards, switches and bigger touch targets; the Animator scales its drawing grid to the screen. The old pages are kept in `ui_backup/` and git tag `ui-before-redesign`. |
 | Setup guide | `MY_PROTOGEN_SETUP.md` | Everything needed to rebuild, flash and maintain this mask |
 
 The crash fix and the homepage change aren't specific to this mask. They apply to upstream ProtoESP as well.
@@ -108,6 +109,7 @@ The dashboard at `http://localhost:8080/__tester` shows the page next to a virtu
 | `ProtoESP-Controller/` | The firmware (PlatformIO project), with the web pages and faces in `data/` |
 | `ProtoESP-Controller/tools/` | The face converter and the virtual tester |
 | `MY_PROTOGEN_SETUP.md` | Full setup and usage guide for this mask |
+| `ProtoESP-Controller/ui_backup/` | The web pages from before the redesign |
 | `README-ProtoESP-upstream.md` | NCPlyn's original README, with links to the upstream docs |
 | `ProtoESP-Remote/`, `RGBMatrix/` | Upstream wireless remote and RGB panel projects, unchanged and not used here |
 
