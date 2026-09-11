@@ -13,7 +13,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - A redesigned, phone-friendly web page: face tiles with previews, a live brightness slider for the MAX7219 panels (0–15), feature switches, and no RGB, ear-LED or other-helmet controls
 - Scrolling text: type a message on the web page and press Enter to scroll it across the mouth panels, on repeat or just once, at four speeds
 - Touch drawing in the Animator: drag a finger across pixels to draw or erase
-- A power button that turns the displays off while the mask keeps running
+- A power button that turns the displays off while the mask keeps running, also on the physical button (hold 1.5 s)
 - Supports ProtoESP's optional extras: boop sensor, microphone, accelerometer, OLED and wireless remote. None are fitted yet, so they're turned off in this configuration and untested.
 
 ## Hardware
@@ -65,6 +65,7 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Scrolling text | `data/index.html`, `src/main.cpp` | The browser turns the message into an animation (5×7 font from MD_MAX72XX) and sends it the same way as the Animator's "Try animation". "Play once" uses a new optional `then` field: when the animation reaches its end, the firmware loads that face. |
 | Touch drawing | `data/animator.html` | Finger drags draw or erase, depending on the first pixel touched. Drags that start between panels still scroll. |
 | Display power button | `src/main.cpp` (`/display`), `data/index.html` | Turns the panels off with the MAX7219 shutdown mode while the ESP32, WiFi and current face keep running, and brings the picture back instantly. Not saved, so the displays are always on after a restart. |
+| Physical button | `src/main.cpp` | A short press goes to the face after the one showing (the original skipped a press every lap and kept its own place in the list). Holding it for 1.5 s turns the displays off or on. |
 | Setup guide | `MY_PROTOGEN_SETUP.md` | Everything needed to rebuild, flash and maintain this mask |
 
 The crash fix and the homepage change aren't specific to this mask. They apply to upstream ProtoESP as well.
