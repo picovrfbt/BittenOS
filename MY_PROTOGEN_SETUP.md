@@ -60,7 +60,7 @@ pin 13 -> 5V, pin 12 -> GND     0.1uF capacitor between pins 14 and 7
 
 | GPIO | Part |
 |---|---|
-| 4 | Momentary button, other side to GND (no resistor needed). Short press: next face. Hold 1.5 s: displays off/on. |
+| 17 + 18 | Momentary button across these two neighbouring pins. The firmware holds 18 low as the button's ground, so no GND wire or resistor is needed. Short press: next face. Hold 1.5 s: displays off/on. |
 | 5 | Cheek/blush WS2812 LEDs |
 | 8 / 9 | I2C SDA / SCL (OLED, accelerometer, INA219, APDS9960 boop sensor) |
 | 1 | Microphone (MAX9814) |
@@ -114,7 +114,7 @@ When you tested with numbers, panel "1" was t0, "2" was t1, and so on.
 | `data/index.html`, `data/animator.html`, `data/saved.html` | Redesigned for phones: face previews, cards, switches, bigger touch targets | The old pages were built for desktop screens. The pre-redesign pages are kept in `ui_backup/before-redesign-2026-09-11/` and git tag `ui-before-redesign`. |
 | `src/main.cpp`, `data/index.html` | `/display` endpoint and a top-bar power button | Turns the panels off (MAX7219 shutdown mode) while the ESP32 keeps running. Not saved, so the displays are always on after a restart. |
 | `src/main.cpp` | Optional `then` field in animations | When a one-shot animation (scrolling text set to Play once) reaches its last frame, the firmware loads that face |
-| `src/main.cpp` | Button: a short press goes to the face after the current one; holding 1.5 s toggles the displays | The original skipped a press on every lap of the face list and kept its own place in the list |
+| `src/main.cpp` | Button: a short press goes to the face after the current one; holding 1.5 s toggles the displays. Moved from GPIO 4 to GPIO 17, with GPIO 18 held low as its ground. | The original skipped a press on every lap of the face list and kept its own place in the list. The new pins put both button wires side by side; GPIO 19 was avoided because it's the USB data line. |
 | `platformio.ini:12` | partitions | `8MB_20-20-40.csv` | More room: 2MB app, 3.9MB for faces |
 | `data/visType.txt` | layout | your chain order | See section 3 |
 | `data/visTypeMouth.txt` | mouth mask | 14 entries | Which panels move when talking |
@@ -177,7 +177,7 @@ python -m platformio device monitor -p COM113 -b 115200
 4. Open `192.168.4.1/animator.html` to draw faces.
 5. To show a message, type it into **Scrolling text** and press Enter (up to 64 characters). It scrolls across the mouth panels while the eyes keep the current face. Before sending, pick a speed (Very slow, Slow, Normal or Fast) and **Repeat** or **Play once**. Repeat keeps going until you tap a face. Play once goes back to the face you had after one pass; the mask does that itself, so it works even if your phone locks.
 6. The **power button** at the top right turns the displays off while the mask stays on. WiFi, the web page and the current face keep running, and tapping it again brings the face straight back. The displays always come back on after a restart.
-7. The physical button on GPIO 4 (the 13mm button that came with the face) works without your phone. A short press goes to the next face after the one showing. Holding it for 1.5 seconds turns the displays off or on. The homepage doesn't refresh by itself, so reload it to see the change.
+7. The physical button across GPIO 17 and 18 (the 13mm button that came with the face) works without your phone. A short press goes to the next face after the one showing. Holding it for 1.5 seconds turns the displays off or on. The homepage doesn't refresh by itself, so reload it to see the change.
 
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
