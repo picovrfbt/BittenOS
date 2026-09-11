@@ -10,8 +10,8 @@
 #define MAX_CLK 12 //Clock for MAX72xx matrixes if used
 #define MAX_MOSI 11 //Data for MAX72xx matrixes if used
 #define MAX_CS 10 //ChipSelect for MAX72xx matrixes if used
-#define animBtn 17 //Momentary button: short press = next face, hold 1.5s = displays off/on
-#define animBtnGnd 18 //Driven LOW as the button's ground, so both button wires sit on neighbouring pins
+#define animBtn 21 //Momentary button: short press = next face, hold 1.5s = displays off/on
+#define animBtnGnd 47 //Driven LOW as the button's ground, so both button wires sit on neighbouring pins (47 is next to 21)
 #define fanPWM 13 //PWM pin to control 4pin fan
 
 #define visorType "MAX72XX" // What displays are you using? (WS2812 or MAX72XX so far)
