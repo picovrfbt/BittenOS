@@ -155,6 +155,16 @@ bool sleeping = false; //the sleeping face is showing
 bool bobUp = false;
 #define bobPeriod 1100   //ms between lifts
 #define bobLift    220   //ms the mouth stays lifted
+//Boop counter: the running total pops up over the nose after a boop. Panel numbers are this
+//mask's layout (data/visType.txt): t7 is the left nose, t6 the right. Kept in the firmware
+//rather than the animations so it works over whatever face is showing.
+#define noseLeftPanel  7
+#define noseRightPanel 6
+#define boopPopMs 1400   //how long the number stays up
+unsigned long boopShownAt = 0;
+int lastBoopPhase = -2;
+bool boopCountDirty = false;
+unsigned long boopCountSaved = 0;
 volatile int8_t sleepRequest = 0; //from /sleep: 1 = sleep now, -1 = wake, 0 = nothing
 unsigned long stillSince = 0; //when the mask last moved
 float stillX = 0, stillY = 0, stillZ = 0; //what "not moving" currently looks like
@@ -495,6 +505,7 @@ void startWiFiWeb() {
     cfg.getBool(request, "sleepEna", cfg.sleepEna);
     cfg.getBool(request, "transEna", cfg.transEna);
     cfg.getBool(request, "bobEna", cfg.bobEna);
+    cfg.getBool(request, "boopCountEna", cfg.boopCountEna);
     cfg.getInt(request, "transMs", cfg.transMs);
     cfg.getFloat(request, "sleepTol", cfg.sleepTol);
     //brightness
@@ -639,6 +650,7 @@ void startWiFiWeb() {
     st["wifiClients"] = WiFi.softAPgetStationNum();
     st["tilt"] = tiltInitDone;
     st["boop"] = ToFInitDone;
+    st["boops"] = cfg.boopCount;
     st["display"] = displayOn;
     st["sleeping"] = sleeping;
     st["anim"] = anim;
@@ -921,6 +933,47 @@ void dynamicSpeak(uint64_t *leds, bool isMouth[MATRIXESNUM], int volume) {
   }
 }
 
+//3x5 digits for the boop counter, one bit per pixel, top row first
+const uint8_t boopDigits[10][5] = {
+  {0b111,0b101,0b101,0b101,0b111}, {0b010,0b110,0b010,0b010,0b111},
+  {0b111,0b001,0b111,0b100,0b111}, {0b111,0b001,0b111,0b001,0b111},
+  {0b101,0b101,0b111,0b001,0b001}, {0b111,0b100,0b111,0b001,0b111},
+  {0b111,0b100,0b111,0b101,0b111}, {0b111,0b001,0b001,0b001,0b001},
+  {0b111,0b101,0b111,0b101,0b111}, {0b111,0b101,0b111,0b001,0b111},
+};
+
+uint64_t boopDigitsWord(int value, int lift) { //row r, column c sits at bit r*8+c
+  uint64_t w = 0;
+  bool twoDigits = value >= 10;
+  int tens = (value / 10) % 10, units = value % 10;
+  int unitsX = twoDigits ? 4 : 3;               //a single digit sits centred instead
+  for(int r = 0; r < 5; r++) {
+    int y = 1 + r - lift;
+    if(y < 0 || y > 7) continue;
+    for(int c = 0; c < 3; c++) {
+      if(twoDigits && ((boopDigits[tens][r] >> (2 - c)) & 1)) w |= 1ULL << (y * 8 + c);
+      if((boopDigits[units][r] >> (2 - c)) & 1) w |= 1ULL << (y * 8 + unitsX + c);
+    }
+  }
+  return w;
+}
+
+int boopPhase() { //-1 nothing, 0 the squash, 1 the overshoot, 2 settled
+  if(!cfg.boopCountEna || boopShownAt == 0) return -1;
+  unsigned long dt = millis() - boopShownAt;
+  if(dt > boopPopMs) return -1;
+  if(dt < 90) return 0;
+  if(dt < 190) return 1;
+  return 2;
+}
+
+void countBoop() {
+  cfg.boopCount++;
+  boopCountDirty = true;      //saved from loop() a while later, not on every boop
+  boopShownAt = millis();
+  logPrint("[I] Boop #" + String(cfg.boopCount));
+}
+
 void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
   uint64_t tempLeds[MATRIXESNUM];
   memcpy(tempLeds, visorNow->frames[visorFrame].leds, sizeof(tempLeds));
@@ -931,6 +984,13 @@ void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
     for(int y = 0; y < numOfSegm; y++) {
       if(visorNow->isMouth[y]) tempLeds[y] >>= 8;
     }
+  }
+  int bphase = boopPhase();
+  if(bphase >= 0) { //boop counter: the number takes over both nose panels while it pops
+    uint64_t w = (bphase == 0) ? 0x0000007E7E000000ULL          //a squashed bar to start the pop
+                               : boopDigitsWord(cfg.boopCount % 100, bphase == 1 ? 1 : 0);
+    if(noseLeftPanel  < numOfSegm) tempLeds[noseLeftPanel]  = w;
+    if(noseRightPanel < numOfSegm) tempLeds[noseRightPanel] = w;
   }
   for(int y = 0; y < numOfSegm; y++) {
     for (int i = 0; i < 8; i++) {
@@ -1115,8 +1175,10 @@ void loop() {
   //here rather than waiting for the next frame.
   if(visorNow && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) {
     bool wantUp = cfg.bobEna && (millis() % bobPeriod) < bobLift;
-    if(wantUp != bobUp) {
+    int bphase = boopPhase();
+    if(wantUp != bobUp || bphase != lastBoopPhase) {
       bobUp = wantUp;
+      lastBoopPhase = bphase;
       setAllVisor(visorLedsNEW,0,currentVisorFrame);
     }
   }
@@ -1286,6 +1348,7 @@ void loop() {
         if(!digitalRead(T_in)) {
           logPrint(F("[I] IR BOOP"));
           booping = true;
+          countBoop();
           boopoldanim = currentAnim;
           loadAnim(cfg.aBoop,"");
           lastMillsBoop = millis();
@@ -1305,6 +1368,7 @@ void loop() {
         if(digitalRead(T_in)) {
           logPrint(F("[I] Touch BOOP"));
           booping = true;
+          countBoop();
           boopoldanim = currentAnim;
           loadAnim(cfg.aBoop,"");
           lastMillsBoop = millis();
@@ -1322,6 +1386,7 @@ void loop() {
         if(booping == false && (255 - apdsprox) < cfg.boopThresh) {
           logPrint(F("[I] ToF BOOP"));
           booping = true;
+          countBoop();
           boopoldanim = currentAnim;
           loadAnim(cfg.aBoop,"");
           lastMillsBoop = millis();
@@ -1346,6 +1411,7 @@ void loop() {
         if(booping == false && distance < cfg.boopThresh && distance != -1) {
           logPrint(F("[I] ToF BOOP"));
           booping = true;
+          countBoop();
           boopoldanim = currentAnim;
           loadAnim(cfg.aBoop,"");
           lastMillsBoop = millis();
@@ -1507,6 +1573,12 @@ void loop() {
     check0button = 0;
   } else if (digitalRead(0) == LOW && check0button+10000 < millis() && check0button < millis()) {
     check0button = millis();
+  }
+
+  if(boopCountDirty && millis() - boopShownAt > 20000 && millis() - boopCountSaved > 20000) {
+    boopCountDirty = false;                 //flash lasts longer if the total is saved once things settle
+    boopCountSaved = millis();
+    cfg.save();
   }
 
   if(sleepRequest != 0) { //from /sleep

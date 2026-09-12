@@ -248,6 +248,7 @@
       <label class="switch">Auto sleep <input type="checkbox" id="sleepAuto"></label>
       <label class="switch">Transitions <input type="checkbox" id="trans"></label>
       <label class="switch">Mouth bob <input type="checkbox" id="bob"></label>
+      <label class="switch">Boop counter <input type="checkbox" id="boopCount"></label>
     </div>
     <button class="btn primary block" type="button" onclick="saveFeatures()">Save features</button>
   </section>
@@ -265,6 +266,7 @@
       <div class="stat"><span>Face frame</span><b id="stFrame">—</b></div>
       <div class="stat"><span>Tilt sensor</span><b id="stTilt">—</b></div>
       <div class="stat"><span>Boop sensor</span><b id="stBoop">—</b></div>
+      <div class="stat"><span>Boops</span><b id="stBoops">—</b></div>
     </div>
     <p class="hint">Updates every 2 seconds while this page is open.</p>
   </section>
@@ -733,6 +735,7 @@
       if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
       setSensor('stTilt', s.tilt);
       setSensor('stBoop', s.boop);
+      $('stBoops').textContent = s.boops === undefined ? '—' : s.boops;
     } catch (e) { /* mask out of reach or older firmware: keep the last values */ }
   }
   setInterval(refreshStats, 2000);
@@ -779,6 +782,7 @@
     $('sleepAuto').checked = o.sleepEna;
     $('trans').checked = o.transEna !== false; //on unless the mask says otherwise
     $('bob').checked = !!o.bobEna;
+    $('boopCount').checked = o.boopCountEna !== false;
     for (const k of ['bOled', 'spMin', 'spMax', 'spTrig', 'aTilt', 'aUp', 'aBoop', 'aSleep', 'sleepMins', 'sleepTol', 'boopThresh', 'wifiName', 'wifiPass',
                      'neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol']) {
       if (o[k] !== undefined) byName(k).value = o[k];
@@ -805,7 +809,7 @@
 
   function saveFeatures() {
     const p = new URLSearchParams();
-    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled'], ['sleepEna', 'sleepAuto'], ['transEna', 'trans'], ['bobEna', 'bob']]) {
+    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled'], ['sleepEna', 'sleepAuto'], ['transEna', 'trans'], ['bobEna', 'bob'], ['boopCountEna', 'boopCount']]) {
       p.set(key, $(id).checked);
     }
     saveParams(p.toString(), 'Features saved');

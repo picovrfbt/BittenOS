@@ -194,6 +194,8 @@ python -m platformio device monitor -p COM113 -b 115200
 
 15. **Mouth bob:** turn on **Mouth bob** under Features and press Save features to make the mouth lift a pixel every second or so. It applies to whichever face is showing, including ones you draw yourself, because the firmware does it while drawing rather than it being part of the animation - so it can be switched on and off without reflashing anything. The timing is `bobPeriod` and `bobLift` near the top of `src/main.cpp` (1100 ms between lifts, held for 220 ms). Only panels flagged as mouth panels move, which is the same flag speech uses.
 
+16. **Boop counter:** on by default (**Boop counter** under Features). After each boop the running total pops up over both nose panels for about a second and a half, then the face carries on. The **System** card shows the lifetime total. Two digits fit on a nose panel, so once you pass 99 the nose shows the last two digits and the System card shows the real number. The total survives a restart, but it is only written to flash about 20 seconds after the boops stop, so a boop session doesn't wear the flash. Needs the APDS9960 wired and **Boop** switched on, same as the boop face.
+
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
 ### Drawing and testing a face in the Animator
