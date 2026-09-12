@@ -455,6 +455,7 @@
     const width = Math.max(...layout.map(r => r.length));
     const cols = [];  // skip columns that are empty in every row so the face fills the tile
     for (let c = 0; c < width; c++) if (layout.some(r => isPanel(r[c]))) cols.push(c);
+    if (!cols.length) return;   // no usable layout: bail rather than set a negative canvas size, which throws
     const P = 3, GAP = 3, PANEL = 8 * P;
     canvas.width = cols.length * (PANEL + GAP) - GAP;
     canvas.height = layout.length * (PANEL + GAP) - GAP;
@@ -472,17 +473,42 @@
   }
 
   // one request at a time so the mask isn't flooded
+  // The mask's web server drops a request now and then when several land together. A dropped
+  // visType.txt used to leave every tile black with nothing said about it, so: retry, and if it
+  // still fails, say so instead of showing blank tiles.
+  async function fetchRetry(url, tries) {
+    let last;
+    for (let i = 0; i < tries; i++) {
+      try {
+        const r = await fetch(url, NO_CACHE);
+        if (r.ok) return r;
+        last = new Error(url + ' returned ' + r.status);
+      } catch (e) { last = e; }
+      await new Promise(done => setTimeout(done, 150 * (i + 1)));
+    }
+    throw last;
+  }
+
   async function loadPreviews() {
-    try { layout = parseLayout(await (await fetch('/visType.txt', NO_CACHE)).text()); }
-    catch (e) { return; }
+    try {
+      const parsed = parseLayout(await (await fetchRetry('/visType.txt', 3)).text());
+      if (!parsed.some(r => r.some(c => /^t\d+$/.test(c)))) throw new Error('no panels in visType.txt');
+      layout = parsed;
+    } catch (e) {
+      console.error('previews:', e);
+      toast('Could not read the panel layout, so the face previews are blank', true);
+      return;
+    }
+    let failed = 0;
     for (const b of document.querySelectorAll('.face')) {
       try {
-        const anim = await (await fetch('/anims/' + encodeURIComponent(b.dataset.anim), NO_CACHE)).json();
+        const anim = await (await fetchRetry('/anims/' + encodeURIComponent(b.dataset.anim), 3)).json();
         animCache[b.dataset.anim] = anim;
         const first = anim.visor && anim.visor.frames && anim.visor.frames[0];
         drawFace(b.querySelector('canvas'), (first && first.leds) || []);
-      } catch (e) { /* leave the tile dark */ }
+      } catch (e) { console.error('preview', b.dataset.anim, e); failed++; }
     }
+    if (failed) toast(failed + (failed > 1 ? ' face previews' : ' face preview') + " couldn't load", true);
   }
 
   /* ---------- scrolling text ---------- */
