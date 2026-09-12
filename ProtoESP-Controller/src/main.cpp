@@ -149,6 +149,12 @@ bool instantReload = false, oledInitDone = false, tiltInitDone = false, getfiles
 bool brightnessDirty = false; //set by /brightness, applied to the panels in loop()
 bool displayOn = true, displayDirty = false; //set by /display; panels stay powered down until turned back on (not saved)
 bool sleeping = false; //the sleeping face is showing
+//Mouth bob: lift the mouth panels one row every so often, so a still face has a bit of life.
+//Done here rather than in the animations so it can be switched on and off while running, and
+//so it works on any face - the mouth panels are the ones flagged isMouth, as speech uses.
+bool bobUp = false;
+#define bobPeriod 1100   //ms between lifts
+#define bobLift    220   //ms the mouth stays lifted
 volatile int8_t sleepRequest = 0; //from /sleep: 1 = sleep now, -1 = wake, 0 = nothing
 unsigned long stillSince = 0; //when the mask last moved
 float stillX = 0, stillY = 0, stillZ = 0; //what "not moving" currently looks like
@@ -488,6 +494,7 @@ void startWiFiWeb() {
     cfg.getBool(request, "oledEna", cfg.oledEna);
     cfg.getBool(request, "sleepEna", cfg.sleepEna);
     cfg.getBool(request, "transEna", cfg.transEna);
+    cfg.getBool(request, "bobEna", cfg.bobEna);
     cfg.getInt(request, "transMs", cfg.transMs);
     cfg.getFloat(request, "sleepTol", cfg.sleepTol);
     //brightness
@@ -920,6 +927,11 @@ void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
   if(speaking) {
     dynamicSpeak(tempLeds, visorNow->isMouth, micVolume);
   }
+  if(bobUp) { //mouth bob: shift the mouth panels up a row. Row i sits in byte i, so >>8 is up.
+    for(int y = 0; y < numOfSegm; y++) {
+      if(visorNow->isMouth[y]) tempLeds[y] >>= 8;
+    }
+  }
   for(int y = 0; y < numOfSegm; y++) {
     for (int i = 0; i < 8; i++) {
       byte row = (tempLeds[y] >> i * 8) & 0xFF; //---------remove byte from upper global
@@ -1095,6 +1107,17 @@ void loop() {
     if(blushPresent) {
       for(int x = 0; x<blushLedsNum; x++) { blushLeds[x] = visorNow->frames[currentVisorFrame].ledsBlush[x]; } //set blush leds
       FdisplayBlush = true;
+    }
+  }
+
+  //--------------------------------//MOUTH BOB
+  //The frame often doesn't change for seconds at a time, so the redraw has to be asked for
+  //here rather than waiting for the next frame.
+  if(visorNow && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) {
+    bool wantUp = cfg.bobEna && (millis() % bobPeriod) < bobLift;
+    if(wantUp != bobUp) {
+      bobUp = wantUp;
+      setAllVisor(visorLedsNEW,0,currentVisorFrame);
     }
   }
 

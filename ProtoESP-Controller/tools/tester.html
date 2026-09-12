@@ -84,7 +84,7 @@
   const canvas = document.getElementById('visor');
   const ctx = canvas.getContext('2d');
   const PITCH = 10, GAP = 6;            // pixel pitch and gap between panels
-  let layout = [], anim = null, frameIdx = 0, frameUntil = 0;
+  let layout = [], anim = null, frameIdx = 0, frameUntil = 0, bobEna = false;
   let brightness = 5, displayOn = true, lastVersion = -1, lastAnimVersion = -1, drawnKey = '';
 
   function showPage(path) {
@@ -133,6 +133,10 @@
     ctx.clearRect(0, 0, w, h);
     const leds = displayOn && anim && anim.visor && anim.visor.frames && anim.visor.frames[frameIdx]
       ? anim.visor.frames[frameIdx].leds : [];   // panels in shutdown show nothing
+    // Mouth bob: the firmware lifts the mouth panels a row now and then, on whatever face is
+    // showing, rather than it being baked into the animation. Same timing as src/main.cpp.
+    const isMouth = (anim && anim.visor && anim.visor.isMouth) || [];
+    const bobUp = bobEna && (Date.now() % 1100) < 220;
     const duty = (2 * brightness + 1) / 32;              // MAX7219 intensity steps
     const alpha = 0.2 + 0.8 * Math.sqrt(duty);
     layout.forEach((row, ry) => row.forEach((cell, cx) => {
@@ -140,7 +144,9 @@
       const px = cx * (panel + GAP), py = ry * (panel + GAP);
       ctx.fillStyle = '#0e1220';
       ctx.fillRect(px, py, panel, panel);
-      const bits = panelRows(leds[parseInt(cell.slice(1), 10)]);
+      const idx = parseInt(cell.slice(1), 10);
+      let bits = panelRows(leds[idx]);
+      if (bobUp && isMouth[idx]) bits = bits.slice(1).concat([[0, 0, 0, 0, 0, 0, 0, 0]]);
       for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
         ctx.beginPath();
         ctx.arc(px + c * PITCH + PITCH / 2, py + r * PITCH + PITCH / 2, PITCH * 0.36, 0, Math.PI * 2);
@@ -184,6 +190,7 @@
       }
       brightness = s.brightness;
       displayOn = s.displayOn !== false;
+      bobEna = !!(s.toggles && s.toggles.bobEna);
       if (s.version !== lastVersion) {
         lastVersion = s.version;
         const t = s.toggles, onoff = v => v ? 'on' : 'off';
@@ -191,7 +198,8 @@
           chip('Display', s.displayOn === false ? 'off' : 'on') +
           chip('Face', s.anim) + chip('Brightness', s.brightness + '/15') + chip('Fan', s.fan) +
           chip('Boop', onoff(t.boopEna)) + chip('Speech', onoff(t.speechEna)) + chip('Tilt', onoff(t.tiltEna)) +
-          chip('BLE', onoff(t.bleEna)) + chip('OLED', onoff(t.oledEna)) + chip('WiFi', s.wifi);
+          chip('BLE', onoff(t.bleEna)) + chip('OLED', onoff(t.oledEna)) +
+          chip('Bob', onoff(t.bobEna)) + chip('WiFi', s.wifi);
         const log = document.getElementById('log');
         const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
         log.textContent = s.log.join('\n');

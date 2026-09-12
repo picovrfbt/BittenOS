@@ -57,6 +57,7 @@ void Config::setDefault() {
   sleepMins = 5;
   aSleep = "sleep.json";
   transEna = true;
+  bobEna = false;
   transMs = 80;    //one direction of the dip, split across the brightness steps
   sleepTol = 0.2;  //g of movement before the mask counts as awake
   save();
@@ -99,6 +100,7 @@ bool Config::save() {
   doc["sleepMins"] = sleepMins;
   doc["aSleep"] = aSleep;
   doc["transEna"] = transEna;
+  doc["bobEna"] = bobEna;
   doc["transMs"] = transMs;
   doc["sleepTol"] = sleepTol;
   
@@ -208,6 +210,7 @@ bool Config::load() {
   sleepMins = doc["sleepMins"] | 5;
   aSleep = doc["aSleep"] | "sleep.json";
   transEna = doc["transEna"] | true;
+  bobEna = doc["bobEna"] | false;
   transMs = doc["transMs"] | 80;
   sleepTol = doc["sleepTol"] | 0.2f;
 
