@@ -16,12 +16,12 @@ import os
 CTRL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(CTRL, 'data')
 
-BREATH = [0.0, 0.12, 0.3, 0.52, 0.74, 0.9, 1.0, 1.0, 0.9, 0.74, 0.52, 0.3, 0.12, 0.0]
-FRAME_MS = 120          # 14 frames x 120 ms = 1.68 s per breath, like the clip
-BASE_ROW = 4            # the closed-mouth line
-MOUTH_MAX = 4           # tallest the mouth gets, in pixels
-MOUTH_HALF = 9         # half width of the mouth shape, in pixels
-MOUTH_CENTRE = 22       # centre of the shape along each 32 px half, from the outer end
+BREATH = [0.22, 0.32, 0.46, 0.62, 0.78, 0.92, 1.0, 1.0, 0.92, 0.78, 0.62, 0.46, 0.32, 0.22]
+FRAME_MS = 160          # 14 frames x 160 ms = 2.24 s per breath
+BASE_ROW = 4            # vertical centre of the mouth
+MOUTH_MAX = 6           # tallest the teardrop gets (its round end), in pixels
+MOUTH_HEAD = 4          # round end, in pixels from the front of each mouth half
+MOUTH_TAIL = 20         # how far the taper reaches back towards the ear
 
 
 def blank(width):
@@ -63,23 +63,30 @@ def closed_eye():
 
 
 def mouth(amount):
-    """32x8: the closed-mouth line, plus a lens that grows with `amount` (0..1)."""
+    # 32x8: a teardrop, round end towards the front of the face, tapering back.
+    # amount (0..1) is how far through the breath it is. No baseline line.
     c = blank(32)
-    for x in range(32):
-        c[BASE_ROW][x] = 1
     height = MOUTH_MAX * amount
-    if height >= 1:
-        for x in range(32):
-            dx = (x - MOUTH_CENTRE) / MOUTH_HALF
-            if abs(dx) > 1:
+    if height < 1:
+        return c
+    radius = height / 2
+    tail = MOUTH_TAIL * (0.55 + 0.45 * amount)
+    for x in range(32):
+        if x <= MOUTH_HEAD:                      # round end
+            dx = (MOUTH_HEAD - x) / max(radius, 0.001)
+            if dx > 1:
                 continue
             h = height * math.sqrt(1 - dx * dx)
-            top = BASE_ROW - int(round(h / 2))
-            bottom = BASE_ROW + int(round(h / 2))
-            for row in range(max(0, top), min(7, bottom) + 1):
-                c[row][x] = 1
+        else:                                    # taper to a point
+            t = (x - MOUTH_HEAD) / tail
+            if t > 1:
+                continue
+            h = height * (1 - t)          # straight taper
+        top = int(round(BASE_ROW - h / 2))
+        bottom = int(round(BASE_ROW + h / 2))
+        for row in range(max(0, top), min(7, bottom) + 1):
+            c[row][x] = 1
     return c
-
 
 def panels_in(row):
     return [int(cell[1:]) for cell in row if cell.startswith('t')]
