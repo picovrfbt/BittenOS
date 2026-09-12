@@ -84,13 +84,14 @@ def arc(c, cx, cy, r, a0, a1, thick=1, ymin=-99, ymax=99):
                 put(c, cx + (r - t) * math.cos(a), y)
 
 
-def wedge(c, x0, x1, ytop, yslope, ybot):
-    """Filled shape with a straight slanted top edge - reads as a brow."""
+def band(c, x0, x1, ytop, yslope, thick, ymin=0, ymax=7):
+    """A slanted bar of fixed thickness - reads as a brow without filling the whole panel."""
     for x in range(x0, x1 + 1):
         s = (x - x0) / (x1 - x0)
-        top = ytop + yslope * s
-        for y in range(int(round(top)), ybot + 1):
-            put(c, x, y)
+        top = int(round(ytop + yslope * s))
+        for t in range(thick):
+            if ymin <= top + t <= ymax:
+                put(c, x, top + t)
 
 
 def mirror_half(c):
@@ -118,13 +119,13 @@ def eye_arch(c, ph):             # happy / booped: a clean ^, two strokes meetin
 
 
 def eye_droop(c, ph):            # sad: the lid droops towards the ear, the other way to angry
-    sag = 0.4 * math.sin(2 * math.pi * ph)
-    wedge(c, EX0, EX1, 4.8 + sag, -3.4, 7)
+    sag = 0.5 * math.sin(2 * math.pi * ph)
+    band(c, EX0, EX1, 4.2 + sag, -3.0, 3)
 
 
 def eye_angry(c, ph):            # angry: a brow driving down towards the nose
-    twitch = 0.35 * math.sin(4 * math.pi * ph)
-    wedge(c, EX0, EX1, 0.6 + twitch, 4.2, 7)
+    twitch = 0.5 * math.sin(4 * math.pi * ph)
+    band(c, EX0, EX1, 0.8 + twitch, 4.0, 3)
 
 
 def eye_chevron(c, ph):          # confused: a > pointing in towards the nose
@@ -153,37 +154,40 @@ def eye_dot(c, ph):              # surprised
 # ---------- nose ----------
 
 def nose(c):
-    """A small hook in the top inner corner. Spanning the whole panel reads as a slash."""
-    arc(c, NX1, 13.0, 4.2, 180, 272)
+    """A wedge against the inner edge, tapering down. A thin hook just read as a quote mark."""
+    for y in range(9, 15):
+        w = 6.0 * (1.0 - (y - 9) / 5.5) ** 0.8
+        for x in range(int(round(NX1 - w)), NX1 + 1):
+            put(c, x, y)
 
 
 # ---------- mouths ----------
 
 def mouth_wave(c, ph):           # default: one soft hump each side, breathing slowly
     a = 2.1 + 0.9 * math.sin(2 * math.pi * ph)
-    stroke(c, MX0, MX1, lambda s: 20.2 - a * math.sin(math.pi * s))
+    stroke(c, MX0, MX1, lambda s: 20.2 - a * math.sin(math.pi * s), thick=2, ymin=16, ymax=23)
 
 
 def mouth_smile(c, ph):          # ends high, dipping to the centre
     d = 0.3 * math.sin(2 * math.pi * ph)
-    stroke(c, MX0, MX1, lambda s: 18.3 + d + 3.4 * s ** 1.6)
+    stroke(c, MX0, MX1, lambda s: 18.3 + d + 3.4 * s ** 1.6, thick=2, ymin=16, ymax=23)
 
 
 def mouth_frown(c, ph):
     d = 0.25 * math.sin(2 * math.pi * ph)
-    stroke(c, MX0, MX1, lambda s: 21.8 - d - 3.2 * s ** 1.6)
+    stroke(c, MX0, MX1, lambda s: 21.8 - d - 3.2 * s ** 1.6, thick=2, ymin=16, ymax=23)
 
 
 def mouth_flat(c, ph):           # upset: a slow sag towards the centre, then back
     t = 1.2 * math.sin(2 * math.pi * ph)
-    stroke(c, MX0, MX1, lambda s: 20.0 + t * (0.2 + 0.8 * s ** 1.5))
+    stroke(c, MX0, MX1, lambda s: 20.0 + t * (0.2 + 0.8 * s ** 1.5), thick=2, ymin=16, ymax=23)
 
 
 def mouth_zigzag(c, ph):         # confused / angry: sharp peaks sliding along
     def fy(s):
         p = (s * 2.0 + ph) % 1.0
-        return 21.4 - 3.0 * (1 - abs(2 * p - 1))
-    stroke(c, MX0, MX1, fy)
+        return 21.0 - 3.0 * (1 - abs(2 * p - 1))
+    stroke(c, MX0, MX1, fy, thick=2, ymin=16, ymax=23)
 
 
 def mouth_open(c, ph):           # booped: a filled shout
@@ -197,7 +201,7 @@ def mouth_open(c, ph):           # booped: a filled shout
 
 def mouth_grin(c, ph):           # heart: a wide, happy curve
     d = 0.3 * math.sin(2 * math.pi * ph)
-    stroke(c, MX0, MX1, lambda s: 18.6 + d + 3.2 * s ** 1.4)
+    stroke(c, MX0, MX1, lambda s: 18.6 + d + 3.2 * s ** 1.4, thick=2, ymin=16, ymax=23)
 
 
 # ---------- the faces ----------
