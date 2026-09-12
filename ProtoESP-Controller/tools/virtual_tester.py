@@ -38,7 +38,8 @@ START = time.time()  # for the emulated uptime
 # a bool instead of a string (getBool/getInt/getFloat in src/fileOp.cpp).
 SAVECONFIG_KEYS = {
     'boopEna': bool, 'speechEna': bool, 'tiltEna': bool, 'bleEna': bool, 'oledEna': bool,
-    'sleepEna': bool, 'transEna': bool, 'bobEna': bool, 'transMs': int, 'sleepTol': float,
+    'sleepEna': bool, 'transEna': bool, 'bobEna': bool, 'boopCountEna': bool,
+    'boopCount': int, 'transMs': int, 'sleepTol': float,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
@@ -328,6 +329,7 @@ class Handler(BaseHTTPRequestHandler):
                 'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,
                 'psramFree': 8200000, 'psramSize': 8388608, 'fsUsed': 160000 + anims_bytes, 'fsTotal': 4063232,
                 'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': False,
+                'boops': int(board.config.get('boopCount') or 0),
                 'display': board.display_on, 'sleeping': board.sleeping,
                 'anim': board.current, 'frame': 0, 'frames': frames,
             }), 'application/json')

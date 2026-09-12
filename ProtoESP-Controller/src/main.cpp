@@ -160,7 +160,6 @@ bool bobUp = false;
 //rather than the animations so it works over whatever face is showing.
 #define noseLeftPanel  7
 #define noseRightPanel 6
-#define boopPopMs 1400   //how long the number stays up
 unsigned long boopShownAt = 0;
 int lastBoopPhase = -2;
 bool boopCountDirty = false;
@@ -506,6 +505,7 @@ void startWiFiWeb() {
     cfg.getBool(request, "transEna", cfg.transEna);
     cfg.getBool(request, "bobEna", cfg.bobEna);
     cfg.getBool(request, "boopCountEna", cfg.boopCountEna);
+    if(cfg.getInt(request, "boopCount", cfg.boopCount)) boopCountDirty = false; //the Reset button
     cfg.getInt(request, "transMs", cfg.transMs);
     cfg.getFloat(request, "sleepTol", cfg.sleepTol);
     //brightness
@@ -958,13 +958,34 @@ uint64_t boopDigitsWord(int value, int lift) { //row r, column c sits at bit r*8
   return w;
 }
 
-int boopPhase() { //-1 nothing, 0 the squash, 1 the overshoot, 2 settled
+uint64_t boopBarWord(int width) { //a centred bar, two rows tall - the number squeezing in and out
+  uint64_t w = 0;
+  int x0 = (8 - width) / 2;
+  for(int r = 3; r <= 4; r++)
+    for(int c = x0; c < x0 + width; c++)
+      w |= 1ULL << (r * 8 + c);
+  return w;
+}
+
+//How the number pops. Each stage runs until that many ms after the boop: kind 0 is a bar of
+//that width, kind 1 the digits lifted by that many rows. It squeezes open, overshoots high,
+//bounces low, settles, then collapses back out again.
+struct BoopStage { uint16_t until; uint8_t kind; int8_t amount; };
+const BoopStage boopStages[] = {
+  {  60, 0, 2}, { 110, 0, 4}, { 160, 0, 6},     //a dot widening into a bar
+  { 220, 1, 1}, { 280, 1, -1}, { 340, 1, 0},    //digits: overshoot, bounce, land
+  {1200, 1, 0},                                 //sitting there to be read
+  {1270, 1, 1}, {1330, 0, 6}, {1390, 0, 2},     //lift, collapse, gone
+};
+#define boopStageCount (sizeof(boopStages) / sizeof(boopStages[0]))
+
+int boopPhase() { //which stage of the pop we're in, -1 for nothing showing
   if(!cfg.boopCountEna || boopShownAt == 0) return -1;
   unsigned long dt = millis() - boopShownAt;
-  if(dt > boopPopMs) return -1;
-  if(dt < 90) return 0;
-  if(dt < 190) return 1;
-  return 2;
+  for(uint8_t i = 0; i < boopStageCount; i++) {
+    if(dt < boopStages[i].until) return i;
+  }
+  return -1;
 }
 
 void countBoop() {
@@ -987,8 +1008,9 @@ void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
   }
   int bphase = boopPhase();
   if(bphase >= 0) { //boop counter: the number takes over both nose panels while it pops
-    uint64_t w = (bphase == 0) ? 0x0000007E7E000000ULL          //a squashed bar to start the pop
-                               : boopDigitsWord(cfg.boopCount % 100, bphase == 1 ? 1 : 0);
+    const BoopStage &bst = boopStages[bphase];
+    uint64_t w = (bst.kind == 0) ? boopBarWord(bst.amount)
+                                 : boopDigitsWord(cfg.boopCount % 100, bst.amount);
     if(noseLeftPanel  < numOfSegm) tempLeds[noseLeftPanel]  = w;
     if(noseRightPanel < numOfSegm) tempLeds[noseRightPanel] = w;
   }
