@@ -153,6 +153,14 @@ volatile int8_t sleepRequest = 0; //from /sleep: 1 = sleep now, -1 = wake, 0 = n
 unsigned long stillSince = 0; //when the mask last moved
 float stillX = 0, stillY = 0, stillZ = 0; //what "not moving" currently looks like
 String wakeAnim = ""; //the face to go back to when it wakes
+//Face transitions (loop task only): dip the panels dark, swap the face where the cut can't be seen, bring them back.
+//The MAX7219 chain runs in wiring order, not the order the panels sit on the face, so a wipe would sweep raggedly;
+//dimming is global, so it looks the same whatever the layout.
+uint8_t transPhase = 0;                 //0 = idle, 1 = going dark, 2 = coming back
+int8_t transLevel = 0;                  //panel intensity while the dip runs
+unsigned long transLastStep = 0;
+const uint8_t transStepMs = 16;         //per intensity step, so a dip is about 2x bVisor x 16 ms
+String transAnim = "", transPost = "";  //the face waiting for the bottom of the dip
 uint32_t loopCount = 0, loopsPerSec = 0; unsigned long loopRateStart = 0; //loop() runs per second, for the system monitor
 uint16_t currentEarsFrame = 0, currentVisorFrame = 0; //frame indexes: scrolling text can have hundreds of frames
 uint8_t numOfSegm, numAnimBlush, totalAnims;
@@ -478,6 +486,7 @@ void startWiFiWeb() {
     cfg.getBool(request, "bleEna", cfg.bleEna);
     cfg.getBool(request, "oledEna", cfg.oledEna);
     cfg.getBool(request, "sleepEna", cfg.sleepEna);
+    cfg.getBool(request, "transEna", cfg.transEna);
     //brightness
     cfg.getInt(request, "bEar", cfg.bEar);
     cfg.getInt(request, "bVisor", cfg.bVisor);
@@ -948,6 +957,31 @@ void loop() {
     mx.control(MD_MAX72XX::SHUTDOWN, displayOn ? MD_MAX72XX::OFF : MD_MAX72XX::ON);
     logPrint(displayOn ? F("[I] Displays on") : F("[I] Displays off"));
   }
+  if(transPhase != 0 && visorType == "MAX72XX" && millis()-transLastStep >= transStepMs) { //face transition
+    transLastStep = millis();
+    if(transPhase == 1) {
+      if(transLevel > 0) {
+        mx.control(MD_MAX72XX::INTENSITY, --transLevel);
+      } else { //dark: swap now. loadAnim() resets the frame index and asks for an instant redraw.
+        if(transAnim != "") {
+          if(sleeping) { sleeping = false; wakeAnim = ""; stillSince = millis(); } //picking a face wakes it, and stays on that face
+          loadAnim(transAnim,"");
+          wasTilt = false;
+          booping = false;
+          transAnim = "";
+        }
+        if(transPost != "") { loadAnim("POSTAnimLoad",transPost); transPost = ""; }
+        transPhase = 2;
+      }
+    } else {
+      if(transLevel < cfg.bVisor) {
+        mx.control(MD_MAX72XX::INTENSITY, ++transLevel);
+      } else {
+        transPhase = 0;
+        brightnessDirty = true; //hand the panels back to the normal brightness path
+      }
+    }
+  }
   loopCount++; //loop() runs per second, shown by the homepage system monitor
   if(millis() - loopRateStart >= 1000) {
     loopsPerSec = loopCount;
@@ -1378,7 +1412,7 @@ void loop() {
     } else if (visorType == "MAX72XX") {
       if(FdisplayVisor) {
         if(cfg.bVisor > 15) { cfg.bVisor = 15;}
-        mx.control(MD_MAX72XX::INTENSITY, cfg.bVisor);
+        if(transPhase == 0) mx.control(MD_MAX72XX::INTENSITY, cfg.bVisor); //a running transition owns the intensity
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
         FdisplayVisor = false;
@@ -1449,6 +1483,11 @@ void loop() {
   queuedAnim = animToLoad; animToLoad = "";
   queuedPost = postAnimToLoad; postAnimToLoad = "";
   xSemaphoreGive(animQueueMutex);
+  if(cfg.transEna && visorType == "MAX72XX" && transPhase == 0 && (queuedAnim != "" || queuedPost != "")) {
+    transAnim = queuedAnim; transPost = queuedPost; //hold the swap until the panels are dark
+    transPhase = 1; transLevel = cfg.bVisor; transLastStep = millis();
+    queuedAnim = ""; queuedPost = "";
+  }
   if(queuedAnim != "") {
     if(sleeping) { sleeping = false; wakeAnim = ""; stillSince = millis(); } //picking a face wakes it, and stays on that face
     loadAnim(queuedAnim,"");

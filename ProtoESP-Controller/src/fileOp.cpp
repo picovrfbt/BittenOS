@@ -56,6 +56,7 @@ void Config::setDefault() {
   sleepEna = false;
   sleepMins = 5;
   aSleep = "sleep.json";
+  transEna = true;
   save();
 }
 
@@ -95,6 +96,7 @@ bool Config::save() {
   doc["sleepEna"] = sleepEna;
   doc["sleepMins"] = sleepMins;
   doc["aSleep"] = aSleep;
+  doc["transEna"] = transEna;
   
   CrcWriter CRCchk;
   serializeJson(doc, CRCchk);
@@ -201,6 +203,7 @@ bool Config::load() {
   sleepEna = doc["sleepEna"] | false;
   sleepMins = doc["sleepMins"] | 5;
   aSleep = doc["aSleep"] | "sleep.json";
+  transEna = doc["transEna"] | true;
 
   return true;
 }
