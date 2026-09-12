@@ -38,7 +38,7 @@ START = time.time()  # for the emulated uptime
 # a bool instead of a string (getBool/getInt/getFloat in src/fileOp.cpp).
 SAVECONFIG_KEYS = {
     'boopEna': bool, 'speechEna': bool, 'tiltEna': bool, 'bleEna': bool, 'oledEna': bool,
-    'sleepEna': bool, 'transEna': bool, 'transMs': int, 'sleepTol': float,
+    'sleepEna': bool, 'transEna': bool, 'bobEna': bool, 'transMs': int, 'sleepTol': float,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
@@ -247,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
                 'sleeping': board.sleeping,
                 'brightness': min(15, max(0, to_int(str(cfg.get('bVisor', 5))))),
                 'fan': cfg.get('fanDuty'),
-                'toggles': {k: cfg.get(k) for k in ('boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna')},
+                'toggles': {k: cfg.get(k) for k in ('boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna', 'bobEna')},
                 'wifi': cfg.get('wifiName'),
                 'log': board.log_lines[-80:],
             }), 'application/json')

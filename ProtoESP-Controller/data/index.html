@@ -247,6 +247,7 @@
       <label class="switch">OLED <input type="checkbox" id="oled"></label>
       <label class="switch">Auto sleep <input type="checkbox" id="sleepAuto"></label>
       <label class="switch">Transitions <input type="checkbox" id="trans"></label>
+      <label class="switch">Mouth bob <input type="checkbox" id="bob"></label>
     </div>
     <button class="btn primary block" type="button" onclick="saveFeatures()">Save features</button>
   </section>
@@ -777,6 +778,7 @@
     $('ble').checked = o.bleEna;   $('oled').checked = o.oledEna;
     $('sleepAuto').checked = o.sleepEna;
     $('trans').checked = o.transEna !== false; //on unless the mask says otherwise
+    $('bob').checked = !!o.bobEna;
     for (const k of ['bOled', 'spMin', 'spMax', 'spTrig', 'aTilt', 'aUp', 'aBoop', 'aSleep', 'sleepMins', 'sleepTol', 'boopThresh', 'wifiName', 'wifiPass',
                      'neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol']) {
       if (o[k] !== undefined) byName(k).value = o[k];
@@ -803,7 +805,7 @@
 
   function saveFeatures() {
     const p = new URLSearchParams();
-    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled'], ['sleepEna', 'sleepAuto'], ['transEna', 'trans']]) {
+    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled'], ['sleepEna', 'sleepAuto'], ['transEna', 'trans'], ['bobEna', 'bob']]) {
       p.set(key, $(id).checked);
     }
     saveParams(p.toString(), 'Features saved');
