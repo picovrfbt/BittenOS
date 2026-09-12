@@ -266,15 +266,17 @@ python tools\make_faces.py --preview happy     # print it as text, write nothing
 python tools\make_faces.py                     # write the files
 ```
 
-Shapes live in the `eye_*` and `mouth_*` functions near the top, and which face uses which is the `FACES` table below them. Frames that come out identical (sub-pixel motion often rounds to the same pixels) are merged and their times added, so files stay small. It does not touch `bsod.json`; `sleep.json` comes from `make_sleep_face.py`. Upload the filesystem afterwards.
+Eyes marked `original` in the `FACES` table are read from `anims_14panel_v1/`, so they are the art the mask came with, blinks included; `HOLD` caps how long one can sit still before the sequence moves on, and an eye that never moves gets a slow one-pixel lift. Mouths are the `mouth_*` functions above the table. `step` is the frame length in ms - keep it shorter than the quickest frame in a face's original eye sequence, or that frame falls between samples and is lost (angry has a 25 ms twitch, which is why its step is 30). Frames that come out identical (sub-pixel motion often rounds to the same pixels) are merged and their times added, so files stay small. It does not touch `bsod.json`; `sleep.json` comes from `make_sleep_face.py`. Upload the filesystem afterwards.
 
 ### `tools/render_faces.py`: look at the faces without the mask
 
 Draws the faces to a PNG, one dot per LED, for checking shapes before flashing. Needs Pillow.
 
 ```powershell
-python toolsender_faces.py                   # every face, first frame
-python toolsender_faces.py --frames heart    # every frame of one face
+python tools
+ender_faces.py                   # every face, first frame
+python tools
+ender_faces.py --frames heart    # every frame of one face
 ```
 
 ### `tools/make_icons.py`: redraw the home screen icons

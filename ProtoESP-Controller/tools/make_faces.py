@@ -1,16 +1,20 @@
-"""Draw the mask's faces from curves, in a smoother and more animated style.
+"""Draw the mask's faces: the original eyes, redrawn mouths, and more animation.
 
-The stock ProtoESP faces were drawn for an 11-panel visor and machine-converted to this
-14-panel one, which duplicated panels and left hard blocky edges. These are drawn from real
-geometry instead - discs, arcs and thin flowing strokes - which is what stops them looking
-carved out of a pumpkin.
+The eyes are the ones the mask came with. They are read straight out of the original files in
+anims_14panel_v1/ rather than copied into this script, so they are exactly the art that was
+there - including each face's own blink, which several of them already had.
 
-Everything is built at true pixel coordinates rather than normalised ones. An eye box is 16
-wide but only 8 tall, so normalised maths flattens every circle into a slab; working in
-pixels keeps the curves round.
+What changes is the pacing. The originals sat still for a long time: the default eye held for
+7 seconds before blinking, boop and upset for 10. Long holds are capped (see HOLD), so a face
+blinks or twitches every few seconds instead, and a face whose eye never moved at all gets a
+slow one-pixel lift so it does not look frozen.
 
-Each face is drawn on the left half of an 80x24 canvas and then mirrored, so the two halves
-match exactly. That also keeps the web page's half-face previews working.
+The mouths are drawn here from curves, two pixels thick, because the originals were drawn for
+an 11-panel visor and machine-converted to this one, which duplicated panels and left blocky
+edges. The nose is the original, copied pixel for pixel.
+
+Everything is drawn on the left half of an 80x24 canvas and mirrored, so the two halves match
+exactly. That is also what lets the web page show half a face at double size.
 
 Usage:
     python tools/make_faces.py --list
@@ -23,14 +27,17 @@ import math
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(os.path.dirname(HERE), 'data')
+ROOT = os.path.dirname(HERE)
+DATA = os.path.join(ROOT, 'data')
 ANIMS = os.path.join(DATA, 'anims')
+V1 = os.path.join(ROOT, 'anims_14panel_v1')      # the faces as they came, the source of the eyes
 
 W, H = 80, 24                 # 10 panels across, 3 rows down
-EX0, EX1 = 1, 14              # left eye sits in x 0..15, inset a pixel each side
-EYE_CX, EYE_BOT = 7.5, 7.5    # eye centre line and the row it rests on
-NX0, NX1 = 24, 31             # left nose panel; x=31 is the inner edge, towards the centre
+EYE_CX = 7.5
+NX0 = 24                      # left nose panel starts here; x=31 is the inner edge
 MX0, MX1 = 0, 31              # left mouth; x=0 is the ear end, x=31 the centre
+
+HOLD = 1500                   # ms: longest a single eye frame is allowed to sit still
 
 
 def blank():
@@ -46,8 +53,8 @@ def put(c, x, y):
 def stroke(c, x0, x1, fy, thick=1, ymin=-99, ymax=99):
     """Draw y=fy(s) for s across 0..1, filling vertical gaps so steep parts stay joined.
 
-    ymin/ymax clip to one panel row: a 2px stroke near the edge of the eye otherwise spills
-    into the nose panel below it.
+    ymin/ymax clip to one panel row: a 2px stroke near the edge of a row otherwise spills
+    into the panel below it.
     """
     def mark(x, y):
         if ymin <= y <= ymax:
@@ -73,85 +80,14 @@ def disc(c, cx, cy, r, ymin=-99, ymax=99):
                 put(c, x, y)
 
 
-def arc(c, cx, cy, r, a0, a1, thick=1, ymin=-99, ymax=99):
-    """Sample an arc densely enough that it comes out as one unbroken line."""
-    steps = max(12, int(abs(a1 - a0) * r / 8))
-    for i in range(steps + 1):
-        a = math.radians(a0 + (a1 - a0) * i / steps)
-        for t in range(thick):
-            y = cy + (r - t) * math.sin(a)
-            if ymin <= round(y) <= ymax:          # eyes must not bleed into the nose row
-                put(c, cx + (r - t) * math.cos(a), y)
-
-
-def band(c, x0, x1, ytop, yslope, thick, ymin=0, ymax=7):
-    """A slanted bar of fixed thickness - reads as a brow without filling the whole panel."""
-    for x in range(x0, x1 + 1):
-        s = (x - x0) / (x1 - x0)
-        top = int(round(ytop + yslope * s))
-        for t in range(thick):
-            if ymin <= top + t <= ymax:
-                put(c, x, top + t)
-
-
 def mirror_half(c):
     for y in range(H):
         for x in range(W // 2):
             c[y][W - 1 - x] = c[y][x]
 
 
-# ---------- eyes ----------
-
-# The default eye, copied pixel for pixel from the face the mask came with, along with the
-# three stages of its blink. The original held the open eye for 7 seconds and then blinked;
-# here the loop is shorter and the eye lifts a pixel now and then, so it looks alive without
-# being busy. Left eye only - the right one is the mirror of it.
-EYE_DEFAULT_OPEN = (
-    '................',
-    '.....####.......',
-    '...########.....',
-    '..##########....',
-    '.############...',
-    '.####......###..',
-    '..##........##..',
-    '................',
-)
-
-EYE_DEFAULT_BLINK = (
-    (
-        '................',
-        '.....####.......',
-        '...########.....',
-        '..##########....',
-        '.#####....###...',
-        '.###.......###..',
-        '..#.........##..',
-        '................',
-    ),
-    (
-        '................',
-        '.....####.......',
-        '...########.....',
-        '..##########....',
-        '.####.....###...',
-        '.##........##...',
-        '................',
-        '................',
-    ),
-    (
-        '................',
-        '................',
-        '...########.....',
-        '..##########....',
-        '..###.....##....',
-        '................',
-        '................',
-        '................',
-    ),
-)
-
-
 def paint(c, art, x0, y0, dy=0, ymin=0, ymax=7):
+    """Stamp a bitmap given as rows of '#' and '.'."""
     for row_i, row in enumerate(art):
         y = y0 + row_i + dy
         if ymin <= y <= ymax:
@@ -160,48 +96,59 @@ def paint(c, art, x0, y0, dy=0, ymin=0, ymax=7):
                     put(c, x0 + dx, y)
 
 
-def eye_default(c, ph):
-    """The original eye: open and bobbing, then its own blink at the end of the loop."""
-    if ph >= 0.78:
-        stage = (0, 1, 2, 1, 0)
-        k = int((ph - 0.78) / 0.22 * len(stage))
-        paint(c, EYE_DEFAULT_BLINK[stage[min(k, len(stage) - 1)]], 0, 0)
-    else:
-        t = ph / 0.78
-        paint(c, EYE_DEFAULT_OPEN, 0, 0, dy=-1 if math.sin(2 * math.pi * t) > 0.55 else 0)
+# ---------- the original eyes ----------
+
+def _bits(hexart):
+    hexart = ('0' * 16 + (hexart or '0'))[-16:]
+    return [[(int(hexart[16 - 2 * i:18 - 2 * i], 16) >> j) & 1 for j in range(8)]
+            for i in range(1, 9)]
 
 
-def eye_closed(c, ph):           # blink, and the resting face for upset
-    stroke(c, 2, 13, lambda s: 3.5, thick=2, ymin=0, ymax=7)
+def original_eye_frames(face):
+    """(art, ms) per frame of the original face: the left eye only, as rows of '#' and '.'.
+
+    Only the left eye is read; the right is produced by mirroring. A couple of the originals
+    are a pixel or two out of true between their halves, and this quietly straightens them.
+    """
+    with open(os.path.join(V1, face + '.json')) as f:
+        frames = json.load(f)['visor']['frames']
+    out = []
+    for fr in frames:
+        leds = fr['leds']
+        left = [_bits(leds[13])[y] + _bits(leds[12])[y] for y in range(8)]   # t13 then t12
+        art = tuple(''.join('#' if v else '.' for v in row) for row in left)
+        out.append((art, fr['timespan']))
+    return out
 
 
-def eye_dome(c, ph):             # calm, the default: a rounded dome resting on the base line
-    r = 6.6 + 0.7 * math.sin(2 * math.pi * ph)     # has to move a whole pixel to show at all
-    disc(c, EYE_CX, EYE_BOT, r, ymin=0, ymax=7)
+def eye_timeline(face, step_ms, hold=HOLD):
+    """(art, lift) to show on each frame of the loop.
+
+    The original timings are kept, except that any frame sitting still longer than `hold` is
+    cut back to it - that is what stops a face staring for ten seconds. The loop is made
+    exactly as long as the shortened sequence, so it never drifts at the seam.
+    """
+    seq = [(art, min(ms, hold)) for art, ms in original_eye_frames(face)]
+    total = sum(ms for _, ms in seq)
+    n = max(8, int(round(total / step_ms)))
+    track = []
+    for i in range(n):
+        t = (i * step_ms) % total
+        acc = 0
+        chosen = seq[-1][0]
+        for art, ms in seq:
+            acc += ms
+            if t < acc:
+                chosen = art
+                break
+        track.append(chosen)
+    if len(set(track)) == 1:            # this eye never moves on its own: give it a slow lift
+        return [(art, -1 if math.sin(2 * math.pi * i / n) > 0.55 else 0)
+                for i, art in enumerate(track)]
+    return [(art, 0) for art in track]
 
 
-def eye_arch(c, ph):             # happy / booped: a clean ^, two strokes meeting at the peak
-    lift = 1.1 * math.sin(2 * math.pi * ph)
-    peak, foot = 1.4 + lift, 6.0 + lift
-    stroke(c, EX0, 7, lambda s: foot - (foot - peak) * s, thick=2, ymin=0, ymax=7)
-    stroke(c, 8, EX1, lambda s: peak + (foot - peak) * s, thick=2, ymin=0, ymax=7)
-
-
-def eye_droop(c, ph):            # sad: the lid droops towards the ear, the other way to angry
-    sag = 0.5 * math.sin(2 * math.pi * ph)
-    band(c, EX0, EX1, 4.2 + sag, -3.0, 3)
-
-
-def eye_angry(c, ph):            # angry: a brow driving down towards the nose
-    twitch = 0.5 * math.sin(4 * math.pi * ph)
-    band(c, EX0, EX1, 0.8 + twitch, 4.0, 3)
-
-
-def eye_chevron(c, ph):          # confused: a > pointing in towards the nose
-    shift = 0.5 * math.sin(2 * math.pi * ph)
-    stroke(c, 3, 11, lambda s: 0.6 + shift + 3.1 * s, thick=2, ymin=0, ymax=7)
-    stroke(c, 3, 11, lambda s: 6.4 + shift - 3.1 * s, thick=2, ymin=0, ymax=7)
-
+# ---------- eyes drawn here, for the faces with no original ----------
 
 def eye_heart(c, ph):            # heart: two lobes over a point, beating twice a loop
     beat = 1.0 + 0.11 * math.sin(4 * math.pi * ph)
@@ -222,9 +169,8 @@ def eye_dot(c, ph):              # surprised
 
 # ---------- nose ----------
 
-# The nose the mask came with, copied pixel for pixel from the original faces. It sits in the
-# outer top corner - the opposite end of the panel to where curves drawn towards the centre
-# end up - and the right nose is an exact mirror of this, so mirroring reproduces it exactly.
+# The nose the mask came with, copied pixel for pixel. It sits in the outer top corner, and
+# the right nose is an exact mirror of this, so mirroring reproduces it exactly.
 NOSE_ART = (
     '######..',
     '######..',
@@ -234,10 +180,7 @@ NOSE_ART = (
 
 
 def nose(c):
-    for dy, row in enumerate(NOSE_ART):
-        for dx, ch in enumerate(row):
-            if ch == '#':
-                put(c, NX0 + dx, 8 + dy)
+    paint(c, NOSE_ART, NX0, 8, ymin=8, ymax=15)
 
 
 # ---------- mouths ----------
@@ -284,17 +227,21 @@ def mouth_grin(c, ph):           # heart: a wide, happy curve
 
 
 # ---------- the faces ----------
+#
+# eye 'original' reads it from anims_14panel_v1/. step is the frame length in ms; how many
+# frames a face gets follows from how long its eye sequence runs. hold overrides how long a
+# still eye may sit before the sequence moves on.
 
 FACES = {
-    'default':  dict(n=26, ms=130, eye=eye_default, mouth=mouth_wave,   blink=[]),
-    'happy':    dict(n=14, ms=100, eye=eye_arch,    mouth=mouth_smile,  blink=[]),
-    'sad':      dict(n=14, ms=170, eye=eye_droop,   mouth=mouth_frown,  blink=[11, 12]),
-    'angry':    dict(n=12, ms=150, eye=eye_angry,   mouth=mouth_zigzag, blink=[]),
-    'upset':    dict(n=12, ms=180, eye=eye_closed,  mouth=mouth_flat,   blink=[]),
-    'confused': dict(n=14, ms=160, eye=eye_chevron, mouth=mouth_zigzag, blink=[12]),
-    'boop':     dict(n=10, ms=90,  eye=eye_arch,    mouth=mouth_open,   blink=[]),
-    'heart':    dict(n=14, ms=110, eye=eye_heart,   mouth=mouth_grin,   blink=[]),
-    'surprise': dict(n=12, ms=120, eye=eye_dot,     mouth=mouth_open,   blink=[]),
+    'default':  dict(eye='original', step=90,  mouth=mouth_wave),
+    'happy':    dict(eye='original', step=90,  mouth=mouth_smile),
+    'sad':      dict(eye='original', step=100, mouth=mouth_frown),
+    'angry':    dict(eye='original', step=30,  mouth=mouth_zigzag),   # its twitch frame is 25ms
+    'upset':    dict(eye='original', step=120, mouth=mouth_flat,  hold=1800),
+    'confused': dict(eye='original', step=90,  mouth=mouth_zigzag),
+    'boop':     dict(eye='original', step=80,  mouth=mouth_open,  hold=700),
+    'heart':    dict(eye=eye_heart,  step=110, mouth=mouth_grin,  n=14),
+    'surprise': dict(eye=eye_dot,    step=120, mouth=mouth_open,  n=12),
 }
 
 
@@ -333,14 +280,29 @@ def frame_leds(canvas, rows, count):
     return art
 
 
-def draw_frame(spec, i):
-    ph = i / spec['n']
-    c = blank()
-    (eye_closed if i in spec['blink'] else spec['eye'])(c, ph)
-    nose(c)
-    spec['mouth'](c, ph)
-    mirror_half(c)
-    return c
+def face_frames(name):
+    """The canvases for one face, already mirrored."""
+    spec = FACES[name]
+    track = None
+    if spec['eye'] == 'original':
+        track = eye_timeline(name, spec['step'], spec.get('hold', HOLD))
+        n = len(track)
+    else:
+        n = spec['n']
+    out = []
+    for i in range(n):
+        ph = i / n
+        c = blank()
+        if track is None:
+            spec['eye'](c, ph)
+        else:
+            art, lift = track[i]
+            paint(c, art, 0, 0, dy=lift)
+        nose(c)
+        spec['mouth'](c, ph)
+        mirror_half(c)
+        out.append(c)
+    return out
 
 
 def dedupe(frames):
@@ -359,8 +321,8 @@ def dedupe(frames):
 
 def build(name, rows, count):
     spec = FACES[name]
-    frames = dedupe([{'timespan': spec['ms'], 'leds': frame_leds(draw_frame(spec, i), rows, count)}
-                     for i in range(spec['n'])])
+    frames = dedupe([{'timespan': spec['step'], 'leds': frame_leds(c, rows, count)}
+                     for c in face_frames(name)])
     is_mouth = [False] * count
     for cell in rows[-1]:                      # the bottom row is the mouth
         if cell.startswith('t'):
@@ -391,11 +353,12 @@ def main():
     count = max(int(cell[1:]) for row in rows for cell in row if cell.startswith('t')) + 1
 
     if args.preview:
-        spec = FACES[args.preview]
-        wanted = [args.frame] if args.frame is not None else [0, spec['n'] // 3, spec['n'] // 2]
+        canvases = face_frames(args.preview)
+        wanted = ([args.frame] if args.frame is not None
+                  else [0, len(canvases) // 3, len(canvases) // 2])
         for i in wanted:
-            print('--- %s frame %d of %d ---' % (args.preview, i, spec['n']))
-            show(draw_frame(spec, i))
+            print('--- %s frame %d of %d ---' % (args.preview, i, len(canvases)))
+            show(canvases[i])
         return
 
     for name in sorted(FACES):
@@ -403,7 +366,9 @@ def main():
         path = os.path.join(ANIMS, name + '.json')
         with open(path, 'w') as f:
             json.dump(anim, f, separators=(',', ':'))
-        print('%-9s %2d frames  %5d bytes' % (name, len(anim['visor']['frames']), os.path.getsize(path)))
+        total = sum(fr['timespan'] for fr in anim['visor']['frames'])
+        print('%-9s %2d frames  %.2fs loop  %5d bytes'
+              % (name, len(anim['visor']['frames']), total / 1000, os.path.getsize(path)))
 
 
 if __name__ == '__main__':
