@@ -988,11 +988,14 @@ int boopPhase() { //which stage of the pop we're in, -1 for nothing showing
   return -1;
 }
 
-void countBoop() {
+void countBoop() { //the boop landed: count it, but don't show anything yet
   cfg.boopCount++;
   boopCountDirty = true;      //saved from loop() a while later, not on every boop
-  boopShownAt = millis();
   logPrint("[I] Boop #" + String(cfg.boopCount));
+}
+
+void endBoop() { //the paw has gone: now pop the total up, over the face the boop face left behind
+  boopShownAt = millis();
 }
 
 void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
@@ -1380,6 +1383,7 @@ void loop() {
         digitalWrite(T_en, LOW);
         logPrint(F("[I] IR unBOOP"));
         booping = false;
+        endBoop();
         if(!wasTilt) {
           loadAnim(boopoldanim,"");
         }
@@ -1398,6 +1402,7 @@ void loop() {
       } else if(booping == true && lastMillsBoop+1000<millis() && !digitalRead(T_in)) {
         logPrint(F("[I] Touch unBOOP"));
         booping = false;
+        endBoop();
         if(!wasTilt) {
           loadAnim(boopoldanim,"");
         }
@@ -1415,6 +1420,7 @@ void loop() {
         } else if(booping == true && lastMillsBoop+1000<millis() && (255 - apdsprox) > cfg.boopThresh) {
           logPrint(F("[I] ToF unBOOP"));
           booping = false;
+          endBoop();
           if(!wasTilt) {
             loadAnim(boopoldanim,"");
           }
@@ -1440,6 +1446,7 @@ void loop() {
         } else if(booping == true && lastMillsBoop+1000<millis() && distance > cfg.boopThresh && distance != -1) {
           logPrint(F("[I] ToF unBOOP"));
           booping = false;
+          endBoop();
           if(!wasTilt) {
             loadAnim(boopoldanim,"");
           }
