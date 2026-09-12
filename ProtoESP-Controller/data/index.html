@@ -5,7 +5,13 @@
 <title>ProtoESP</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0f17">
-<link rel="shortcut icon" href="data:,">
+<link rel="icon" href="/icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ProtoESP">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
   :root {
     --bg:#0b0f17; --surface:#131a26; --surface2:#1a2333; --line:#253047;
@@ -60,6 +66,19 @@
   .face.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 0 18px rgba(77,163,255,.22); }
   .face.busy { opacity:.55; }
   .empty { color:var(--dim); font-size:14px; }
+
+  /* face manager */
+  .card-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .card-head h2 { margin-bottom:12px; }
+  .linkbtn { appearance:none; -webkit-appearance:none; background:none; border:0; color:var(--accent); cursor:pointer;
+             font:inherit; font-size:13px; font-weight:600; padding:4px 6px; margin:0 -6px 12px 0; border-radius:8px; }
+  .face-wrap { display:flex; flex-direction:column; gap:6px; }
+  .face-actions { display:none; gap:6px; }
+  .managing .face-actions { display:flex; }
+  .face-actions .mini { flex:1; appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:var(--bg);
+             color:var(--dim); border-radius:9px; min-height:36px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+  .face-actions .mini:active { transform:scale(.97); }
+  .face-actions .mini.danger { color:var(--bad); }
 
   /* sliders */
   .control { display:grid; gap:6px; }
@@ -178,7 +197,7 @@
 
 <main>
   <section class="card">
-    <h2>Faces</h2>
+    <div class="card-head"><h2>Faces</h2><button class="linkbtn" type="button" id="manageBtn">Manage</button></div>
     <div class="faces" id="faces"><p class="empty">Loading faces…</p></div>
   </section>
 
@@ -222,6 +241,7 @@
       <label class="switch">Remote (BLE) <input type="checkbox" id="ble"></label>
       <label class="switch">OLED <input type="checkbox" id="oled"></label>
       <label class="switch">Auto sleep <input type="checkbox" id="sleepAuto"></label>
+      <label class="switch">Transitions <input type="checkbox" id="trans"></label>
     </div>
     <button class="btn primary block" type="button" onclick="saveFeatures()">Save features</button>
   </section>
@@ -354,6 +374,8 @@
     const grid = $('faces');
     grid.innerHTML = parts.length ? '' : '<p class="empty">No faces on the mask yet.</p>';
     for (const name of parts) {
+      const wrap = document.createElement('div');
+      wrap.className = 'face-wrap';
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'face';
@@ -361,7 +383,19 @@
       b.innerHTML = '<canvas width="213" height="78"></canvas><span></span>';
       b.querySelector('span').textContent = name.replace(/\.json$/, '');
       b.addEventListener('click', () => changeFace(name, b));
-      grid.appendChild(b);
+      wrap.appendChild(b);
+      // buttons can't be nested, so the manage row is a sibling of the tile, hidden until Manage is on
+      const acts = document.createElement('div');
+      acts.className = 'face-actions';
+      const ren = document.createElement('button');
+      ren.type = 'button'; ren.className = 'mini'; ren.textContent = 'Rename';
+      ren.addEventListener('click', () => renameFace(name));
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'mini danger'; del.textContent = 'Delete';
+      del.addEventListener('click', () => deleteFace(name));
+      acts.append(ren, del);
+      wrap.appendChild(acts);
+      grid.appendChild(wrap);
     }
     // face pickers in Advanced settings, keeping their current choice
     for (const id of ['aTilt', 'aUp', 'aBoop', 'aSleep']) {
@@ -674,6 +708,7 @@
     $('boop').checked = o.boopEna; $('speech').checked = o.speechEna; $('tilt').checked = o.tiltEna;
     $('ble').checked = o.bleEna;   $('oled').checked = o.oledEna;
     $('sleepAuto').checked = o.sleepEna;
+    $('trans').checked = o.transEna !== false; //on unless the mask says otherwise
     for (const k of ['bOled', 'spMin', 'spMax', 'spTrig', 'aTilt', 'aUp', 'aBoop', 'aSleep', 'sleepMins', 'boopThresh', 'wifiName', 'wifiPass',
                      'neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol']) {
       if (o[k] !== undefined) byName(k).value = o[k];
@@ -699,7 +734,7 @@
 
   function saveFeatures() {
     const p = new URLSearchParams();
-    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled'], ['sleepEna', 'sleepAuto']]) {
+    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled'], ['sleepEna', 'sleepAuto'], ['transEna', 'trans']]) {
       p.set(key, $(id).checked);
     }
     saveParams(p.toString(), 'Features saved');
@@ -818,6 +853,55 @@
       toast('Something went wrong reading that file', true);
     }
   });
+
+  /* ---------- face manager ---------- */
+  const BOOT_FACE = 'default.json';   // what the firmware loads at startup
+  const onMask = () => (document.querySelector('.face.on') || {dataset: {}}).dataset.anim;
+  // the four face pickers in Advanced settings that could be left pointing at a gone name
+  const usedInSettings = name => ['aTilt', 'aUp', 'aBoop', 'aSleep'].filter(id => $(id).value === name);
+
+  $('manageBtn').addEventListener('click', () => {
+    const on = $('faces').classList.toggle('managing');
+    $('manageBtn').textContent = on ? 'Done' : 'Manage';
+  });
+
+  async function deleteFace(name) {
+    const label = name.replace(/\.json$/, '');
+    if (name === BOOT_FACE) { toast('default is the face the mask loads at startup', true); return; }
+    if (name === onMask()) { toast('That face is on the mask now — switch to another first', true); return; }
+    if (!confirm('Delete ' + label + '? This cannot be undone.')) return;
+    const used = usedInSettings(name);   // check before loadFiles() refills the pickers
+    try {
+      const r = await fetch('/deletefile?file=' + encodeURIComponent(name), {redirect: 'manual', cache: 'no-store'});
+      if (r.type !== 'opaqueredirect' && !r.ok) { toast(await r.text(), true); return; }
+      delete animCache[name];
+      await loadFiles();
+      loadPreviews();
+      toast(used.length ? 'Deleted. Advanced settings still point at it — pick another face there.' : label + ' deleted');
+    } catch (e) { toast('Could not reach the mask', true); }
+  }
+
+  // There's no rename in the firmware: save under the new name, then delete the old one.
+  async function renameFace(name) {
+    const oldLabel = name.replace(/\.json$/, '');
+    const typed = prompt('New name for ' + oldLabel, oldLabel);
+    if (typed === null) return;
+    const label = typed.trim();
+    if (!label || label === oldLabel) return;
+    if (!/^[A-Za-z0-9_-]+$/.test(label)) { toast('Use letters, numbers, - and _ only', true); return; }
+    if (availableAnims.includes(label + '.json')) { toast('A face called ' + label + ' already exists', true); return; }
+    const wasOn = name === onMask(), used = usedInSettings(name);
+    try {
+      const content = await (await fetch('/anims/' + encodeURIComponent(name), NO_CACHE)).text();
+      if (!await uploadFace(label, content)) { toast('Rename failed — the old face is untouched', true); return; }
+      await fetch('/deletefile?file=' + encodeURIComponent(name), {redirect: 'manual', cache: 'no-store'});
+      delete animCache[name];
+      if (wasOn) await fetch('/change?anim=' + encodeURIComponent(label + '.json'), {redirect: 'manual'});
+      await loadFiles();
+      loadPreviews();
+      toast(used.length ? 'Renamed. Advanced settings still point at the old name.' : 'Renamed to ' + label);
+    } catch (e) { toast('Could not reach the mask', true); }
+  }
 
   /* ---------- start ---------- */
   setFill($('brightness'));

@@ -188,6 +188,10 @@ python -m platformio device monitor -p COM113 -b 115200
 10. The **System** card shows how the mask is doing: uptime, chip temperature, loop speed (how many times a second the main loop runs; a lower number means it's busier), connected WiFi devices, memory, PSRAM and storage use, the current face frame, and whether the tilt and boop sensors were found. It updates every 2 seconds while the page is open.
 11. **Sleep:** the moon button in the top bar shows the sleeping face straight away, and tapping it again goes back to the face you had. For it to happen by itself, turn on **Auto sleep** under Features and set **Sleep after** in Advanced settings to the minutes of stillness to wait. Stillness is measured by the tilt sensor, so this needs the BMI270. Moving the mask wakes it, and so does picking any face (it then stays on that face). **Sleeping face** in Advanced settings chooses which face it uses; the included `sleep.json` is closed eyes with a slowly breathing mouth.
 
+12. **Managing faces:** press **Manage** on the Faces card to put Rename and Delete on every tile, and press **Done** when finished. Renaming is done by the web page (the firmware has no rename): it saves the face under the new name, then deletes the old one, so a name is only ever freed once the copy has been written. Two faces are protected — `default.json`, which the mask loads at startup, and whichever face is showing right now; switch to another face first if you want to delete that one. Deleting or renaming a face that's picked in Advanced settings (tilt, boop or sleeping face) leaves that setting pointing at a name that's gone, so the page warns you to choose again. **Upload faces** and **Download faces** in Tools take a single `.json` or a `.zip` of them.
+13. **Transitions:** changing face dips the panels dark, swaps, and brings them back, rather than cutting. It's on by default; turn it off with **Transitions** under Features and press Save features. The dip takes about 160 ms each way at brightness 5, and less at lower brightness, since it steps one brightness level at a time.
+14. **Putting it on your home screen:** with the page open, use your browser's **Add to Home Screen**. On iPhone (Safari: Share → Add to Home Screen) it opens fullscreen with no browser bars, like an app. On Android it becomes a shortcut that opens in the browser — the fullscreen version needs a service worker, and browsers only allow those over HTTPS or on localhost, which a mask on `192.168.4.1` can't offer. Either way you still have to be joined to `ProtoWiFi` for it to load.
+
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
 ### Drawing and testing a face in the Animator
@@ -251,6 +255,16 @@ python tools\virtual_tester.py
 - **Faces and settings belong to a virtual board** in `tools\.virtual_board\`, copied from `data/` the first time it runs. Saving there never changes `data/`, and the folder isn't committed. Start it with `--reset` to copy them from `data/` again.
 - Stop it with Ctrl+C. Other options: `--port 9000` and `--no-browser`.
 - It doesn't run the firmware, so changes in `src/` still need a real build and flash. The mic, boop sensor and tilt aren't simulated.
+
+### `tools/make_icons.py`: redraw the home screen icons
+
+Draws the icons the web page uses on a phone home screen, into `data/`. Only needed if you want to change the icon; the artwork is the `ART` grid near the top of the script.
+
+```powershell
+python tools\make_icons.py
+```
+
+It writes `icon-192.png`, `icon-512.png`, `icon-180.png` (iPhone) and `icon-maskable.png` (Android, drawn smaller so it survives being cropped into a circle). Needs Pillow (`pip install pillow`). Upload the filesystem afterwards.
 
 ### `genCRC-manual.py`: fix the settings checksum
 

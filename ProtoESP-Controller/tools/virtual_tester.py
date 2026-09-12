@@ -34,11 +34,11 @@ START = time.time()  # for the emulated uptime
 
 # Settings /saveconfig accepts, in the same order as src/main.cpp
 SAVECONFIG_KEYS = [
-    'boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna',
+    'boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna', 'sleepEna', 'transEna',
     'bEar', 'bVisor', 'bOled', 'rbSpeed', 'rbWidth', 'spMin', 'spMax', 'spTrig',
-    'aTilt', 'aUp', 'aBoop',
+    'aTilt', 'aUp', 'aBoop', 'aSleep',
     'neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol',
-    'visColor', 'wifiName', 'wifiPass', 'boopThresh',
+    'visColor', 'wifiName', 'wifiPass', 'boopThresh', 'sleepMins',
 ]
 
 CONTENT_TYPES = {
@@ -47,6 +47,9 @@ CONTENT_TYPES = {
     '.json': 'application/json',
     '.txt': 'text/plain; charset=utf-8',
     '.css': 'text/css',
+    '.png': 'image/png',
+    '.ico': 'image/x-icon',
+    '.webmanifest': 'application/manifest+json',
 }
 
 
