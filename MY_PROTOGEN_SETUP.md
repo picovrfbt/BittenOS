@@ -178,7 +178,7 @@ python -m platformio device monitor -p COM113 -b 115200
 
 1. Power up. The board creates a WiFi network.
 2. On your phone, turn **mobile data off** and join `ProtoWiFi`, password `Proto1234`.
-3. Open `192.168.4.1`. Tap a face tile to show that face; each tile previews the face. The **Brightness** slider (0–15) changes the panels live and saves when you let go. The feature switches, Advanced settings and Tilt calibration each have their own Save button.
+3. Open `192.168.4.1`. Tap a face tile to show that face; each tile previews the face. Since nearly every face is a mirror image, the tile shows just the left half at twice the size, so it's readable on a phone; a face whose halves really are different is shown whole. The **Brightness** slider (0–15) changes the panels live and saves when you let go. The feature switches, Advanced settings and Tilt calibration each have their own Save button.
 4. Open `192.168.4.1/animator.html` to draw faces.
 5. To show a message, type it into **Scrolling text** and press Enter (up to 64 characters). It scrolls across the mouth panels while the eyes keep the current face. Before sending, pick a speed (Very slow, Slow, Normal or Fast) and **Repeat** or **Play once**. Repeat keeps going until you tap a face. Play once goes back to the face you had after one pass; the mask does that itself, so it works even if your phone locks.
 6. The **power button** at the top right turns the displays off while the mask stays on. WiFi, the web page and the current face keep running, and tapping it again brings the face straight back. The displays always come back on after a restart.
