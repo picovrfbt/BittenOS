@@ -1106,8 +1106,12 @@ void loop() {
     if(tiltInitDone) {
       readAccel();
       if(cfg.sleepEna && cfg.sleepMins > 0) { //left alone for long enough? sleep. Moved? wake up.
-        if(fabs(accelX-stillX) > cfg.sleepTol || fabs(accelY-stillY) > cfg.sleepTol || fabs(accelZ-stillZ) > cfg.sleepTol) {
-          if(++moveSamples >= 3) { //a single noisy reading isn't movement; 3 in a row (300 ms) is
+        //One threshold can't do both jobs: staying asleep wants a generous one, waking up wants a
+        //touchy one. So while it's asleep, half the setting is enough and 2 readings (200 ms) do it.
+        float tol = sleeping ? cfg.sleepTol * 0.5f : cfg.sleepTol;
+        uint8_t need = sleeping ? 2 : 3;
+        if(fabs(accelX-stillX) > tol || fabs(accelY-stillY) > tol || fabs(accelZ-stillZ) > tol) {
+          if(++moveSamples >= need) { //a single noisy reading isn't movement; a few in a row is
             stillX = accelX; stillY = accelY; stillZ = accelZ;
             stillSince = millis();
             moveSamples = 0;
