@@ -94,6 +94,7 @@ class VirtualBoard:
         self.then_timer = None         # one-shot animations: switches to their "then" face after one pass
         self.sleeping = False          # /sleep: the sleeping face is showing
         self.wake_to = ''              # the face to return to when it wakes
+        self.boop_at = 0.0             # when the last simulated boop happened, for the counter pop
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -247,12 +248,22 @@ class Handler(BaseHTTPRequestHandler):
                 'sleeping': board.sleeping,
                 'brightness': min(15, max(0, to_int(str(cfg.get('bVisor', 5))))),
                 'fan': cfg.get('fanDuty'),
-                'toggles': {k: cfg.get(k) for k in ('boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna', 'bobEna')},
+                'toggles': {k: cfg.get(k) for k in ('boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna', 'bobEna', 'boopCountEna')},
+                'boopCount': int(cfg.get('boopCount') or 0),
+                'boopAgo': round(time.time() - board.boop_at, 3) if board.boop_at else 9999,
                 'wifi': cfg.get('wifiName'),
                 'log': board.log_lines[-80:],
             }), 'application/json')
         if path == '/__anim':
             return self.reply(200, board.current_anim_text(), 'application/json')
+        if path == '/__boop' and method == 'POST':   # the sensor isn't simulated, so boop by hand
+            # route() already holds board.lock, and it is not reentrant - taking it here hangs
+            board.config['boopCount'] = int(board.config.get('boopCount') or 0) + 1
+            board.boop_at = time.time()
+            board.save_config()
+            board.log('[I] Boop #%d' % board.config['boopCount'])
+            return self.text('OK')
+
         if path == '/__button' and method == 'POST':
             if 'hold' in q:   # held 1.5 s: displays off/on, like the firmware
                 board.display_on = not board.display_on

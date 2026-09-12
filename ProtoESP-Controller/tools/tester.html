@@ -65,6 +65,7 @@
       <div class="row">
         <button onclick="fetch('/__button', {method:'POST'})">Press expression button</button>
         <button onclick="fetch('/__button?hold=1', {method:'POST'})">Hold button (1.5 s)</button>
+        <button onclick="fetch('/__boop', {method:'POST'})">Boop</button>
       </div>
       <p class="note">Plays frames with their timespans, as MAX7219 panels at the current brightness (0–15).
         Layout comes from <code>data/visType.txt</code>. Mic, boop and tilt aren't simulated.</p>
@@ -85,6 +86,26 @@
   const ctx = canvas.getContext('2d');
   const PITCH = 10, GAP = 6;            // pixel pitch and gap between panels
   let layout = [], anim = null, frameIdx = 0, frameUntil = 0, bobEna = false;
+  let boopCountEna = true, boopCount = 0, boopAgo = 9999, boopSeenAt = 0;
+  // 3x5 digits, same as src/main.cpp
+  const BOOP_DIGITS = [
+    [7,5,5,5,7], [2,6,2,2,7], [7,1,7,4,7], [7,1,7,1,7], [5,5,7,1,1],
+    [7,4,7,1,7], [7,4,7,5,7], [7,1,1,1,1], [7,5,7,5,7], [7,5,7,1,7]];
+
+  function boopDigitBits(value, lift) {       // an 8x8 grid of the number, like the firmware
+    const g = Array.from({length: 8}, () => new Array(8).fill(0));
+    const two = value >= 10, tens = Math.floor(value / 10) % 10, units = value % 10;
+    const ux = two ? 4 : 3;
+    for (let r = 0; r < 5; r++) {
+      const y = 1 + r - lift;
+      if (y < 0 || y > 7) continue;
+      for (let c = 0; c < 3; c++) {
+        if (two && (BOOP_DIGITS[tens][r] >> (2 - c)) & 1) g[y][c] = 1;
+        if ((BOOP_DIGITS[units][r] >> (2 - c)) & 1) g[y][ux + c] = 1;
+      }
+    }
+    return g;
+  }
   let brightness = 5, displayOn = true, lastVersion = -1, lastAnimVersion = -1, drawnKey = '';
 
   function showPage(path) {
@@ -137,6 +158,16 @@
     // showing, rather than it being baked into the animation. Same timing as src/main.cpp.
     const isMouth = (anim && anim.visor && anim.visor.isMouth) || [];
     const bobUp = bobEna && (Date.now() % 1100) < 220;
+    // Boop counter: the number takes over both nose panels while it pops. Same phases as the
+    // firmware; t7 is the left nose and t6 the right on this layout.
+    const since = Date.now() - boopSeenAt;
+    const phase = (boopCountEna && boopSeenAt && since <= 1400)
+      ? (since < 90 ? 0 : since < 190 ? 1 : 2) : -1;
+    const boopGrid = phase < 0 ? null
+      : phase === 0 ? [[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
+                       [0,1,1,1,1,1,1,0],[0,1,1,1,1,1,1,0],
+                       [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]]
+      : boopDigitBits(boopCount % 100, phase === 1 ? 1 : 0);
     const duty = (2 * brightness + 1) / 32;              // MAX7219 intensity steps
     const alpha = 0.2 + 0.8 * Math.sqrt(duty);
     layout.forEach((row, ry) => row.forEach((cell, cx) => {
@@ -147,6 +178,7 @@
       const idx = parseInt(cell.slice(1), 10);
       let bits = panelRows(leds[idx]);
       if (bobUp && isMouth[idx]) bits = bits.slice(1).concat([[0, 0, 0, 0, 0, 0, 0, 0]]);
+      if (boopGrid && (idx === 7 || idx === 6)) bits = boopGrid;
       for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
         ctx.beginPath();
         ctx.arc(px + c * PITCH + PITCH / 2, py + r * PITCH + PITCH / 2, PITCH * 0.36, 0, Math.PI * 2);
@@ -191,6 +223,9 @@
       brightness = s.brightness;
       displayOn = s.displayOn !== false;
       bobEna = !!(s.toggles && s.toggles.bobEna);
+      boopCountEna = !(s.toggles && s.toggles.boopCountEna === false);
+      if (typeof s.boopCount === 'number') boopCount = s.boopCount;
+      if (typeof s.boopAgo === 'number' && s.boopAgo < 2) boopSeenAt = Date.now() - s.boopAgo * 1000;
       if (s.version !== lastVersion) {
         lastVersion = s.version;
         const t = s.toggles, onoff = v => v ? 'on' : 'off';
@@ -199,7 +234,7 @@
           chip('Face', s.anim) + chip('Brightness', s.brightness + '/15') + chip('Fan', s.fan) +
           chip('Boop', onoff(t.boopEna)) + chip('Speech', onoff(t.speechEna)) + chip('Tilt', onoff(t.tiltEna)) +
           chip('BLE', onoff(t.bleEna)) + chip('OLED', onoff(t.oledEna)) +
-          chip('Bob', onoff(t.bobEna)) + chip('WiFi', s.wifi);
+          chip('Bob', onoff(t.bobEna)) + chip('Boops', s.boopCount) + chip('WiFi', s.wifi);
         const log = document.getElementById('log');
         const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
         log.textContent = s.log.join('\n');
