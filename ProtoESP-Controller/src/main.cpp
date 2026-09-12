@@ -148,6 +148,11 @@ AsyncWebServer server(80);
 bool instantReload = false, oledInitDone = false, tiltInitDone = false, getfilesProper = true, ToFInitDone = false;
 bool brightnessDirty = false; //set by /brightness, applied to the panels in loop()
 bool displayOn = true, displayDirty = false; //set by /display; panels stay powered down until turned back on (not saved)
+bool sleeping = false; //the sleeping face is showing
+volatile int8_t sleepRequest = 0; //from /sleep: 1 = sleep now, -1 = wake, 0 = nothing
+unsigned long stillSince = 0; //when the mask last moved
+float stillX = 0, stillY = 0, stillZ = 0; //what "not moving" currently looks like
+String wakeAnim = ""; //the face to go back to when it wakes
 uint32_t loopCount = 0, loopsPerSec = 0; unsigned long loopRateStart = 0; //loop() runs per second, for the system monitor
 uint16_t currentEarsFrame = 0, currentVisorFrame = 0; //frame indexes: scrolling text can have hundreds of frames
 uint8_t numOfSegm, numAnimBlush, totalAnims;
@@ -472,6 +477,7 @@ void startWiFiWeb() {
     cfg.getBool(request, "tiltEna", cfg.tiltEna);
     cfg.getBool(request, "bleEna", cfg.bleEna);
     cfg.getBool(request, "oledEna", cfg.oledEna);
+    cfg.getBool(request, "sleepEna", cfg.sleepEna);
     //brightness
     cfg.getInt(request, "bEar", cfg.bEar);
     cfg.getInt(request, "bVisor", cfg.bVisor);
@@ -489,6 +495,7 @@ void startWiFiWeb() {
     cfg.getString(request, "aTilt", cfg.aTilt);
     cfg.getString(request, "aUp", cfg.aUp);
     cfg.getString(request, "aBoop", cfg.aBoop);
+    cfg.getString(request, "aSleep", cfg.aSleep);
     //tilt neutral
     cfg.getFloat(request, "neutralX", cfg.neutralX);
     cfg.getFloat(request, "neutralY", cfg.neutralY);
@@ -509,6 +516,7 @@ void startWiFiWeb() {
     cfg.getString(request, "wifiPass", cfg.wifiPass);
     //boop threshold
     cfg.getInt(request, "boopThresh", cfg.boopThresh);
+    cfg.getInt(request, "sleepMins", cfg.sleepMins);
     delay(25);
     if(cfg.save()) {
       instantReload = true;
@@ -613,12 +621,28 @@ void startWiFiWeb() {
     st["tilt"] = tiltInitDone;
     st["boop"] = ToFInitDone;
     st["display"] = displayOn;
+    st["sleeping"] = sleeping;
     st["anim"] = anim;
     st["frame"] = currentVisorFrame;
     st["frames"] = visorNow ? visorNow->numOfFrames : 0;
     String out;
     serializeJson(st, out);
     request->send(200, "application/json", out);
+  });
+
+  server.on("/sleep", HTTP_GET, [](AsyncWebServerRequest *request){ //sleeping face: state=on|off|toggle, no param = report
+    if(request->hasParam("state")) {
+      String state = request->getParam("state")->value();
+      if(state != "on" && state != "off" && state != "toggle") {
+        request->send(200, "text/plain", F("Invalid state"));
+        return;
+      }
+      bool want = (state == "toggle") ? !sleeping : (state == "on");
+      sleepRequest = want ? 1 : -1; //loop() does the face change
+      request->send(200, "text/plain", want ? "on" : "off");
+      return;
+    }
+    request->send(200, "text/plain", sleeping ? "on" : "off");
   });
 
   server.on("/display", HTTP_GET, [](AsyncWebServerRequest *request){ //visor panels on/off while the ESP keeps running: state=on|off|toggle, no param = report
@@ -685,6 +709,22 @@ void startWiFiWeb() {
   server.begin();
 
   ElegantOTA.setAutoReboot(true);
+}
+
+//--------------------------------//Sleep mode
+void setSleeping(bool on) { //loop task only: it loads animations
+  if(on == sleeping) return;
+  sleeping = on;
+  if(on) {
+    wakeAnim = currentAnim;
+    logPrint("[I] Sleeping: " + cfg.aSleep);
+    loadAnim(cfg.aSleep,"");
+  } else {
+    logPrint(F("[I] Woke up"));
+    if(wakeAnim != "" && wakeAnim != cfg.aSleep) loadAnim(wakeAnim,"");
+    wakeAnim = "";
+  }
+  stillSince = millis();
 }
 
 //--------------------------------//Setup
@@ -1028,6 +1068,17 @@ void loop() {
     if(boopMode == "APDS9960" && ToFInitDone) apdsprox = apds.readProximity();
     if(tiltInitDone) {
       readAccel();
+      if(cfg.sleepEna && cfg.sleepMins > 0) { //left alone for long enough? sleep. Moved? wake up.
+        if(fabs(accelX-stillX) > 0.08 || fabs(accelY-stillY) > 0.08 || fabs(accelZ-stillZ) > 0.08) {
+          stillX = accelX; stillY = accelY; stillZ = accelZ;
+          stillSince = millis();
+          if(sleeping) setSleeping(false);
+        } else if(!sleeping && millis()-stillSince > (unsigned long)cfg.sleepMins * 60000UL) {
+          setSleeping(true);
+        }
+      } else {
+        stillSince = millis();
+      }
       if(cfg.tiltEna) {
         if(isApproxEqual(accelX,accelY,accelZ,cfg.upX,cfg.upY,cfg.upZ,cfg.tiltTol) && !wasTilt) {
           logPrint(F("[I] Tilt: UP!"));
@@ -1388,12 +1439,18 @@ void loop() {
     check0button = millis();
   }
 
+  if(sleepRequest != 0) { //from /sleep
+    setSleeping(sleepRequest > 0);
+    sleepRequest = 0;
+  }
+
   String queuedAnim, queuedPost;
   xSemaphoreTake(animQueueMutex, portMAX_DELAY);
   queuedAnim = animToLoad; animToLoad = "";
   queuedPost = postAnimToLoad; postAnimToLoad = "";
   xSemaphoreGive(animQueueMutex);
   if(queuedAnim != "") {
+    if(sleeping) { sleeping = false; wakeAnim = ""; stillSince = millis(); } //picking a face wakes it, and stays on that face
     loadAnim(queuedAnim,"");
     wasTilt = false;
     booping = false;

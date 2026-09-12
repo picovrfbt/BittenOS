@@ -53,6 +53,9 @@ void Config::setDefault() {
   wifiPass = "Proto1234";
   fanDuty = 255;
   boopThresh = 15;
+  sleepEna = false;
+  sleepMins = 5;
+  aSleep = "sleep.json";
   save();
 }
 
@@ -89,6 +92,9 @@ bool Config::save() {
   doc["wifiPass"] = wifiPass;
   doc["fanDuty"] = fanDuty;
   doc["boopThresh"] = boopThresh;
+  doc["sleepEna"] = sleepEna;
+  doc["sleepMins"] = sleepMins;
+  doc["aSleep"] = aSleep;
   
   CrcWriter CRCchk;
   serializeJson(doc, CRCchk);
@@ -192,6 +198,9 @@ bool Config::load() {
   wifiPass = doc["wifiPass"].as<String>();
   fanDuty = doc["fanDuty"].as<int>();
   boopThresh = doc["boopThresh"].as<int>();
+  sleepEna = doc["sleepEna"] | false;
+  sleepMins = doc["sleepMins"] | 5;
+  aSleep = doc["aSleep"] | "sleep.json";
 
   return true;
 }

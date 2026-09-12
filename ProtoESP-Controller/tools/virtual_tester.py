@@ -82,6 +82,8 @@ class VirtualBoard:
         self.anim_version = 0          # bumps when the face changes
         self.display_on = True         # /display: panels powered down while the board keeps running
         self.then_timer = None         # one-shot animations: switches to their "then" face after one pass
+        self.sleeping = False          # /sleep: the sleeping face is showing
+        self.wake_to = ''              # the face to return to when it wakes
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -232,6 +234,7 @@ class Handler(BaseHTTPRequestHandler):
                 'animVersion': board.anim_version,
                 'anim': board.current,
                 'displayOn': board.display_on,
+                'sleeping': board.sleeping,
                 'brightness': min(15, max(0, to_int(str(cfg.get('bVisor', 5))))),
                 'fan': cfg.get('fanDuty'),
                 'toggles': {k: cfg.get(k) for k in ('boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna')},
@@ -260,6 +263,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.text('No valid parameters detected!')
             name = q['anim']
             if safe_name(name) and os.path.isfile(board.anim_path(name)):
+                if board.sleeping:   # picking a face wakes it and stays on that face
+                    board.sleeping = False
+                    board.wake_to = ''
                 board.show(name)
                 return self.redirect('/saved.html?main')
             return self.text('Loading animation has failed!')
@@ -301,8 +307,31 @@ class Handler(BaseHTTPRequestHandler):
                 'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,
                 'psramFree': 8200000, 'psramSize': 8388608, 'fsUsed': 160000 + anims_bytes, 'fsTotal': 4063232,
                 'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': False,
-                'display': board.display_on, 'anim': board.current, 'frame': 0, 'frames': frames,
+                'display': board.display_on, 'sleeping': board.sleeping,
+                'anim': board.current, 'frame': 0, 'frames': frames,
             }), 'application/json')
+
+        if path == '/sleep':   # state=on|off|toggle, or no state to report
+            if 'state' in q:
+                state = q['state']
+                if state not in ('on', 'off', 'toggle'):
+                    return self.text('Invalid state')
+                want = (not board.sleeping) if state == 'toggle' else state == 'on'
+                if want and not board.sleeping:
+                    board.wake_to = board.current
+                    board.sleeping = True
+                    board.log('[I] Sleeping')
+                    face = cfg.get('aSleep', 'sleep.json')
+                    if safe_name(face) and os.path.isfile(board.anim_path(face)):
+                        board.show(face)
+                    else:
+                        board.log('[E] Sleeping face missing: ' + str(face) + ' (run with --reset to copy new faces from data/)')
+                elif not want and board.sleeping:
+                    board.sleeping = False
+                    board.log('[I] Woke up')
+                    if board.wake_to:
+                        board.show(board.wake_to)
+            return self.text('on' if board.sleeping else 'off')
 
         if path == '/display':
             if 'state' in q:
