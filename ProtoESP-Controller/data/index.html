@@ -309,6 +309,9 @@
           <input type="number" id="sleepMins" name="sleepMins" min="1" max="120"></div>
         <div class="field"><label for="sleepTol">Wake sensitivity <small>0.02–1, lower wakes easier</small></label>
           <input type="number" id="sleepTol" name="sleepTol" step="any" min="0.02" max="1"></div>
+        <div class="field"><label>Boop counter <small>total so far</small></label>
+          <div class="inline"><input type="text" id="boopTotal" value="—" readonly>
+            <button class="btn" type="button" onclick="resetBoops()">Reset</button></div></div>
         <div class="field"><label for="wifiName">WiFi name <small>9+ characters</small></label>
           <input type="text" id="wifiName" name="wifiName" minlength="9" autocomplete="off"></div>
         <div class="field"><label for="wifiPass">WiFi password <small>9+ characters</small></label>
@@ -736,6 +739,7 @@
       setSensor('stTilt', s.tilt);
       setSensor('stBoop', s.boop);
       $('stBoops').textContent = s.boops === undefined ? '—' : s.boops;
+      $('boopTotal').value = s.boops === undefined ? '—' : s.boops;
     } catch (e) { /* mask out of reach or older firmware: keep the last values */ }
   }
   setInterval(refreshStats, 2000);
@@ -836,6 +840,12 @@
   }
 
   // Boop sensor reading for setting Boop distance: lower means something is closer
+  async function resetBoops() {
+    if (!confirm('Set the boop counter back to zero?')) return;
+    await saveParams('boopCount=0', 'Boop counter reset');
+    refreshStats();
+  }
+
   async function readBoop() {
     try {
       const t = (await (await fetch('/tof', NO_CACHE)).text()).trim();

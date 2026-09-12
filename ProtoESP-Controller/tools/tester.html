@@ -92,6 +92,17 @@
     [7,5,5,5,7], [2,6,2,2,7], [7,1,7,4,7], [7,1,7,1,7], [5,5,7,1,1],
     [7,4,7,1,7], [7,4,7,5,7], [7,1,1,1,1], [7,5,7,5,7], [7,5,7,1,7]];
 
+  // same stages as src/main.cpp: until ms, kind (0 bar, 1 digits), amount
+  const BOOP_STAGES = [[60,0,2],[110,0,4],[160,0,6],[220,1,1],[280,1,-1],[340,1,0],
+                       [1200,1,0],[1270,1,1],[1330,0,6],[1390,0,2]];
+
+  function boopBarBits(width) {
+    const g = Array.from({length: 8}, () => new Array(8).fill(0));
+    const x0 = Math.floor((8 - width) / 2);
+    for (let r = 3; r <= 4; r++) for (let c = x0; c < x0 + width; c++) g[r][c] = 1;
+    return g;
+  }
+
   function boopDigitBits(value, lift) {       // an 8x8 grid of the number, like the firmware
     const g = Array.from({length: 8}, () => new Array(8).fill(0));
     const two = value >= 10, tens = Math.floor(value / 10) % 10, units = value % 10;
@@ -161,13 +172,15 @@
     // Boop counter: the number takes over both nose panels while it pops. Same phases as the
     // firmware; t7 is the left nose and t6 the right on this layout.
     const since = Date.now() - boopSeenAt;
-    const phase = (boopCountEna && boopSeenAt && since <= 1400)
-      ? (since < 90 ? 0 : since < 190 ? 1 : 2) : -1;
-    const boopGrid = phase < 0 ? null
-      : phase === 0 ? [[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],
-                       [0,1,1,1,1,1,1,0],[0,1,1,1,1,1,1,0],
-                       [0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]]
-      : boopDigitBits(boopCount % 100, phase === 1 ? 1 : 0);
+    let boopGrid = null;
+    if (boopCountEna && boopSeenAt) {
+      for (const [until, kind, amount] of BOOP_STAGES) {
+        if (since < until) {
+          boopGrid = kind === 0 ? boopBarBits(amount) : boopDigitBits(boopCount % 100, amount);
+          break;
+        }
+      }
+    }
     const duty = (2 * brightness + 1) / 32;              // MAX7219 intensity steps
     const alpha = 0.2 + 0.8 * Math.sqrt(duty);
     layout.forEach((row, ry) => row.forEach((cell, cx) => {
