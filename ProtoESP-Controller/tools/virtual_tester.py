@@ -278,7 +278,8 @@ class Handler(BaseHTTPRequestHandler):
             back_to = board.current
             if safe_name(face) and os.path.isfile(board.anim_path(face)):
                 board.show(face)
-            timer = threading.Timer(1.0, end_boop, [back_to])
+            held = max(1.0, min(10.0, float(q.get('hold', 1.0))))   # how long the paw stays
+            timer = threading.Timer(held, end_boop, [back_to])
             timer.daemon = True
             timer.start()
             return self.text('OK')

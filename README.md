@@ -9,7 +9,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - Drives all 14 panels as one face: 2 panels per eye, 4 per mouth side, 1 per nose side
 - Creates its own WiFi network (`ProtoWiFi`) with a web page to switch faces, change brightness and turn features on and off
 - Includes ProtoESP's web Animator for drawing faces pixel by pixel and testing them live on the mask
-- Ships with 11 faces (default, happy, sad, angry, upset, confused, boop, heart, surprise, sleep, bsod), drawn from curves for this 14-panel layout and animated
+- Ships with 12 faces (default, happy, sad, angry, upset, confused, boop, boop2, heart, surprise, sleep, bsod), drawn from curves for this 14-panel layout and animated
 - A redesigned, phone-friendly web page: face tiles with previews, a live brightness slider for the MAX7219 panels (0–15), feature switches, and no RGB, ear-LED or other-helmet controls
 - Scrolling text: type a message on the web page and press Enter to scroll it across the mouth panels, on repeat or just once, at four speeds
 - Touch drawing in the Animator: drag a finger across pixels to draw or erase
