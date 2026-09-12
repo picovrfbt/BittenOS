@@ -201,6 +201,49 @@ def seg(points):
     return fy
 
 
+def mouth_teeth(c, ph, spikes=3):
+    """The mouth the mask came with: a bar along the middle with spikes above and below that
+    grow towards the nose, and a diagonal tail at the ear.
+
+    The original has four upward spikes a side (plus the tail), the last straddling the centre
+    line so it joins its mirror image into one. `spikes` sets that count - it runs one lower
+    than the original, spread over the same width. The spikes also breathe by about a pixel,
+    which the original did not do at all.
+    """
+    bar = 20
+    for r, w in enumerate((2, 3, 3, 3)):                # the diagonal tail at the ear end
+        for x in range(r, r + w):
+            put(c, x, 16 + r)
+    for x in range(4, MX1 + 1):                         # the bar along the middle
+        put(c, x, bar)
+
+    breathe = 0.5 + 0.5 * math.sin(2 * math.pi * ph)
+    first, last = 9.5, MX1 + 0.5                        # the last one sits on the mirror line
+    for i in range(spikes):
+        t = i / max(1, spikes - 1)
+        cx = first + (last - first) * t
+        h = 2.0 + 1.4 * t + 0.7 * breathe * t
+        top = bar - h
+        y = bar
+        while y >= top:
+            half = (y - top) * 0.95
+            for x in range(int(round(cx - half)), int(round(cx + half)) + 1):
+                if 16 <= y <= 23:
+                    put(c, x, y)
+            y -= 1
+    for i in range(spikes):                             # spikes below, between the upper ones
+        t = (i + 0.5) / max(1, spikes - 1)
+        if t > 1.02:
+            break
+        cx = first + (last - first) * t
+        d = 1.8 + 1.2 * t
+        for y in range(bar + 1, int(round(bar + d)) + 1):
+            half = (bar + d - y) * 1.05
+            for x in range(int(round(cx - half)), int(round(cx + half)) + 1):
+                if 16 <= y <= 23:
+                    put(c, x, y)
+
+
 def mouth_jagged(c, ph):
     """The default: starts high at the ear, one sharp jag, then steps down to the centre.
 
@@ -279,7 +322,7 @@ def mouth_grin(c, ph):           # heart: a wide, happy curve
 # still eye may sit before the sequence moves on.
 
 FACES = {
-    'default':  dict(eye='original', step=90,  mouth=mouth_jagged),
+    'default':  dict(eye='original', step=90,  mouth=mouth_teeth),
     'happy':    dict(eye='original', step=90,  mouth=mouth_smile),
     'sad':      dict(eye='original', step=100, mouth=mouth_frown),
     'angry':    dict(eye='original', step=30,  mouth=mouth_zigzag),   # its twitch frame is 25ms
