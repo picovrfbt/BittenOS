@@ -185,6 +185,52 @@ def nose(c):
 
 # ---------- mouths ----------
 
+def seg(points):
+    """Straight lines between (s, y) points: sharp corners, no curves.
+
+    s runs 0 at the ear end to 1 at the centre of the face, y is the canvas row.
+    """
+    def fy(s):
+        for i in range(len(points) - 1):
+            s0, y0 = points[i]
+            s1, y1 = points[i + 1]
+            if s0 <= s <= s1:
+                t = (s - s0) / (s1 - s0) if s1 > s0 else 0.0
+                return y0 + (y1 - y0) * t
+        return points[-1][1]
+    return fy
+
+
+def mouth_jagged(c, ph):
+    """The default: starts high at the ear, one sharp jag, then steps down to the centre.
+
+    Mirrored, both sides fall towards the middle of the face, so it reads as a smile - but
+    built from straight segments with hard corners rather than a curve. Alternates that were
+    drawn alongside it are below; swap the one named in FACES to change the shape.
+    """
+    jag = 0.8 * math.sin(2 * math.pi * ph)      # the peak breathes by about a pixel
+    stroke(c, MX0, MX1, seg([
+        (0.00, 18.4),
+        (0.28, 18.4),
+        (0.42, 16.8 + jag),
+        (0.58, 20.0),
+        (0.80, 21.0),
+        (1.00, 21.0),
+    ]), thick=2, ymin=16, ymax=23)
+
+
+def mouth_jagged_step(c, ph):    # alternate: one diagonal step down, no peak
+    d = 0.5 * math.sin(2 * math.pi * ph)
+    stroke(c, MX0, MX1, seg([(0.00, 18.2 + d), (0.38, 18.2 + d), (0.62, 21.2), (1.00, 21.2)]),
+           thick=2, ymin=16, ymax=23)
+
+
+def mouth_jagged_twin(c, ph):    # alternate: two smaller jags on the way down
+    d = 0.6 * math.sin(2 * math.pi * ph)
+    stroke(c, MX0, MX1, seg([(0.00, 18.6), (0.20, 17.4 + d), (0.40, 19.6), (0.60, 18.6 + d),
+                             (0.80, 21.2), (1.00, 21.2)]), thick=2, ymin=16, ymax=23)
+
+
 def mouth_wave(c, ph):           # default: one soft hump each side, breathing slowly
     a = 2.1 + 0.9 * math.sin(2 * math.pi * ph)
     stroke(c, MX0, MX1, lambda s: 20.2 - a * math.sin(math.pi * s), thick=2, ymin=16, ymax=23)
@@ -233,7 +279,7 @@ def mouth_grin(c, ph):           # heart: a wide, happy curve
 # still eye may sit before the sequence moves on.
 
 FACES = {
-    'default':  dict(eye='original', step=90,  mouth=mouth_wave),
+    'default':  dict(eye='original', step=90,  mouth=mouth_jagged),
     'happy':    dict(eye='original', step=90,  mouth=mouth_smile),
     'sad':      dict(eye='original', step=100, mouth=mouth_frown),
     'angry':    dict(eye='original', step=30,  mouth=mouth_zigzag),   # its twitch frame is 25ms
