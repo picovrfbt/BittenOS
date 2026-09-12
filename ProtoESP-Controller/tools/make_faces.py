@@ -102,6 +102,75 @@ def mirror_half(c):
 
 # ---------- eyes ----------
 
+# The default eye, copied pixel for pixel from the face the mask came with, along with the
+# three stages of its blink. The original held the open eye for 7 seconds and then blinked;
+# here the loop is shorter and the eye lifts a pixel now and then, so it looks alive without
+# being busy. Left eye only - the right one is the mirror of it.
+EYE_DEFAULT_OPEN = (
+    '................',
+    '.....####.......',
+    '...########.....',
+    '..##########....',
+    '.############...',
+    '.####......###..',
+    '..##........##..',
+    '................',
+)
+
+EYE_DEFAULT_BLINK = (
+    (
+        '................',
+        '.....####.......',
+        '...########.....',
+        '..##########....',
+        '.#####....###...',
+        '.###.......###..',
+        '..#.........##..',
+        '................',
+    ),
+    (
+        '................',
+        '.....####.......',
+        '...########.....',
+        '..##########....',
+        '.####.....###...',
+        '.##........##...',
+        '................',
+        '................',
+    ),
+    (
+        '................',
+        '................',
+        '...########.....',
+        '..##########....',
+        '..###.....##....',
+        '................',
+        '................',
+        '................',
+    ),
+)
+
+
+def paint(c, art, x0, y0, dy=0, ymin=0, ymax=7):
+    for row_i, row in enumerate(art):
+        y = y0 + row_i + dy
+        if ymin <= y <= ymax:
+            for dx, ch in enumerate(row):
+                if ch == '#':
+                    put(c, x0 + dx, y)
+
+
+def eye_default(c, ph):
+    """The original eye: open and bobbing, then its own blink at the end of the loop."""
+    if ph >= 0.78:
+        stage = (0, 1, 2, 1, 0)
+        k = int((ph - 0.78) / 0.22 * len(stage))
+        paint(c, EYE_DEFAULT_BLINK[stage[min(k, len(stage) - 1)]], 0, 0)
+    else:
+        t = ph / 0.78
+        paint(c, EYE_DEFAULT_OPEN, 0, 0, dy=-1 if math.sin(2 * math.pi * t) > 0.55 else 0)
+
+
 def eye_closed(c, ph):           # blink, and the resting face for upset
     stroke(c, 2, 13, lambda s: 3.5, thick=2, ymin=0, ymax=7)
 
@@ -217,7 +286,7 @@ def mouth_grin(c, ph):           # heart: a wide, happy curve
 # ---------- the faces ----------
 
 FACES = {
-    'default':  dict(n=16, ms=110, eye=eye_dome,    mouth=mouth_wave,   blink=[13, 14]),
+    'default':  dict(n=26, ms=130, eye=eye_default, mouth=mouth_wave,   blink=[]),
     'happy':    dict(n=14, ms=100, eye=eye_arch,    mouth=mouth_smile,  blink=[]),
     'sad':      dict(n=14, ms=170, eye=eye_droop,   mouth=mouth_frown,  blink=[11, 12]),
     'angry':    dict(n=12, ms=150, eye=eye_angry,   mouth=mouth_zigzag, blink=[]),
