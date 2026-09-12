@@ -157,6 +157,16 @@ class VirtualBoard:
 board = None
 
 
+def end_boop(back_to):
+    """The paw has gone: put the face back and start the counter pop."""
+    with board.lock:
+        board.log('[I] ToF unBOOP')
+        if back_to and back_to != 'POSTAnimLoad':
+            board.show(back_to)
+        board.boop_at = time.time()
+
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = 'ProtoESP-virtual'
 
@@ -260,9 +270,17 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/__boop' and method == 'POST':   # the sensor isn't simulated, so boop by hand
             # route() already holds board.lock, and it is not reentrant - taking it here hangs
             board.config['boopCount'] = int(board.config.get('boopCount') or 0) + 1
-            board.boop_at = time.time()
             board.save_config()
             board.log('[I] Boop #%d' % board.config['boopCount'])
+            # Like the firmware: the boop face plays while the paw is there, and the counter
+            # only pops once it moves away, so the number never covers the boop face.
+            face = board.config.get('aBoop') or 'boop.json'
+            back_to = board.current
+            if safe_name(face) and os.path.isfile(board.anim_path(face)):
+                board.show(face)
+            timer = threading.Timer(1.0, end_boop, [back_to])
+            timer.daemon = True
+            timer.start()
             return self.text('OK')
 
         if path == '/__button' and method == 'POST':
