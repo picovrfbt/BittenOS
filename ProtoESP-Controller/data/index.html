@@ -43,6 +43,8 @@
   .power:active { transform:scale(.94); }
   .power:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .display-off .power { border-color:var(--line); background:var(--surface2); color:var(--dim); box-shadow:none; }
+  .power.ghost { border-color:var(--line); background:var(--surface2); color:var(--dim); box-shadow:none; }
+  .power.ghost.on { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); box-shadow:0 0 14px rgba(77,163,255,.3); }
   .display-off .now { background:rgba(140,151,173,.12); color:var(--dim); }
   .display-off .dot { background:var(--faint); box-shadow:none; }
   .display-off .face canvas { opacity:.35; }
@@ -165,6 +167,9 @@
   <div class="topbar-in">
     <div class="brand">ProtoESP<small>FurBitten 14-panel</small></div>
     <div class="now" title="Face on the mask now"><i class="dot"></i><span id="activeAnim">…</span></div>
+    <button class="power ghost" id="sleepBtn" type="button" aria-label="Sleep" aria-pressed="false" title="Show the sleeping face">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13.5A8 8 0 1 1 10.5 4a6.5 6.5 0 0 0 9.5 9.5z"/></svg>
+    </button>
     <button class="power" id="powerBtn" type="button" aria-label="Display power" aria-pressed="true" title="Turn the displays off">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></svg>
     </button>
@@ -216,6 +221,7 @@
       <label class="switch">Tilt <input type="checkbox" id="tilt"></label>
       <label class="switch">Remote (BLE) <input type="checkbox" id="ble"></label>
       <label class="switch">OLED <input type="checkbox" id="oled"></label>
+      <label class="switch">Auto sleep <input type="checkbox" id="sleepAuto"></label>
     </div>
     <button class="btn primary block" type="button" onclick="saveFeatures()">Save features</button>
   </section>
@@ -270,6 +276,9 @@
         <div class="field"><label for="aTilt">Tilt-sideways face</label><select id="aTilt" name="aTilt"></select></div>
         <div class="field"><label for="aUp">Tilt-up face</label><select id="aUp" name="aUp"></select></div>
         <div class="field"><label for="aBoop">Boop face</label><select id="aBoop" name="aBoop"></select></div>
+        <div class="field"><label for="aSleep">Sleeping face</label><select id="aSleep" name="aSleep"></select></div>
+        <div class="field"><label for="sleepMins">Sleep after <small>minutes of stillness</small></label>
+          <input type="number" id="sleepMins" name="sleepMins" min="1" max="120"></div>
         <div class="field"><label for="wifiName">WiFi name <small>9+ characters</small></label>
           <input type="text" id="wifiName" name="wifiName" minlength="9" autocomplete="off"></div>
         <div class="field"><label for="wifiPass">WiFi password <small>9+ characters</small></label>
@@ -355,7 +364,7 @@
       grid.appendChild(b);
     }
     // face pickers in Advanced settings, keeping their current choice
-    for (const id of ['aTilt', 'aUp', 'aBoop']) {
+    for (const id of ['aTilt', 'aUp', 'aBoop', 'aSleep']) {
       const sel = $(id), keep = sel.value;
       sel.innerHTML = '';
       for (const name of parts) sel.add(new Option(name, name));
@@ -542,6 +551,32 @@
     seg.querySelectorAll('label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
   }));
 
+  /* ---------- sleep ---------- */
+  // Shows the sleeping face and remembers the one to come back to. The mask does the
+  // same by itself after Sleep after minutes of stillness, and wakes when moved.
+  function showSleep(on) {
+    $('sleepBtn').classList.toggle('on', !!on);
+    $('sleepBtn').setAttribute('aria-pressed', String(!!on));
+    $('sleepBtn').title = on ? 'Wake the mask up' : 'Show the sleeping face';
+  }
+
+  async function loadSleep() {
+    showSleep((await (await fetch('/sleep', NO_CACHE)).text()).trim() === 'on');
+  }
+
+  $('sleepBtn').addEventListener('click', async () => {
+    const want = $('sleepBtn').classList.contains('on') ? 'off' : 'on';
+    try {
+      const t = (await (await fetch('/sleep?state=' + want, NO_CACHE)).text()).trim();
+      if (t !== 'on' && t !== 'off') throw new Error(t);
+      showSleep(t === 'on');
+      toast(t === 'on' ? 'Sleeping' : 'Awake');
+      setTimeout(loadFiles, 400);   // the face changed, so refresh the highlight
+    } catch (e) {
+      toast(e instanceof TypeError ? 'Could not reach the mask' : e.message, true);
+    }
+  });
+
   /* ---------- display power ---------- */
   // Puts the MAX7219 panels into shutdown: the LEDs go dark, but the ESP32, WiFi and
   // the current face keep running, so turning them back on is instant.
@@ -599,6 +634,7 @@
       $('stFs').textContent = fmtBytes(s.fsUsed) + ' of ' + fmtBytes(s.fsTotal);
       setBar('stFsBar', s.fsUsed, s.fsTotal);
       $('stFrame').textContent = s.frames ? (s.frame + 1) + ' of ' + s.frames : '—';
+      if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
       setSensor('stTilt', s.tilt);
       setSensor('stBoop', s.boop);
     } catch (e) { /* mask out of reach or older firmware: keep the last values */ }
@@ -637,7 +673,8 @@
     const o = JSON.parse(jsonText);
     $('boop').checked = o.boopEna; $('speech').checked = o.speechEna; $('tilt').checked = o.tiltEna;
     $('ble').checked = o.bleEna;   $('oled').checked = o.oledEna;
-    for (const k of ['bOled', 'spMin', 'spMax', 'spTrig', 'aTilt', 'aUp', 'aBoop', 'boopThresh', 'wifiName', 'wifiPass',
+    $('sleepAuto').checked = o.sleepEna;
+    for (const k of ['bOled', 'spMin', 'spMax', 'spTrig', 'aTilt', 'aUp', 'aBoop', 'aSleep', 'sleepMins', 'boopThresh', 'wifiName', 'wifiPass',
                      'neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol']) {
       if (o[k] !== undefined) byName(k).value = o[k];
     }
@@ -662,7 +699,7 @@
 
   function saveFeatures() {
     const p = new URLSearchParams();
-    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled']]) {
+    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled'], ['sleepEna', 'sleepAuto']]) {
       p.set(key, $(id).checked);
     }
     saveParams(p.toString(), 'Features saved');
@@ -790,6 +827,7 @@
       await loadFiles();   // fills the face pickers before the config selects a value in them
       await loadConfig();
       await loadPower();
+      await loadSleep();
       refreshStats();
     } catch (e) {
       toast('Could not reach the mask', true);
