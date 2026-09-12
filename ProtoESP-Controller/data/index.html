@@ -450,12 +450,40 @@
     return rows;
   }
 
+  // Nearly every face is a mirror image, so the preview can show one half at twice the size in
+  // the same tile. The halves are compared pixel by pixel first: anything that isn't actually
+  // mirrored (bsod, say) keeps its whole face, so nothing is ever shown wrong.
+  function halfIfMirrored(leds, cols) {
+    if (cols.length < 2 || cols.length % 2) return cols;
+    const isPanel = c => /^t\d+$/.test(c || '');
+    const half = cols.length / 2;
+    // A few faces are a pixel or two off being a perfect mirror (happy is one). Halving those
+    // anyway keeps every tile the same shape; being strict would leave one odd tile in the grid
+    // over a single pixel. Anything more different than this keeps its whole face.
+    const SLACK = 4;
+    let diff = 0;
+    for (const row of layout) {
+      for (let i = 0; i < half; i++) {
+        const left = row[cols[i]], right = row[cols[cols.length - 1 - i]];
+        if (isPanel(left) !== isPanel(right)) return cols;   // halves aren't even the same shape
+        if (!isPanel(left)) continue;
+        const a = panelBits(leds[parseInt(left.slice(1), 10)]);
+        const b = panelBits(leds[parseInt(right.slice(1), 10)]);
+        for (let r = 0; r < 8; r++) for (let k = 0; k < 8; k++) {
+          if (a[r][k] !== b[r][7 - k] && ++diff > SLACK) return cols;   // not a mirror image
+        }
+      }
+    }
+    return cols.slice(0, half);
+  }
+
   function drawFace(canvas, leds) {
     const isPanel = c => /^t\d+$/.test(c || '');
     const width = Math.max(...layout.map(r => r.length));
-    const cols = [];  // skip columns that are empty in every row so the face fills the tile
+    let cols = [];  // skip columns that are empty in every row so the face fills the tile
     for (let c = 0; c < width; c++) if (layout.some(r => isPanel(r[c]))) cols.push(c);
     if (!cols.length) return;   // no usable layout: bail rather than set a negative canvas size, which throws
+    cols = halfIfMirrored(leds, cols);
     const P = 3, GAP = 3, PANEL = 8 * P;
     canvas.width = cols.length * (PANEL + GAP) - GAP;
     canvas.height = layout.length * (PANEL + GAP) - GAP;
