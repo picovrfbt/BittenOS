@@ -330,6 +330,8 @@ FACES = {
     'upset':    dict(eye='original', step=120, mouth=mouth_flat,  hold=1800),
     'confused': dict(eye='original', step=90,  mouth=mouth_zigzag),
     'boop':     dict(eye='original', step=80,  mouth=mouth_open,  hold=700),
+    #the same boop eyes and snout with the mouth left dark
+    'boop2':    dict(eye='original', eyeFrom='boop', step=80, mouth=None, hold=700),
     'heart':    dict(eye=eye_heart,  step=110, mouth=mouth_grin,  n=14),
     'surprise': dict(eye=eye_dot,    step=120, mouth=mouth_open,  n=12),
 }
@@ -375,7 +377,8 @@ def face_frames(name):
     spec = FACES[name]
     track = None
     if spec['eye'] == 'original':
-        track = eye_timeline(name, spec['step'], spec.get('hold', HOLD))
+        # eyeFrom lets a face borrow another's original eye, for ones with no original of their own
+        track = eye_timeline(spec.get('eyeFrom', name), spec['step'], spec.get('hold', HOLD))
         n = len(track)
     else:
         n = spec['n']
@@ -389,7 +392,8 @@ def face_frames(name):
             art, lift = track[i]
             paint(c, art, 0, 0, dy=lift)
         nose(c)
-        spec['mouth'](c, ph)
+        if spec['mouth'] is not None:      # some faces are eyes and snout only
+            spec['mouth'](c, ph)
         mirror_half(c)
         out.append(c)
     return out

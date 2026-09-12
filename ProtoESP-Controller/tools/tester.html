@@ -66,6 +66,7 @@
         <button onclick="fetch('/__button', {method:'POST'})">Press expression button</button>
         <button onclick="fetch('/__button?hold=1', {method:'POST'})">Hold button (1.5 s)</button>
         <button onclick="fetch('/__boop', {method:'POST'})">Boop</button>
+        <button onclick="fetch('/__boop?hold=4', {method:'POST'})">Boop and hold (4 s)</button>
       </div>
       <p class="note">Plays frames with their timespans, as MAX7219 panels at the current brightness (0–15).
         Layout comes from <code>data/visType.txt</code>. Mic, boop and tilt aren't simulated.</p>
