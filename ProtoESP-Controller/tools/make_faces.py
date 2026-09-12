@@ -153,12 +153,22 @@ def eye_dot(c, ph):              # surprised
 
 # ---------- nose ----------
 
+# The nose the mask came with, copied pixel for pixel from the original faces. It sits in the
+# outer top corner - the opposite end of the panel to where curves drawn towards the centre
+# end up - and the right nose is an exact mirror of this, so mirroring reproduces it exactly.
+NOSE_ART = (
+    '######..',
+    '######..',
+    '####....',
+    '##......',
+)
+
+
 def nose(c):
-    """A wedge against the inner edge, tapering down. A thin hook just read as a quote mark."""
-    for y in range(9, 15):
-        w = 6.0 * (1.0 - (y - 9) / 5.5) ** 0.8
-        for x in range(int(round(NX1 - w)), NX1 + 1):
-            put(c, x, y)
+    for dy, row in enumerate(NOSE_ART):
+        for dx, ch in enumerate(row):
+            if ch == '#':
+                put(c, NX0 + dx, 8 + dy)
 
 
 # ---------- mouths ----------
