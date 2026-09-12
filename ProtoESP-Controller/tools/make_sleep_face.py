@@ -139,8 +139,11 @@ def main():
             art[panel] = hexart
         frames.append({'timespan': FRAME_MS, 'leds': art})
 
+    is_mouth = [False] * count               # the mouth panels, so speech can drive them later
+    for panel in mouths:
+        is_mouth[panel] = True
     anim = {'ears': {'type': 'none'},
-            'visor': {'type': 'custom', 'isMouth': [False] * count, 'frames': frames}}
+            'visor': {'type': 'custom', 'isMouth': is_mouth, 'frames': frames}}
 
     if args.preview:
         def bits(hexart):

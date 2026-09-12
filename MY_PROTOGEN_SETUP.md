@@ -256,6 +256,27 @@ python tools\virtual_tester.py
 - Stop it with Ctrl+C. Other options: `--port 9000` and `--no-browser`.
 - It doesn't run the firmware, so changes in `src/` still need a real build and flash. The mic, boop sensor and tilt aren't simulated.
 
+### `tools/make_faces.py`: redraw the faces
+
+Generates the faces in `data/anims/`. Each is drawn on the left half of an 80x24 canvas from curves, then mirrored, so the halves always match.
+
+```powershell
+python tools\make_faces.py --list
+python tools\make_faces.py --preview happy     # print it as text, write nothing
+python tools\make_faces.py                     # write the files
+```
+
+Shapes live in the `eye_*` and `mouth_*` functions near the top, and which face uses which is the `FACES` table below them. Frames that come out identical (sub-pixel motion often rounds to the same pixels) are merged and their times added, so files stay small. It does not touch `bsod.json`; `sleep.json` comes from `make_sleep_face.py`. Upload the filesystem afterwards.
+
+### `tools/render_faces.py`: look at the faces without the mask
+
+Draws the faces to a PNG, one dot per LED, for checking shapes before flashing. Needs Pillow.
+
+```powershell
+python toolsender_faces.py                   # every face, first frame
+python toolsender_faces.py --frames heart    # every frame of one face
+```
+
 ### `tools/make_icons.py`: redraw the home screen icons
 
 Draws the icons the web page uses on a phone home screen, into `data/`. Only needed if you want to change the icon; the artwork is the `ART` grid near the top of the script.
