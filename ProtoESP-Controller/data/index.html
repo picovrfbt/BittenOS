@@ -230,6 +230,11 @@
       <div class="control-head"><label for="fanspeed">Fan</label><output id="fanVal">100%</output></div>
       <input type="range" min="0" max="255" value="255" id="fanspeed">
     </div>
+    <div class="control">
+      <div class="control-head"><label for="transMs">Transition</label><output id="transMsVal">80 ms</output></div>
+      <input type="range" min="20" max="400" step="10" value="80" id="transMs">
+    </div>
+    <p class="hint">Transition is how long the panels take to dim away when the face changes, and the same again coming back. Saves as soon as you let go. Needs Transitions switched on below.</p>
   </section>
 
   <section class="card">
@@ -299,6 +304,8 @@
         <div class="field"><label for="aSleep">Sleeping face</label><select id="aSleep" name="aSleep"></select></div>
         <div class="field"><label for="sleepMins">Sleep after <small>minutes of stillness</small></label>
           <input type="number" id="sleepMins" name="sleepMins" min="1" max="120"></div>
+        <div class="field"><label for="sleepTol">Wake sensitivity <small>0.02–1, lower wakes easier</small></label>
+          <input type="number" id="sleepTol" name="sleepTol" step="any" min="0.02" max="1"></div>
         <div class="field"><label for="wifiName">WiFi name <small>9+ characters</small></label>
           <input type="text" id="wifiName" name="wifiName" minlength="9" autocomplete="off"></div>
         <div class="field"><label for="wifiPass">WiFi password <small>9+ characters</small></label>
@@ -689,6 +696,13 @@
   $('brightness').addEventListener('input', () => sendBrightness(false));
   $('brightness').addEventListener('change', () => sendBrightness(true));
 
+  function showTrans() {
+    $('transMsVal').textContent = $('transMs').value + ' ms';
+    setFill($('transMs'));
+  }
+  $('transMs').addEventListener('input', showTrans);
+  $('transMs').addEventListener('change', () => saveParams('transMs=' + $('transMs').value, 'Transition speed saved'));
+
   function showFan() {
     $('fanVal').textContent = Math.round($('fanspeed').value / 255 * 100) + '%';
     setFill($('fanspeed'));
@@ -709,11 +723,12 @@
     $('ble').checked = o.bleEna;   $('oled').checked = o.oledEna;
     $('sleepAuto').checked = o.sleepEna;
     $('trans').checked = o.transEna !== false; //on unless the mask says otherwise
-    for (const k of ['bOled', 'spMin', 'spMax', 'spTrig', 'aTilt', 'aUp', 'aBoop', 'aSleep', 'sleepMins', 'boopThresh', 'wifiName', 'wifiPass',
+    for (const k of ['bOled', 'spMin', 'spMax', 'spTrig', 'aTilt', 'aUp', 'aBoop', 'aSleep', 'sleepMins', 'sleepTol', 'boopThresh', 'wifiName', 'wifiPass',
                      'neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol']) {
       if (o[k] !== undefined) byName(k).value = o[k];
     }
     $('fanspeed').value = o.fanDuty; showFan();
+    $('transMs').value = o.transMs === undefined ? 80 : o.transMs; showTrans();
     const bri = Math.min(15, Math.max(0, o.bVisor));
     $('brightness').value = bri; $('brightnessVal').textContent = bri; setFill($('brightness'));
     lastBrightness = String(bri);
@@ -906,6 +921,7 @@
   /* ---------- start ---------- */
   setFill($('brightness'));
   showFan();
+  showTrans();
   (async () => {
     try {
       await loadFiles();   // fills the face pickers before the config selects a value in them

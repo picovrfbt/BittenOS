@@ -22,8 +22,8 @@ private:
 class Config {
 public:
   bool boopEna, speechEna, tiltEna, bleEna, oledEna, sleepEna, transEna;
-  int bEar,bVisor,bOled,rbSpeed,rbWidth,spMin,spMax,spTrig,fanDuty,boopThresh,sleepMins;
-  float neutralX,neutralY,neutralZ,tiltX,tiltY,tiltZ,upX,upY,upZ,tiltTol;
+  int bEar,bVisor,bOled,rbSpeed,rbWidth,spMin,spMax,spTrig,fanDuty,boopThresh,sleepMins,transMs;
+  float neutralX,neutralY,neutralZ,tiltX,tiltY,tiltZ,upX,upY,upZ,tiltTol,sleepTol;
   String aTilt,aUp,aBoop,aSleep,visColorStr,wifiName = "ProtoWiFi",wifiPass = "Proto1234";
   unsigned long visColor;
   void setDefault();

@@ -152,6 +152,7 @@ bool sleeping = false; //the sleeping face is showing
 volatile int8_t sleepRequest = 0; //from /sleep: 1 = sleep now, -1 = wake, 0 = nothing
 unsigned long stillSince = 0; //when the mask last moved
 float stillX = 0, stillY = 0, stillZ = 0; //what "not moving" currently looks like
+uint8_t moveSamples = 0; //readings in a row over the threshold, so a single noisy one can't wake it
 String wakeAnim = ""; //the face to go back to when it wakes
 //Face transitions (loop task only): dip the panels dark, swap the face where the cut can't be seen, bring them back.
 //The MAX7219 chain runs in wiring order, not the order the panels sit on the face, so a wipe would sweep raggedly;
@@ -159,7 +160,7 @@ String wakeAnim = ""; //the face to go back to when it wakes
 uint8_t transPhase = 0;                 //0 = idle, 1 = going dark, 2 = coming back
 int8_t transLevel = 0;                  //panel intensity while the dip runs
 unsigned long transLastStep = 0;
-const uint8_t transStepMs = 16;         //per intensity step, so a dip is about 2x bVisor x 16 ms
+uint16_t transStepMs = 16;              //ms per intensity step, worked out from cfg.transMs when a dip starts
 String transAnim = "", transPost = "";  //the face waiting for the bottom of the dip
 uint32_t loopCount = 0, loopsPerSec = 0; unsigned long loopRateStart = 0; //loop() runs per second, for the system monitor
 uint16_t currentEarsFrame = 0, currentVisorFrame = 0; //frame indexes: scrolling text can have hundreds of frames
@@ -487,6 +488,8 @@ void startWiFiWeb() {
     cfg.getBool(request, "oledEna", cfg.oledEna);
     cfg.getBool(request, "sleepEna", cfg.sleepEna);
     cfg.getBool(request, "transEna", cfg.transEna);
+    cfg.getInt(request, "transMs", cfg.transMs);
+    cfg.getFloat(request, "sleepTol", cfg.sleepTol);
     //brightness
     cfg.getInt(request, "bEar", cfg.bEar);
     cfg.getInt(request, "bVisor", cfg.bVisor);
@@ -1103,12 +1106,18 @@ void loop() {
     if(tiltInitDone) {
       readAccel();
       if(cfg.sleepEna && cfg.sleepMins > 0) { //left alone for long enough? sleep. Moved? wake up.
-        if(fabs(accelX-stillX) > 0.08 || fabs(accelY-stillY) > 0.08 || fabs(accelZ-stillZ) > 0.08) {
-          stillX = accelX; stillY = accelY; stillZ = accelZ;
-          stillSince = millis();
-          if(sleeping) setSleeping(false);
-        } else if(!sleeping && millis()-stillSince > (unsigned long)cfg.sleepMins * 60000UL) {
-          setSleeping(true);
+        if(fabs(accelX-stillX) > cfg.sleepTol || fabs(accelY-stillY) > cfg.sleepTol || fabs(accelZ-stillZ) > cfg.sleepTol) {
+          if(++moveSamples >= 3) { //a single noisy reading isn't movement; 3 in a row (300 ms) is
+            stillX = accelX; stillY = accelY; stillZ = accelZ;
+            stillSince = millis();
+            moveSamples = 0;
+            if(sleeping) setSleeping(false);
+          }
+        } else {
+          moveSamples = 0;
+          if(!sleeping && millis()-stillSince > (unsigned long)cfg.sleepMins * 60000UL) {
+            setSleeping(true);
+          }
         }
       } else {
         stillSince = millis();
@@ -1485,6 +1494,9 @@ void loop() {
   xSemaphoreGive(animQueueMutex);
   if(cfg.transEna && visorType == "MAX72XX" && transPhase == 0 && (queuedAnim != "" || queuedPost != "")) {
     transAnim = queuedAnim; transPost = queuedPost; //hold the swap until the panels are dark
+    uint8_t levels = cfg.bVisor > 0 ? cfg.bVisor : 1; //the dip time is shared out over the brightness steps there are
+    transStepMs = cfg.transMs / levels;
+    if(transStepMs < 1) transStepMs = 1;
     transPhase = 1; transLevel = cfg.bVisor; transLastStep = millis();
     queuedAnim = ""; queuedPost = "";
   }
