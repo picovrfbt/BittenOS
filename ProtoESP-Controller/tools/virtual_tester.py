@@ -32,14 +32,21 @@ BOARD_DIR = os.path.join(HERE, '.virtual_board')
 TESTER_PAGE = os.path.join(HERE, 'tester.html')
 START = time.time()  # for the emulated uptime
 
-# Settings /saveconfig accepts, in the same order as src/main.cpp
-SAVECONFIG_KEYS = [
-    'boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna', 'sleepEna', 'transEna',
-    'bEar', 'bVisor', 'bOled', 'rbSpeed', 'rbWidth', 'spMin', 'spMax', 'spTrig',
-    'aTilt', 'aUp', 'aBoop', 'aSleep',
-    'neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol',
-    'visColor', 'wifiName', 'wifiPass', 'boopThresh', 'sleepMins',
-]
+# Settings /saveconfig accepts, in the same order as src/main.cpp, with the type the
+# firmware stores them as. The type is declared rather than taken from whatever is already
+# in the config, so a setting the config file doesn't have yet still lands as a number or
+# a bool instead of a string (getBool/getInt/getFloat in src/fileOp.cpp).
+SAVECONFIG_KEYS = {
+    'boopEna': bool, 'speechEna': bool, 'tiltEna': bool, 'bleEna': bool, 'oledEna': bool,
+    'sleepEna': bool, 'transEna': bool, 'transMs': int, 'sleepTol': float,
+    'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
+    'spMin': int, 'spMax': int, 'spTrig': int,
+    'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
+    'neutralX': float, 'neutralY': float, 'neutralZ': float,
+    'tiltX': float, 'tiltY': float, 'tiltZ': float,
+    'upX': float, 'upY': float, 'upZ': float, 'tiltTol': float,
+    'visColor': str, 'wifiName': str, 'wifiPass': str, 'boopThresh': int, 'sleepMins': int,
+}
 
 CONTENT_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -284,15 +291,15 @@ class Handler(BaseHTTPRequestHandler):
             return self.redirect('/saved.html?main')
 
         if path == '/saveconfig':
-            for key in SAVECONFIG_KEYS:
+            for key, kind in SAVECONFIG_KEYS.items():
                 if key not in q:
                     continue
-                v, old = q[key], cfg.get(key)
-                if isinstance(old, bool):
+                v = q[key]
+                if kind is bool:
                     cfg[key] = v in ('true', '1', 'on')
-                elif isinstance(old, int):
+                elif kind is int:
                     cfg[key] = to_int(v)
-                elif isinstance(old, float):
+                elif kind is float:
                     cfg[key] = to_float(v)
                 else:
                     cfg[key] = v
