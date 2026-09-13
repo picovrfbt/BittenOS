@@ -129,15 +129,27 @@ int apds9930Read8(uint8_t reg) {
   return Wire.read();
 }
 
-int apds9930Prox() { //0-255, higher = closer; -1 if it didn't answer
+int apds9930Read16(uint8_t reg) { //-1 if it didn't answer
   Wire.beginTransmission(apds9930Addr);
-  Wire.write(0xA0 | 0x18);                      //auto-increment from PDATAL
+  Wire.write(0xA0 | reg);                       //auto-increment, low byte then high
   if(Wire.endTransmission() != 0) return -1;
   if(Wire.requestFrom(apds9930Addr, 2) != 2) return -1;
   int lo = Wire.read(), hi = Wire.read();
-  int v = lo | (hi << 8);                       //PDATA is 10-bit, 0-1023
+  return lo | (hi << 8);
+}
+
+int apds9930Prox() { //0-255, higher = closer; -1 if it didn't answer
+  int v = apds9930Read16(0x18);                 //PDATA, 10-bit 0-1023
+  if(v < 0) return -1;
   return v >= 1023 ? 255 : (v >> 2);
 }
+
+//Ambient light, both channels: CH0 sees visible and infrared, CH1 mostly infrared. No lux is
+//worked out from them, because the usual formula assumes a normal mix of light and a tinted
+//visor passes infrared far better than visible, which throws it right off. The two raw numbers
+//and the ratio between them are what actually says what the visor is doing.
+int alsCh0 = -1, alsCh1 = -1;
+unsigned long lastAlsRead = 0;
 
 bool apds9930Start() {
   Wire.beginTransmission(apds9930Addr);
@@ -145,10 +157,11 @@ bool apds9930Start() {
   int id = apds9930Read8(0x12);                 //0x39 on a genuine one. Logged, not enforced:
   logPrint("[I] 0x39 answered, ID 0x" + String(id, HEX));  //a strict ID check is what rejects clones
   apds9930Write(0x00, 0x00);                    //ENABLE: off while it's configured
+  apds9930Write(0x01, 0xDB);                    //ATIME: about 100 ms of light gathering
   apds9930Write(0x02, 0xFF);                    //PTIME
   apds9930Write(0x0E, 0x08);                    //PPULSE: 8 pulses
-  apds9930Write(0x0F, 0x20);                    //CONTROL: 100mA, CH1 diode, 1x gain
-  apds9930Write(0x00, 0x05);                    //ENABLE: power on + proximity
+  apds9930Write(0x0F, 0x22);                    //CONTROL: 100mA, CH1 diode, 1x prox, 8x light
+  apds9930Write(0x00, 0x07);                    //ENABLE: power on + proximity + ambient light
   delay(12);
   return apds9930Prox() >= 0;
 }
@@ -765,6 +778,8 @@ void startWiFiWeb() {
     st["boopRaw"] = apdsprox;
     st["boopBase"] = cfg.boopBase;
     st["boopSig"] = boopSignal();
+    st["als0"] = alsCh0;
+    st["als1"] = alsCh1;
     st["display"] = displayOn;
     st["sleeping"] = sleeping;
     st["anim"] = anim;
@@ -1338,6 +1353,11 @@ void loop() {
         apdsFails = 0;
         apdsprox = prox;
       }
+    }
+    if(boopIs("APDS9930") && ToFInitDone && millis() - lastAlsRead >= 500) {
+      lastAlsRead = millis();                   //light changes slowly; no need to read it often
+      alsCh0 = apds9930Read16(0x14);
+      alsCh1 = apds9930Read16(0x16);
     }
     if(tiltInitDone) {
       if(readAccel()) imuFails = 0;
