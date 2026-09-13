@@ -198,6 +198,8 @@ python -m platformio device monitor -p COM113 -b 115200
 
 17. **If a sensor drops out:** you don't need to restart. The mask sweeps the I2C bus every 10 seconds and shows what answered under **I2C devices** on the System card. Anything that stops answering is marked missing and restarted automatically within about 5 seconds of coming back, whether or not its feature is switched on. If a sensor reads as missing, check that line: `0x39` is the boop sensor, `0x68` or `0x69` the tilt sensor. If the address is listed but the sensor still won't start, the chip isn't the one the driver expects; if it isn't listed, it's wiring or power. Both sensors run from **3V3**, not 5V.
 
+18. **Boop behind a visor:** the sensor always sees some of its own infrared bouncing off the inside of the visor, so its resting reading is never zero. In Advanced settings press **Calibrate** with nothing near the visor first - that measures the resting level and subtracts it from then on - then **Read** with nothing near (close to 0) and again with your hand on the visor, and set **Boop distance** between the two. **Boop reading** on the System card shows the signal with the raw and resting values behind it. If raw sits near 255 with nothing near the visor, the reflection has used up the whole range and no threshold will help: the sensor needs a light barrier between its LED and its detector, or to sit right against the visor with no air gap behind it.
+
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
 ### Drawing and testing a face in the Animator

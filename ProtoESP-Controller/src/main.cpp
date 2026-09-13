@@ -102,6 +102,7 @@ Adafruit_APDS9960 apds;
 
 int apdsprox = 0; //latest proximity (0-255, higher = closer), read by loop() every 100 ms
 uint8_t imuFails = 0, apdsFails = 0;   //reads in a row that got nothing back
+volatile bool boopCalRequest = false;  //set by /boopcal, done on the loop task
 
 inline bool boopIs(const char *m) { return strcmp(boopMode, m) == 0; }
 inline bool boopIsApds() { return boopIs("APDS9960") || boopIs("APDS9930"); }
@@ -153,6 +154,15 @@ bool apds9930Start() {
 }
 
 bool boopSensorStart() { return boopIs("APDS9930") ? apds9930Start() : apdsStart(); }
+
+//A sensor behind a visor always sees its own IR bouncing off the inside of it, so the resting
+//reading is never zero. Measure that once (Calibrate) and work from how far above it we are,
+//rather than from the raw number - otherwise the threshold has to be guessed around whatever
+//the visor happens to reflect.
+int boopSignal() {
+  int v = apdsprox - cfg.boopBase;
+  return v < 0 ? 0 : v;
+}
 
 int boopReadProx() { //whichever chip is fitted, as 0-255 with higher meaning closer
   if(boopIs("APDS9930")) return apds9930Prox();   //-1 if it didn't answer, handled by the caller
@@ -707,6 +717,11 @@ void startWiFiWeb() {
     }
   });
 
+  server.on("/boopcal", HTTP_GET, [](AsyncWebServerRequest *request){ //measure the resting reading
+    boopCalRequest = true;                 //the loop task does it; the web task never touches I2C
+    request->send(200, "text/plain", "ok");
+  });
+
   server.on("/heap", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/plain", String(ESP.getFreeHeap()));
   });
@@ -747,6 +762,9 @@ void startWiFiWeb() {
     st["boop"] = ToFInitDone;
     st["boops"] = cfg.boopCount;
     st["i2c"] = i2cFound;
+    st["boopRaw"] = apdsprox;
+    st["boopBase"] = cfg.boopBase;
+    st["boopSig"] = boopSignal();
     st["display"] = displayOn;
     st["sleeping"] = sleeping;
     st["anim"] = anim;
@@ -815,7 +833,7 @@ void startWiFiWeb() {
     if(!ToFInitDone) {
       request->send(200, "text/plain", F("Boop sensor not found"));
     } else if (boopIsApds()) {
-      request->send(200, "text/plain", String(255 - apdsprox)); //read by loop(), not from the web task
+      request->send(200, "text/plain", String(boopSignal())); //read by loop(), not from the web task
     } else if (boopIs("VL53L1X")) {
       if (vl53.dataReady()) {
         request->send(200, "text/plain", String(vl53.distance()));
@@ -1478,6 +1496,23 @@ void loop() {
   //has to work either way too - otherwise wiring the sensor in does nothing until Boop is
   //turned on, with no hint as to why. The bus is scanned at the same time: if 0x39 answers but
   //the sensor still won't start, the module is a clone the library's ID check rejects.
+  if(boopCalRequest) { //from /boopcal: average a handful of readings with nothing near the visor
+    boopCalRequest = false;
+    if(boopIsApds() && ToFInitDone) {
+      long sum = 0; int taken = 0;
+      for(int i = 0; i < 16; i++) {
+        int v = boopReadProx();
+        if(v >= 0) { sum += v; taken++; }
+        delay(6);
+      }
+      if(taken > 0) {
+        cfg.boopBase = sum / taken;
+        cfg.save();
+        logPrint("[I] Boop resting level set to " + String(cfg.boopBase) + " of 255");
+      }
+    }
+  }
+
   i2cScanStep();
   if(i2cFresh) { //a sensor that has stopped answering is marked missing, so the retries restart it
     i2cFresh = false;
@@ -1552,15 +1587,15 @@ void loop() {
     } else if (boopIsApds()) {
       if(ToFInitDone) {
         //apdsprox is read every 100 ms in the I2C sensor section
-        if(booping == false && (255 - apdsprox) < cfg.boopThresh) {
-          logPrint(F("[I] ToF BOOP"));
+        if(booping == false && boopSignal() > cfg.boopThresh) {
+          logPrint("[I] BOOP (signal " + String(boopSignal()) + " over " + String(cfg.boopThresh) + ")");
           booping = true;
           countBoop();
           boopoldanim = currentAnim;
           loadAnim(cfg.aBoop,"");
           lastMillsBoop = millis();
-        } else if(booping == true && lastMillsBoop+1000<millis() && (255 - apdsprox) > cfg.boopThresh) {
-          logPrint(F("[I] ToF unBOOP"));
+        } else if(booping == true && lastMillsBoop+1000<millis() && boopSignal() < (cfg.boopThresh * 3) / 4) {
+          logPrint(F("[I] ToF unBOOP"));   //a little lower than the trigger, so it can't chatter
           booping = false;
           endBoop();
           if(!wasTilt) {
