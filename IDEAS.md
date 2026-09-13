@@ -19,10 +19,11 @@ value-for-effort within each group.
 - [ ] **Sleep refinements** — dim gradually before dropping off, wake more gently, deeper sleep
       after longer.
 
-## Needs the APDS9960 (bought for boop, not wired yet)
+## Uses the boop sensor, which is wired
 
-The chip has three sensors in one: proximity (the boop), gesture, and ambient light. Once it's
-wired for boop, the other two come along free.
+The sensor fitted is an **APDS-9930**, not the 9960 originally planned - a different chip that
+answers on the same address. It does proximity and ambient light. It has **no gesture engine**,
+so gesture control is off the table unless the chip is swapped.
 
 - [ ] **Auto-brightness** — map the ambient reading to MAX7219 intensity 0–15 and apply it
       slowly, with hysteresis, clamped to a Min and Max you set.
@@ -47,8 +48,7 @@ wired for boop, the other two come along free.
       First step is measurement, not code: with the sensor working, compare the Ambient light
       reading on the System card at brightness 0 and 15 in a dark room. If it barely moves the
       shroud is doing its job; if it jumps, blanking is required.
-- [ ] **Gesture control** — swipe past the nose to change faces without the phone.
-- [ ] **Boop counter** — total boops on the System card.
+- [x] **Boop counter** — done: counts, pops up on the nose once the paw moves away, resettable.
 
 ## Needs parts
 
