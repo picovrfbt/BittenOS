@@ -39,7 +39,7 @@ START = time.time()  # for the emulated uptime
 SAVECONFIG_KEYS = {
     'boopEna': bool, 'speechEna': bool, 'tiltEna': bool, 'bleEna': bool, 'oledEna': bool,
     'sleepEna': bool, 'transEna': bool, 'bobEna': bool, 'boopCountEna': bool,
-    'boopCount': int, 'transMs': int, 'sleepTol': float,
+    'boopCount': int, 'boopBase': int, 'transMs': int, 'sleepTol': float,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,

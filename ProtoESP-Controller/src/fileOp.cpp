@@ -60,6 +60,7 @@ void Config::setDefault() {
   bobEna = false;
   boopCountEna = true;
   boopCount = 0;
+  boopBase = 0;    //resting proximity, i.e. the visor's own reflection
   transMs = 80;    //one direction of the dip, split across the brightness steps
   sleepTol = 0.2;  //g of movement before the mask counts as awake
   save();
@@ -105,6 +106,7 @@ bool Config::save() {
   doc["bobEna"] = bobEna;
   doc["boopCountEna"] = boopCountEna;
   doc["boopCount"] = boopCount;
+  doc["boopBase"] = boopBase;
   doc["transMs"] = transMs;
   doc["sleepTol"] = sleepTol;
   
@@ -217,6 +219,7 @@ bool Config::load() {
   bobEna = doc["bobEna"] | false;
   boopCountEna = doc["boopCountEna"] | true;
   boopCount = doc["boopCount"] | 0;
+  boopBase = doc["boopBase"] | 0;
   transMs = doc["transMs"] | 80;
   sleepTol = doc["sleepTol"] | 0.2f;
 
