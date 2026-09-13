@@ -269,6 +269,7 @@
       <div class="stat"><span>Boops</span><b id="stBoops">—</b></div>
       <div class="stat"><span>I2C devices</span><b id="stI2c">—</b></div>
       <div class="stat"><span>Boop reading</span><b id="stBoopSig">—</b></div>
+      <div class="stat"><span>Ambient light</span><b id="stAls">—</b></div>
     </div>
     <p class="hint">Updates every 2 seconds while this page is open.</p>
   </section>
@@ -747,6 +748,10 @@
       $('stI2c').textContent = s.i2c ? s.i2c : '—';
       $('stBoopSig').textContent = s.boopSig === undefined ? '—'
         : s.boopSig + '  (raw ' + s.boopRaw + ', resting ' + s.boopBase + ')';
+      // CH0 is visible+IR, CH1 mostly IR. Through a tinted visor CH1 tends to dwarf CH0,
+      // which is why no lux figure is shown - it would be wrong.
+      $('stAls').textContent = (s.als0 === undefined || s.als0 < 0) ? '—'
+        : s.als0 + ' visible+IR, ' + s.als1 + ' IR';
     } catch (e) { /* mask out of reach or older firmware: keep the last values */ }
   }
   setInterval(refreshStats, 2000);
