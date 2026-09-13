@@ -24,12 +24,29 @@ value-for-effort within each group.
 The chip has three sensors in one: proximity (the boop), gesture, and ambient light. Once it's
 wired for boop, the other two come along free.
 
-- [ ] **Auto-brightness** — read the ambient light sensor every ~500 ms, map it to MAX7219
-      intensity 0–15 on a log curve, smooth it, apply only on a full step change with hysteresis,
-      clamp to a Min and Max. Watch for: the sensor seeing the panels' own glow and running away
-      (mount it facing outward, slow the response); the clear channel saturating in sunlight; and
-      **power** — driving to brightness 15 outdoors pulls far more than the ~3 W at brightness 5,
-      which can brown out the board when the panels are fed from its 5 V pin.
+- [ ] **Auto-brightness** — map the ambient reading to MAX7219 intensity 0–15 and apply it
+      slowly, with hysteresis, clamped to a Min and Max you set.
+
+      Decisions already made, so they don't get re-litigated:
+
+      - **No lux figure.** A tinted visor passes infrared far better than visible light, so the
+        standard lux formula is wrong through one. Calibrate two points instead — read indoors
+        for the bottom of the range, outdoors for the top — the way the boop baseline works.
+      - **The panels leak into the sensor**, which is a feedback loop, not just noise: brighter
+        panels raise the reading, which raises brightness again. A light barrier so the sensor
+        can't see the panels is the first fix and helps the boop sensor too.
+      - **If blanking is needed** — briefly shutting the panels off to read true ambient — the
+        user wants it **once a minute, not every few seconds**. The blink is the cost, so it has
+        to be rare. Worth knowing: that means up to a minute's lag walking outdoors. A hybrid
+        avoids it — watch the unblanked reading continuously, which is free, and only spend a
+        blank when it suggests the light has really changed.
+      - **Power.** Driving to brightness 15 outdoors pulls far more than the ~3 W at brightness 5
+        and can brown out the board when the panels are fed from its 5 V pin, so the Max setting
+        has to be capped to what the supply can take.
+
+      First step is measurement, not code: with the sensor working, compare the Ambient light
+      reading on the System card at brightness 0 and 15 in a dark room. If it barely moves the
+      shroud is doing its job; if it jumps, blanking is required.
 - [ ] **Gesture control** — swipe past the nose to change faces without the phone.
 - [ ] **Boop counter** — total boops on the System card.
 
