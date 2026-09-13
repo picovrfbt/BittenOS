@@ -267,6 +267,7 @@
       <div class="stat"><span>Tilt sensor</span><b id="stTilt">—</b></div>
       <div class="stat"><span>Boop sensor</span><b id="stBoop">—</b></div>
       <div class="stat"><span>Boops</span><b id="stBoops">—</b></div>
+      <div class="stat"><span>I2C devices</span><b id="stI2c">—</b></div>
     </div>
     <p class="hint">Updates every 2 seconds while this page is open.</p>
   </section>
@@ -740,6 +741,7 @@
       setSensor('stBoop', s.boop);
       $('stBoops').textContent = s.boops === undefined ? '—' : s.boops;
       $('boopTotal').value = s.boops === undefined ? '—' : s.boops;
+      $('stI2c').textContent = s.i2c ? s.i2c : '—';
     } catch (e) { /* mask out of reach or older firmware: keep the last values */ }
   }
   setInterval(refreshStats, 2000);

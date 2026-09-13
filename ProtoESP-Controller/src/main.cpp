@@ -28,7 +28,11 @@ bool useRGBblush = true; //Swaps red-green for RGB strip
 
 bool INApresent = false; //Are you using INA219?
 
-#define boopMode "APDS9960" //"KY-032" for KY-032, "Capac" for capacitive sensor/boop when HIGH, "APDS9960" for ADPS9960, "VL53L1X" for VL53L1X, leave empty for none
+#define boopMode "APDS9930" //"KY-032", "Capac" (boop when HIGH), "APDS9960", "APDS9930", "VL53L1X", or empty for none
+//The APDS-9930 and APDS-9960 are different chips that both answer on 0x39. The Adafruit
+//APDS9960 library checks the device ID and refuses a 9930, so the 9930 has its own small
+//driver below - it only needs proximity. A 9930 has no gesture engine; it does have ambient
+//light, so auto-brightness would still be possible on one.
 
 #define revertTilt 8000 //The maximum time that animation caused by tilt gets shown (used as if tilt bugs out etc)
 
@@ -82,12 +86,12 @@ bool imuBegin() { //the I2C address depends on the board's SDO pin
   return imu.beginI2C(BMI2_I2C_SEC_ADDR) == BMI2_OK;           //0x69
 }
 
-void readAccel() {
-  if(imu.getSensorData() == BMI2_OK) {
-    accelX = imu.data.accelX;
-    accelY = imu.data.accelY;
-    accelZ = imu.data.accelZ;
-  }
+bool readAccel() { //false if the sensor didn't answer; loop() counts those and gives up on it
+  if(imu.getSensorData() != BMI2_OK) return false;
+  accelX = imu.data.accelX;
+  accelY = imu.data.accelY;
+  accelZ = imu.data.accelZ;
+  return true;
 }
 
 #include <Adafruit_INA219.h> //edited library in this sketch (replace 0.1R with 0.03R resistor on the board)
@@ -96,7 +100,98 @@ Adafruit_INA219 ina219;
 #include "Adafruit_APDS9960.h"
 Adafruit_APDS9960 apds;
 
-int apdsprox = 255; //latest APDS9960 proximity (0-255, higher = closer), read by loop() every 100 ms
+int apdsprox = 0; //latest proximity (0-255, higher = closer), read by loop() every 100 ms
+uint8_t imuFails = 0, apdsFails = 0;   //reads in a row that got nothing back
+
+inline bool boopIs(const char *m) { return strcmp(boopMode, m) == 0; }
+inline bool boopIsApds() { return boopIs("APDS9960") || boopIs("APDS9930"); }
+
+//defined further down, but the APDS-9930 driver below needs them first
+void logPrint(const char *str);
+void logPrint(const String &str);
+bool apdsStart();
+
+//--------------------------------//APDS-9930: proximity only, straight at the registers
+#define apds9930Addr 0x39
+bool apds9930Write(uint8_t reg, uint8_t val) {
+  Wire.beginTransmission(apds9930Addr);
+  Wire.write(0x80 | reg);                       //command byte, repeated-byte protocol
+  Wire.write(val);
+  return Wire.endTransmission() == 0;
+}
+
+int apds9930Read8(uint8_t reg) {
+  Wire.beginTransmission(apds9930Addr);
+  Wire.write(0x80 | reg);
+  if(Wire.endTransmission() != 0) return -1;
+  if(Wire.requestFrom(apds9930Addr, 1) != 1) return -1;
+  return Wire.read();
+}
+
+int apds9930Prox() { //0-255, higher = closer; -1 if it didn't answer
+  Wire.beginTransmission(apds9930Addr);
+  Wire.write(0xA0 | 0x18);                      //auto-increment from PDATAL
+  if(Wire.endTransmission() != 0) return -1;
+  if(Wire.requestFrom(apds9930Addr, 2) != 2) return -1;
+  int lo = Wire.read(), hi = Wire.read();
+  int v = lo | (hi << 8);                       //PDATA is 10-bit, 0-1023
+  return v >= 1023 ? 255 : (v >> 2);
+}
+
+bool apds9930Start() {
+  Wire.beginTransmission(apds9930Addr);
+  if(Wire.endTransmission() != 0) return false; //nothing answering at 0x39 at all
+  int id = apds9930Read8(0x12);                 //0x39 on a genuine one. Logged, not enforced:
+  logPrint("[I] 0x39 answered, ID 0x" + String(id, HEX));  //a strict ID check is what rejects clones
+  apds9930Write(0x00, 0x00);                    //ENABLE: off while it's configured
+  apds9930Write(0x02, 0xFF);                    //PTIME
+  apds9930Write(0x0E, 0x08);                    //PPULSE: 8 pulses
+  apds9930Write(0x0F, 0x20);                    //CONTROL: 100mA, CH1 diode, 1x gain
+  apds9930Write(0x00, 0x05);                    //ENABLE: power on + proximity
+  delay(12);
+  return apds9930Prox() >= 0;
+}
+
+bool boopSensorStart() { return boopIs("APDS9930") ? apds9930Start() : apdsStart(); }
+
+int boopReadProx() { //whichever chip is fitted, as 0-255 with higher meaning closer
+  if(boopIs("APDS9930")) return apds9930Prox();   //-1 if it didn't answer, handled by the caller
+  return apds.readProximity();
+}
+
+String i2cFound = "";   //what answered on the I2C bus, refreshed while the boop sensor is missing
+
+//The bus is swept a few addresses per loop pass rather than all at once - a full sweep in one
+//go stalls the animation for tens of milliseconds - and the sweep repeats every 10 s. Anything
+//that stops answering is marked missing, which sets the retries below going, so a sensor can be
+//knocked loose and plugged back in without restarting the mask.
+uint8_t i2cProbe = 1;
+bool i2cScanning = true;
+String i2cBuild = "";
+unsigned long lastI2CStep = 0, lastI2CDone = 0;
+bool i2cFresh = false;    //a sweep just finished, so its result hasn't been acted on yet
+
+void i2cScanStep() { //loop task only - the web page reads the cached string, it never touches the bus
+  if(!i2cScanning) {
+    if(millis() - lastI2CDone >= 10000) { i2cScanning = true; i2cProbe = 1; i2cBuild = ""; }
+    return;
+  }
+  if(millis() - lastI2CStep < 5) return;
+  lastI2CStep = millis();
+  for(uint8_t n = 0; n < 4 && i2cProbe <= 126; n++, i2cProbe++) {
+    Wire.beginTransmission(i2cProbe);
+    if(Wire.endTransmission() == 0) {
+      if(i2cBuild != "") i2cBuild += " ";
+      i2cBuild += "0x" + String(i2cProbe, HEX);
+    }
+  }
+  if(i2cProbe > 126) {
+    i2cFound = (i2cBuild == "") ? "none" : i2cBuild;
+    i2cScanning = false;
+    lastI2CDone = millis();
+    i2cFresh = true;              //loop() compares it against what should be there
+  }
+}
 
 bool apdsStart() { //proximity only, with the pulse setting the boop threshold is tuned for
   if(!apds.begin()) return false;
@@ -651,6 +746,7 @@ void startWiFiWeb() {
     st["tilt"] = tiltInitDone;
     st["boop"] = ToFInitDone;
     st["boops"] = cfg.boopCount;
+    st["i2c"] = i2cFound;
     st["display"] = displayOn;
     st["sleeping"] = sleeping;
     st["anim"] = anim;
@@ -718,9 +814,9 @@ void startWiFiWeb() {
   server.on("/tof", HTTP_GET, [](AsyncWebServerRequest *request){ //current boop sensor reading, for setting the Boop distance
     if(!ToFInitDone) {
       request->send(200, "text/plain", F("Boop sensor not found"));
-    } else if (boopMode == "APDS9960") {
+    } else if (boopIsApds()) {
       request->send(200, "text/plain", String(255 - apdsprox)); //read by loop(), not from the web task
-    } else if (boopMode == "VL53L1X") {
+    } else if (boopIs("VL53L1X")) {
       if (vl53.dataReady()) {
         request->send(200, "text/plain", String(vl53.distance()));
       } else {
@@ -769,10 +865,10 @@ void setup() {
   pinMode(0, INPUT_PULLUP);
   pinMode(fanPWM, OUTPUT);
 
-  if(boopMode == "KY-032") {
+  if(boopIs("KY-032")) {
     pinMode(T_in, INPUT_PULLUP);
     pinMode(T_en, OUTPUT);
-  } else if ((boopMode == "Capac")) {
+  } else if ((boopIs("Capac"))) {
     pinMode(T_in, INPUT_PULLDOWN);
   }
 
@@ -872,10 +968,10 @@ void setup() {
     }
   }
 
-  if(boopMode == "APDS9960") { //set up even with boop off, so the boop reading can be checked while calibrating
-    ToFInitDone = apdsStart();
-    logPrint(ToFInitDone ? F("[I] APDS9960 ready") : F("[E] APDS9960 not found on I2C (0x39)"));
-  } else if (boopMode == "VL53L1X" && cfg.boopEna) {
+  if(boopIsApds()) { //set up even with boop off, so the boop reading can be checked while calibrating
+    ToFInitDone = boopSensorStart();
+    logPrint(ToFInitDone ? F("[I] Boop sensor ready") : F("[E] Boop sensor not found on I2C (0x39)"));
+  } else if (boopIs("VL53L1X") && cfg.boopEna) {
     Wire.beginTransmission(0x29);
     if(Wire.endTransmission() != 0) {
       cfg.boopEna = false;
@@ -1212,9 +1308,26 @@ void loop() {
   //--------------------------------//I2C sensors: read every 100 ms on the loop task; the web pages use these cached values
   if(lastMillsTilt+100<=millis()) {
     lastMillsTilt = millis();
-    if(boopMode == "APDS9960" && ToFInitDone) apdsprox = apds.readProximity();
+    if(boopIsApds() && ToFInitDone) {
+      int prox = boopReadProx();
+      if(prox < 0) {
+        if(++apdsFails >= 10) {
+          apdsFails = 0;
+          ToFInitDone = false;
+          logPrint(F("[E] Boop sensor stopped responding"));
+        }
+      } else {
+        apdsFails = 0;
+        apdsprox = prox;
+      }
+    }
     if(tiltInitDone) {
-      readAccel();
+      if(readAccel()) imuFails = 0;
+      else if(++imuFails >= 10) { //a second of silence: hand it to the retry rather than sit there
+        imuFails = 0;
+        tiltInitDone = false;
+        logPrint(F("[E] Tilt sensor stopped responding"));
+      }
       if(cfg.sleepEna && cfg.sleepMins > 0) { //left alone for long enough? sleep. Moved? wake up.
         //One threshold can't do both jobs: staying asleep wants a generous one, waking up wants a
         //touchy one. So while it's asleep, half the setting is enough and 2 readings (200 ms) do it.
@@ -1255,11 +1368,9 @@ void loop() {
           loadAnim(oldanim,"");
         }
       }
-    } else if(cfg.tiltEna && lastImuRetry+5000<=millis()) { //tilt on but no BMI270 yet: look again every 5 s
-      lastImuRetry = millis();
-      tiltInitDone = imuBegin();
-      logPrint(tiltInitDone ? F("[I] BMI270 found") : F("[E] BMI270 not found on I2C (0x68/0x69)"));
     }
+    //the retry that used to live here was gated on Tilt being switched on, so a sensor knocked
+    //loose stayed lost until it was. It runs unconditionally now, further down with the boop one.
   }
 
   //looptime = micros();
@@ -1362,10 +1473,41 @@ void loop() {
     }
   }
 
+  //--------------------------------//Look for the boop sensor, Boop switched on or not.
+  //setup() starts it either way so the reading can be checked while calibrating, so the retry
+  //has to work either way too - otherwise wiring the sensor in does nothing until Boop is
+  //turned on, with no hint as to why. The bus is scanned at the same time: if 0x39 answers but
+  //the sensor still won't start, the module is a clone the library's ID check rejects.
+  i2cScanStep();
+  if(i2cFresh) { //a sensor that has stopped answering is marked missing, so the retries restart it
+    i2cFresh = false;
+    if(ToFInitDone && i2cFound.indexOf("0x39") < 0) {
+      ToFInitDone = false;
+      logPrint("[E] Boop sensor gone from the bus; I2C has: " + i2cFound);
+    }
+    if(tiltInitDone && i2cFound.indexOf("0x68") < 0 && i2cFound.indexOf("0x69") < 0) {
+      tiltInitDone = false;
+      logPrint("[E] Tilt sensor gone from the bus; I2C has: " + i2cFound);
+    }
+  }
+
+  if(!tiltInitDone && lastImuRetry+5000<=millis()) { //plugged back in? pick it up without a restart
+    lastImuRetry = millis();
+    tiltInitDone = imuBegin();
+    if(tiltInitDone) logPrint(F("[I] Tilt sensor back"));
+  }
+
+  if(boopIsApds() && !ToFInitDone && lastApdsRetry+5000<=millis()) {
+    lastApdsRetry = millis();
+    ToFInitDone = boopSensorStart();
+    if(ToFInitDone) logPrint("[I] Boop sensor found; I2C: " + i2cFound);
+    else logPrint("[E] Boop sensor not starting; I2C has: " + i2cFound);
+  }
+
   //looptime = micros();
   //--------------------------------//BOOP Detection; 14-800uS
   if(lastBoopCheck+100<=millis() && cfg.boopEna) {
-    if(boopMode == "KY-032") {
+    if(boopIs("KY-032")) {
       digitalWrite(T_en, HIGH);
       delayMicroseconds(210);
       if(booping == false && !digitalRead(T_in)) {
@@ -1388,7 +1530,7 @@ void loop() {
           loadAnim(boopoldanim,"");
         }
       }
-    } else if (boopMode == "Capac") {
+    } else if (boopIs("Capac")) {
       if(booping == false && digitalRead(T_in)) {
         delayMicroseconds(395);
         if(digitalRead(T_in)) {
@@ -1407,7 +1549,7 @@ void loop() {
           loadAnim(boopoldanim,"");
         }
       }
-    } else if (boopMode == "APDS9960") {
+    } else if (boopIsApds()) {
       if(ToFInitDone) {
         //apdsprox is read every 100 ms in the I2C sensor section
         if(booping == false && (255 - apdsprox) < cfg.boopThresh) {
@@ -1425,12 +1567,8 @@ void loop() {
             loadAnim(boopoldanim,"");
           }
         }
-      } else if(lastApdsRetry+5000<=millis()) { //boop on but no APDS9960 yet: look again every 5 s, e.g. after plugging it in
-        lastApdsRetry = millis();
-        ToFInitDone = apdsStart();
-        logPrint(ToFInitDone ? F("[I] APDS9960 found") : F("[E] APDS9960 not found on I2C (0x39)"));
       }
-    } else if (boopMode == "VL53L1X") {
+    } else if (boopIs("VL53L1X")) {
       if(ToFInitDone) {
         int16_t distance = -1;
         if (vl53.dataReady()) {
