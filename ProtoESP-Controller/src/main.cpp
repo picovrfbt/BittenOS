@@ -258,7 +258,11 @@ void logPrint(const String &str) {
 //--------------------------------//web / wifi
 #include "WiFi.h"
 #include "ESPAsyncWebServer.h"
-#include <ElegantOTA.h>
+#include <Update.h>
+#include <MD5Builder.h>
+#include <Preferences.h>
+#include "esp_partition.h"
+#include "esp_ota_ops.h"
 
 AsyncWebServer server(80);
 
@@ -596,6 +600,202 @@ bool startBLE() {
   return true;
 }
 
+//--------------------------------//Over-the-air updates
+//Replaces ElegantOTA. One upload endpoint takes either image and works out which it is from the
+//bytes, not the file name: an app image starts with 0xE9, a LittleFS image has "littlefs" at
+//offset 8. Anything else is refused before a byte is written.
+//
+//Firmware goes to whichever app slot isn't running, and only becomes the boot slot once the
+//whole image has arrived and checked out. It then boots on probation: if it resets before it has
+//run for 30 s, the bootloader puts the previous firmware back on its own.
+//
+//The filesystem can't work that way - there is only one live copy, and the page doing the
+//upload is served from it. So it is written to the fsstage partition, read back and checked,
+//and only copied over the live filesystem at the next boot, before anything mounts it. Settings
+//live inside that filesystem, so they are lifted out first and put back afterwards. If power
+//goes during the copy, the next boot simply starts it again.
+//
+//Costs nothing while idle: the endpoints only do work during an upload, and loop() just checks
+//two numbers.
+
+//The core confirms any new firmware as good during start-up, before setup() runs, which would
+//make rollback protect against almost nothing. Deferring it lets loop() confirm it instead,
+//once it has actually run.
+extern "C" bool verifyRollbackLater() { return true; }
+
+enum OtaKind { OTA_NONE, OTA_APP, OTA_FS };
+OtaKind otaKind = OTA_NONE;
+String otaError = "";
+size_t otaBytes = 0;                       //filesystem bytes committed to the staging area so far
+const esp_partition_t *otaStage = nullptr;
+MD5Builder otaMd5;
+static uint8_t otaBlock[4096];             //staging is written a sector at a time
+static uint8_t otaCheckBuf[4096];
+size_t otaBlockFill = 0;
+volatile unsigned long otaRebootAt = 0;    //set once an upload is accepted; loop() restarts
+bool otaConfirmed = false;
+
+bool otaFlushBlock() { //erase one sector, then write it, so the erase is spread over the upload
+  if(otaBlockFill == 0) return true;
+  if(otaBytes + otaBlockFill > otaStage->size) { otaError = "The filesystem image is bigger than the partition"; return false; }
+  if(esp_partition_erase_range(otaStage, otaBytes, sizeof(otaBlock)) != ESP_OK ||
+     esp_partition_write(otaStage, otaBytes, otaBlock, otaBlockFill) != ESP_OK) {
+    otaError = "Writing the staging area failed";
+    return false;
+  }
+  otaBytes += otaBlockFill;
+  otaBlockFill = 0;
+  return true;
+}
+
+void otaUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+  if(index == 0) {
+    otaKind = OTA_NONE; otaError = ""; otaBytes = 0; otaBlockFill = 0;
+    if(len >= 1 && data[0] == 0xE9) otaKind = OTA_APP;
+    else if(len >= 16 && memcmp(data + 8, "littlefs", 8) == 0) otaKind = OTA_FS;
+    else otaError = "That isn't a firmware or filesystem image";
+
+    if(otaKind == OTA_APP && !Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+      otaError = String("Couldn't start the update: ") + Update.errorString();
+      otaKind = OTA_NONE;
+    } else if(otaKind == OTA_FS) {
+      otaStage = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "fsstage");
+      if(!otaStage) {
+        otaError = "No staging area - the new partition table has to be flashed over USB once first";
+        otaKind = OTA_NONE;
+      } else {
+        otaMd5.begin();
+      }
+    }
+    logPrint(otaKind == OTA_APP ? F("[I] Update: receiving firmware")
+           : otaKind == OTA_FS  ? F("[I] Update: receiving filesystem") : F("[E] Update: file refused"));
+  }
+
+  if(otaError == "") {
+    if(otaKind == OTA_APP) {
+      if(Update.write(data, len) != len) otaError = String("Writing firmware failed: ") + Update.errorString();
+    } else if(otaKind == OTA_FS) {
+      otaMd5.add(data, len);
+      size_t off = 0;
+      while(off < len && otaError == "") {
+        size_t room = sizeof(otaBlock) - otaBlockFill;
+        size_t take = (len - off < room) ? (len - off) : room;
+        memcpy(otaBlock + otaBlockFill, data + off, take);
+        otaBlockFill += take;
+        off += take;
+        if(otaBlockFill == sizeof(otaBlock)) otaFlushBlock();
+      }
+    }
+  }
+
+  if(!final) return;
+  if(otaKind == OTA_APP) {
+    if(otaError != "") Update.abort();
+    else if(!Update.end(true)) otaError = String("The firmware didn't check out: ") + Update.errorString();
+  } else if(otaKind == OTA_FS && otaError == "" && otaFlushBlock()) {
+    otaMd5.calculate();
+    String want = otaMd5.toString();
+    const esp_partition_t *live = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
+    if(!live || otaBytes != live->size) {
+      otaError = "The filesystem image isn't the size of the filesystem partition";
+    } else {
+      MD5Builder check;                       //read back what landed rather than trust the write
+      check.begin();
+      for(size_t pos = 0; pos < otaBytes && otaError == ""; pos += sizeof(otaCheckBuf)) {
+        size_t n = (otaBytes - pos < sizeof(otaCheckBuf)) ? (otaBytes - pos) : sizeof(otaCheckBuf);
+        if(esp_partition_read(otaStage, pos, otaCheckBuf, n) != ESP_OK) otaError = "Reading the staging area back failed";
+        else check.add(otaCheckBuf, n);
+      }
+      check.calculate();
+      if(otaError == "" && check.toString() != want) otaError = "The staged filesystem didn't read back correctly";
+    }
+    if(otaError == "") {
+      Preferences pref;
+      pref.begin("ota", false);
+      pref.putUInt("fsLen", otaBytes);
+      pref.putString("fsMd5", want);
+      pref.putUChar("fsTries", 0);
+      pref.putBool("fsPending", true);        //set last, so a half-written record is never acted on
+      pref.end();
+    }
+  }
+}
+
+void applyStagedFilesystem() { //setup(), before LittleFS mounts: a staged filesystem goes live here
+  Preferences pref;
+  if(!pref.begin("ota", false)) return;
+  if(!pref.getBool("fsPending", false)) { pref.end(); return; }
+
+  const esp_partition_t *stage = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "fsstage");
+  const esp_partition_t *live  = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
+  size_t len = pref.getUInt("fsLen", 0);
+  String want = pref.getString("fsMd5", "");
+  uint8_t tries = pref.getUChar("fsTries", 0);
+  if(!stage || !live || len != live->size || want == "" || tries >= 3) {
+    Serial.println(F("[E] Staged filesystem abandoned"));
+    pref.putBool("fsPending", false);
+    pref.end();
+    return;
+  }
+  pref.putUChar("fsTries", tries + 1);
+
+  //Settings are inside the filesystem about to be replaced. Lift them out on the first attempt
+  //and hold them in NVS, so an interrupted copy can't lose them.
+  if(!pref.getBool("cfgHeld", false)) {
+    if(LittleFS.begin(false)) {
+      File f = LittleFS.open("/config.json", "r");
+      if(f) { pref.putString("cfgJson", f.readString()); f.close(); }
+      f = LittleFS.open("/configCRC.txt", "r");
+      if(f) { pref.putString("cfgCrc", f.readString()); f.close(); }
+      LittleFS.end();
+    }
+    pref.putBool("cfgHeld", true);
+  }
+
+  Serial.println(F("[I] Applying the staged filesystem..."));
+  bool ok = esp_partition_erase_range(live, 0, live->size) == ESP_OK;
+  for(size_t pos = 0; ok && pos < len; pos += sizeof(otaCheckBuf)) {
+    size_t n = (len - pos < sizeof(otaCheckBuf)) ? (len - pos) : sizeof(otaCheckBuf);
+    ok = esp_partition_read(stage, pos, otaCheckBuf, n) == ESP_OK &&
+         esp_partition_write(live, pos, otaCheckBuf, n) == ESP_OK;
+  }
+  MD5Builder check;
+  check.begin();
+  for(size_t pos = 0; ok && pos < len; pos += sizeof(otaCheckBuf)) {
+    size_t n = (len - pos < sizeof(otaCheckBuf)) ? (len - pos) : sizeof(otaCheckBuf);
+    ok = esp_partition_read(live, pos, otaCheckBuf, n) == ESP_OK;
+    if(ok) check.add(otaCheckBuf, n);
+  }
+  check.calculate();
+  if(!ok || check.toString() != want) {
+    //Leave it pending: the staging copy is still good, so start over rather than let
+    //LittleFS.begin(true) format a half-copied filesystem.
+    Serial.println(F("[E] Filesystem copy didn't verify, trying again"));
+    pref.end();
+    delay(200);
+    ESP.restart();
+  }
+
+  if(pref.getBool("cfgHeld", false) && LittleFS.begin(false)) {
+    if(pref.isKey("cfgJson")) {
+      File f = LittleFS.open("/config.json", "w");
+      if(f) { f.print(pref.getString("cfgJson", "")); f.close(); }
+    }
+    if(pref.isKey("cfgCrc")) {
+      File f = LittleFS.open("/configCRC.txt", "w");
+      if(f) { f.print(pref.getString("cfgCrc", "")); f.close(); }
+    }
+    LittleFS.end();
+  }
+  pref.remove("cfgJson");
+  pref.remove("cfgCrc");
+  pref.putBool("cfgHeld", false);
+  pref.putUChar("fsTries", 0);
+  pref.putBool("fsPending", false);          //cleared last: settings are back before this is forgotten
+  pref.end();
+  Serial.println(F("[I] Staged filesystem applied, settings kept"));
+}
+
 //--------------------------------//WiFi server setup
 void startWiFiWeb() {
   WiFi.softAP(cfg.wifiName, cfg.wifiPass);
@@ -864,11 +1064,42 @@ void startWiFiWeb() {
     request->send(200, "text/plain", logBuffer);
   });
 
-  server.onNotFound([](AsyncWebServerRequest *request){request->send(404, "text/plain", "Not found");});
-  ElegantOTA.begin(&server);
-  server.begin();
+  server.on("/ota", HTTP_POST, [](AsyncWebServerRequest *request){ //runs once the upload has finished
+    if(otaKind == OTA_NONE || otaError != "") {
+      logPrint("[E] Update failed: " + (otaError == "" ? String("nothing received") : otaError));
+      request->send(500, "text/plain", otaError == "" ? "Nothing was received" : otaError);
+    } else {
+      logPrint(otaKind == OTA_APP ? F("[I] Firmware accepted, restarting") : F("[I] Filesystem staged, restarting to apply it"));
+      request->send(200, "text/plain", otaKind == OTA_APP ? "firmware" : "filesystem");
+      otaRebootAt = millis() + 1000;        //long enough for the reply to reach the phone
+    }
+  }, otaUpload);
 
-  ElegantOTA.setAutoReboot(true);
+  server.on("/otainfo", HTTP_GET, [](AsyncWebServerRequest *request){ //for the update page
+    const esp_partition_t *run = esp_ota_get_running_partition();
+    const esp_partition_t *next = esp_ota_get_next_update_partition(NULL);
+    const esp_partition_t *live = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
+    const esp_partition_t *stage = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "fsstage");
+    JsonDocument d;
+    d["running"] = run ? run->label : "?";
+    d["next"] = next ? next->label : "none";
+    d["appSize"] = ESP.getSketchSize();
+    d["appSlot"] = run ? run->size : 0;
+    d["fsSize"] = live ? live->size : 0;
+    d["staging"] = stage != nullptr;
+    d["confirmed"] = otaConfirmed;
+    d["built"] = String(__DATE__) + " " + __TIME__;
+    String out;
+    serializeJson(d, out);
+    request->send(200, "application/json", out);
+  });
+
+  server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){ //where ElegantOTA used to live
+    request->redirect("/update.html");
+  });
+
+  server.onNotFound([](AsyncWebServerRequest *request){request->send(404, "text/plain", "Not found");});
+  server.begin();
 }
 
 //--------------------------------//Sleep mode
@@ -907,6 +1138,7 @@ void setup() {
 
   hwBtn.setDebounceTime(50);
 
+  applyStagedFilesystem(); //must come before the mount below: begin(true) would format a half-copied one
   if(!LittleFS.begin(true)) {
     logPrint(F("[E] An Error has occurred while mounting LittleFS! Halting"));
     while(1){};
@@ -1176,7 +1408,18 @@ void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
 }
 
 void loop() {
-  ElegantOTA.loop();
+  if(otaRebootAt && millis() >= otaRebootAt) { //an update was accepted: restart into it
+    ESP.restart();
+  }
+  if(!otaConfirmed && millis() > 30000) { //30 s running without falling over: keep this firmware
+    otaConfirmed = true;
+    esp_ota_img_states_t otaState;
+    if(esp_ota_get_state_partition(esp_ota_get_running_partition(), &otaState) == ESP_OK &&
+       otaState == ESP_OTA_IMG_PENDING_VERIFY) {
+      esp_ota_mark_app_valid_cancel_rollback();
+      logPrint(F("[I] New firmware confirmed"));
+    }
+  }
   if(brightnessDirty && visorType == "MAX72XX") {
     brightnessDirty = false;
     mx.control(MD_MAX72XX::INTENSITY, cfg.bVisor);

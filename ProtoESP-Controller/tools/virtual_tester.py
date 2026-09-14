@@ -406,6 +406,21 @@ class Handler(BaseHTTPRequestHandler):
             board.save_config()
             return self.text('Set PWM to: %d' % duty)
 
+        if path == '/ota' and method == 'POST':   # accepts the upload but writes nothing
+            data = form.get('file', '')
+            kind = 'filesystem' if 'littlefs' in data[:32] else 'firmware'
+            board.log('[I] Update received (%s, %d bytes) - the tester writes nothing' % (kind, len(data)))
+            return self.text(kind)
+
+        if path == '/otainfo':   # roughly what the new partition table reports
+            return self.reply(200, json.dumps({
+                'running': 'app0', 'next': 'app1', 'appSize': 1379936, 'appSlot': 3145728,
+                'fsSize': 4063232, 'staging': True, 'confirmed': True, 'built': 'virtual tester'}),
+                'application/json')
+
+        if path == '/update':
+            return self.redirect('/update.html')
+
         if path == '/savefile' and method == 'POST':
             if 'file' not in form or 'content' not in form:
                 return self.text('No valid parameters detected!')
