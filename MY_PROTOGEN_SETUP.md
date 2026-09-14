@@ -120,7 +120,7 @@ When you tested with numbers, panel "1" was t0, "2" was t1, and so on.
 | `data/anims/sleep.json` | New face: closed eyes and a breathing mouth | Built to match a reference clip: 14 frames, about 1.7 s per breath. Rebuild it with `tools/make_sleep_face.py`. |
 | `src/main.cpp`, `src/fileOp.*`, `data/index.html` | Sleep mode: `/sleep`, Auto sleep, Sleep after, Sleeping face | Shows the sleeping face on demand or after the mask is left still; moving it or picking a face wakes it |
 | `src/main.cpp` | Button: a short press goes to the face after the current one; holding 1.5 s toggles the displays. Moved from GPIO 4 to GPIO 21, with GPIO 47 held low as its ground. | The original skipped a press on every lap of the face list and kept its own place in the list. The new pins put both button wires side by side on the right header, away from the display wires. GPIO 19 and 20 were avoided because they're the USB data lines. |
-| `platformio.ini:12` | partitions | `8MB_20-20-40.csv` | More room: 2MB app, 3.9MB for faces |
+| `platformio.ini:12` | partitions | `16MB_ota.csv` | Uses the whole 16MB: two 3MB firmware slots, the filesystem, and a staging area for safe over-the-air updates |
 | `data/visType.txt` | layout | your chain order | See section 3 |
 | `data/visTypeMouth.txt` | mouth mask | 14 entries | Which panels move when talking |
 | `data/config.json` | speech, boop, BLE, OLED | off | Parts not fitted (speech on with no mic makes the mouth flap randomly) |
@@ -199,6 +199,12 @@ python -m platformio device monitor -p COM113 -b 115200
 17. **If a sensor drops out:** you don't need to restart. The mask sweeps the I2C bus every 10 seconds and shows what answered under **I2C devices** on the System card. Anything that stops answering is marked missing and restarted automatically within about 5 seconds of coming back, whether or not its feature is switched on. If a sensor reads as missing, check that line: `0x39` is the boop sensor, `0x68` or `0x69` the tilt sensor. If the address is listed but the sensor still won't start, the chip isn't the one the driver expects; if it isn't listed, it's wiring or power. Both sensors run from **3V3**, not 5V.
 
 18. **Boop behind a visor:** the sensor always sees some of its own infrared bouncing off the inside of the visor, so its resting reading is never zero. In Advanced settings press **Calibrate** with nothing near the visor first - that measures the resting level and subtracts it from then on - then **Read** with nothing near (close to 0) and again with your hand on the visor, and set **Boop distance** between the two. **Boop reading** on the System card shows the signal with the raw and resting values behind it. If raw sits near 255 with nothing near the visor, the reflection has used up the whole range and no threshold will help: the sensor needs a light barrier between its LED and its detector, or to sit right against the visor with no air gap behind it.
+
+19. **Updating over WiFi:** Tools > **Update firmware**. Choose `firmware.bin` or `littlefs.bin` from `.pio\build\esp32-s3\` (or drop one on the box); the page tells you which it is and refuses anything else. Firmware goes into the slot that isn't running, and if the new one resets within 30 seconds of starting, the mask goes back to the old one on its own. A filesystem update replaces the faces with the ones in the file but keeps your settings, calibration and boop count; the mask copies it in at the next boot, which takes a few seconds longer than usual. The page waits for the mask to come back and shows which slot it is running from.
+
+    Before the first over-the-air update, the new partition table has to be flashed **once over USB**. The filesystem moved from `0x410000` to `0x610000`, so read the current settings off the mask from the **old** address, build the filesystem with them, then flash all five images with `littlefs.bin` at the **new** address.
+
+20. **Feature switches** apply the moment you flip them - there is no Save button. If the mask doesn't accept a change, the switch flips back. Remote (BLE) is the exception: it only starts at the next restart.
 
 If you change the WiFi name or password, both must be at least 9 characters. To reset the board to its defaults, hold BOOT for 10 seconds while it's powered.
 
@@ -362,7 +368,7 @@ When the firmware crashes, it saves a report in flash (the `coredump` area). A p
 
 ```powershell
 cd C:\Users\MainPC\Documents\protogen-fw\ProtoESP-Controller
-& C:\pio\penv\Scripts\python.exe -m esptool --chip esp32s3 -p COM114 read-flash 0x7f0000 0x10000 "$env:TEMP\coredump.bin"
+& C:\pio\penv\Scripts\python.exe -m esptool --chip esp32s3 -p COM114 read-flash 0xdd0000 0x10000 "$env:TEMP\coredump.bin"
 python -c "import struct,os;b=open(os.environ['TEMP']+'/coredump.bin','rb').read();n=struct.unpack('<I',b[:4])[0];open(os.environ['TEMP']+'/core.elf','wb').write(b[24:n]) if b[24:28]==b'\x7fELF' else print('no crash report saved')"
 & C:\pio\packages\tool-xtensa-esp-elf-gdb\bin\xtensa-esp32s3-elf-gdb.exe -batch -ex "bt" .pio\build\esp32-s3\firmware.elf "$env:TEMP\core.elf"
 ```
@@ -370,7 +376,7 @@ python -c "import struct,os;b=open(os.environ['TEMP']+'/coredump.bin','rb').read
 The last line prints the file and line number where it crashed. This only works while `.pio\build\esp32-s3\firmware.elf` matches the firmware on the board, so read the report before you rebuild. To clear an old report:
 
 ```powershell
-& C:\pio\penv\Scripts\python.exe -m esptool --chip esp32s3 -p COM114 erase-region 0x7f0000 0x10000
+& C:\pio\penv\Scripts\python.exe -m esptool --chip esp32s3 -p COM114 erase-region 0xdd0000 0x10000
 ```
 
 ---

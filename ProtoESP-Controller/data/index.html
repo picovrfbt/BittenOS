@@ -250,7 +250,7 @@
       <label class="switch">Mouth bob <input type="checkbox" id="bob"></label>
       <label class="switch">Boop counter <input type="checkbox" id="boopCount"></label>
     </div>
-    <button class="btn primary block" type="button" onclick="saveFeatures()">Save features</button>
+    <p class="hint">Switches take effect the moment you flip them. Remote (BLE) starts at the next restart.</p>
   </section>
 
   <section class="card">
@@ -282,7 +282,7 @@
       <button class="btn" type="button" onclick="downloadZip()">Download faces</button>
       <button class="btn" type="button" onclick="document.getElementById('cfgFile').click()">Load config</button>
       <a class="btn" href="/config.json" download>Download config</a>
-      <a class="btn" href="/update">OTA update</a>
+      <a class="btn" href="/update.html">Update firmware</a>
     </div>
     <input type="file" id="cfgFile" hidden accept=".json">
     <input type="file" id="zipInput" hidden accept=".zip,.json">
@@ -831,6 +831,29 @@
     saveParams(p.toString(), 'Features saved');
   }
 
+  // Each switch saves itself the moment it's flipped - there's no Save button. Only that one
+  // setting is sent, so flipping one can't overwrite another. If the mask doesn't take it, the
+  // switch is put back, so it never shows a state the mask isn't actually in.
+  const FEATURE_SWITCHES = [
+    ['boopEna', 'boop', 'Boop'], ['speechEna', 'speech', 'Speech'], ['tiltEna', 'tilt', 'Tilt'],
+    ['bleEna', 'ble', 'Remote (BLE)'], ['oledEna', 'oled', 'OLED'], ['sleepEna', 'sleepAuto', 'Auto sleep'],
+    ['transEna', 'trans', 'Transitions'], ['bobEna', 'bob', 'Mouth bob'], ['boopCountEna', 'boopCount', 'Boop counter']];
+  for (const [key, id, label] of FEATURE_SWITCHES) {
+    $(id).addEventListener('change', async e => {
+      const box = e.target, on = box.checked;
+      box.disabled = true;
+      try {
+        const r = await fetch('/saveconfig?' + key + '=' + on, NO_CACHE);
+        if (!r.url.includes('saved.html')) throw new Error(await r.text());
+        toast(label + (on ? ' on' : ' off') + (key === 'bleEna' ? ' — starts after a restart' : ''));
+      } catch (err) {
+        box.checked = !on;
+        toast('Could not change ' + label, true);
+      }
+      box.disabled = false;
+    });
+  }
+
   $('advForm').addEventListener('submit', e => {
     e.preventDefault();
     saveParams(new URLSearchParams(new FormData(e.target)).toString(), 'Settings saved');
@@ -882,7 +905,8 @@
     reader.onload = e => {
       if (!e.target.result.includes('wifiName')) { toast('That doesn\'t look like a config file', true); return; }
       loadIntoInputs(e.target.result);
-      toast('Config loaded. Save each section to keep it.');
+      saveFeatures();   // switches have no Save button, so apply the loaded ones straight away
+      toast('Config loaded. Features applied; save the other sections to keep them.');
     };
     reader.readAsText(file, 'UTF-8');
   });

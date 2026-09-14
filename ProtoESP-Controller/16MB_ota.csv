@@ -1,0 +1,22 @@
+# Partition table for the 16MB flash on the ESP32-S3-N16R8.
+#
+# The previous table (8MB_20-20-40.csv) only mapped the first 8MB. This one uses the rest to make
+# over-the-air updates safe:
+#   app0/app1  two 3MB firmware slots. An update goes to whichever isn't running, and the
+#              bootloader's rollback puts the old one back if the new one doesn't prove itself.
+#   spiffs     the live filesystem, same size as before, so littlefs.bin images are unchanged.
+#   fsstage    a second filesystem-sized area. A filesystem update is written and checked here
+#              first, then copied over the live one at boot, so a dropped upload costs nothing.
+#              Subtype 0x40 is a custom one, so nothing mounts or updates it by accident.
+#
+# The filesystem moved from 0x410000 to 0x610000, and the coredump from 0x7F0000 to 0xDD0000.
+# Changing this table needs one flash over USB; after that, updates can go over WiFi.
+#
+# Name,    Type, SubType,  Offset,   Size
+nvs,       data, nvs,      0x9000,   0x5000
+otadata,   data, ota,      0xe000,   0x2000
+app0,      app,  ota_0,    0x10000,  0x300000
+app1,      app,  ota_1,    0x310000, 0x300000
+spiffs,    data, spiffs,   0x610000, 0x3E0000
+fsstage,   data, 0x40,     0x9F0000, 0x3E0000
+coredump,  data, coredump, 0xDD0000, 0x10000
