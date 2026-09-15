@@ -68,6 +68,11 @@
         <button onclick="fetch('/__boop', {method:'POST'})">Boop</button>
         <button onclick="fetch('/__boop?hold=4', {method:'POST'})">Boop and hold (4 s)</button>
       </div>
+      <div class="row" style="align-items:center">
+        <label for="roomLight" style="color:var(--dim);font-size:13px">Room light</label>
+        <input type="range" id="roomLight" min="0" max="3" step="0.01" value="2.26" style="flex:1;min-width:160px">
+        <span class="chip"><b id="roomLightVal">180</b></span>
+      </div>
       <p class="note">Plays frames with their timespans, as MAX7219 panels at the current brightness (0–15).
         Layout comes from <code>data/visType.txt</code>. Mic, boop and tilt aren't simulated.</p>
     </section>
@@ -129,6 +134,13 @@
     return g;
   }
   let brightness = 5, displayOn = true, lastVersion = -1, lastAnimVersion = -1, drawnKey = '';
+  let blanking = false, blankTimer = null;   // auto-brightness blank: panels dark for a moment
+
+  // Room light for the pretend light sensor, on a log slider (1 to 1000) since that's how light varies
+  const roomLight = document.getElementById('roomLight');
+  function roomLightValue() { return Math.round(Math.pow(10, Number(roomLight.value))); }
+  roomLight.addEventListener('input', () => { document.getElementById('roomLightVal').textContent = roomLightValue(); });
+  roomLight.addEventListener('change', () => fetch('/__light?value=' + roomLightValue(), {method: 'POST'}));
 
   function showPage(path) {
     frame.src = path;
@@ -174,7 +186,7 @@
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const leds = displayOn && anim && anim.visor && anim.visor.frames && anim.visor.frames[frameIdx]
+    const leds = displayOn && !blanking && anim && anim.visor && anim.visor.frames && anim.visor.frames[frameIdx]
       ? anim.visor.frames[frameIdx].leds : [];   // panels in shutdown show nothing
     // Mouth bob: the firmware lifts the mouth panels a row now and then, on whatever face is
     // showing, rather than it being baked into the animation. Same timing as src/main.cpp.
@@ -226,7 +238,7 @@
       frameIdx = (frameUntil === 0) ? 0 : (frameIdx + 1) % frames.length;
       frameUntil = now + Math.max(20, frames[frameIdx].timespan || 500);
     }
-    const key = frameIdx + '|' + brightness + '|' + displayOn + '|' + lastAnimVersion + '|' + layout.length;
+    const key = frameIdx + '|' + brightness + '|' + displayOn + '|' + blanking + '|' + lastAnimVersion + '|' + layout.length;
     if (key !== drawnKey) { draw(); drawnKey = key; }
     requestAnimationFrame(tick);
   }
@@ -246,6 +258,7 @@
       }
       brightness = s.brightness;
       displayOn = s.displayOn !== false;
+      if (s.blanking) { blanking = true; clearTimeout(blankTimer); blankTimer = setTimeout(() => { blanking = false; }, 240); }
       bobEna = !!(s.toggles && s.toggles.bobEna);
       boopCountEna = !(s.toggles && s.toggles.boopCountEna === false);
       if (typeof s.boopCount === 'number') boopCount = s.boopCount;

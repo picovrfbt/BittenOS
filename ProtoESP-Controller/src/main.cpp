@@ -323,6 +323,24 @@ int8_t transLevel = 0;                  //panel intensity while the dip runs
 unsigned long transLastStep = 0;
 uint16_t transStepMs = 16;              //ms per intensity step, worked out from cfg.transMs when a dip starts
 String transAnim = "", transPost = "";  //the face waiting for the bottom of the dip
+//Auto-brightness (loop task only): sets the panel brightness from the APDS-9930's light sensor.
+//The panels shine into the sensor, so a reading with them on partly measures themselves. Three ways
+//round that, picked in Settings:
+//  blank  - every so often, switch the panels off for a moment and read the room without them
+//  live   - no blink: a smoothed reading with the panels on, which the panels' own glow skews
+//  hybrid - watch the live reading, which is free, and only blank when it says the light changed
+#define BLANK_MS 240                    //the light integrates for ~100 ms; two cycles make sure one fits in the dark
+int8_t autoLevel = -1;                  //the brightness auto-brightness wants; -1 until it has a reading
+int8_t autoShown = -1;                  //what the panels are at, stepping toward autoLevel
+int ambient = -1;                       //the reading brightness was last set from
+float ambientLive = -1;                 //smoothed reading with the panels on
+float liveAtBlank = -1;                 //ambientLive when the last blank reading was taken, for hybrid
+bool blanking = false;
+volatile bool autoBriMeasureReq = false; //from the web page: look now
+unsigned long blankStart = 0, alsSkipUntil = 0, lastMeasureAt = 0, autoLastCheck = 0, autoLastStep = 0;
+uint8_t hybridSkips = 0;                //hybrid checks in a row that didn't need a blank
+int visorBright() { return (cfg.autoBriEna && autoShown >= 0) ? autoShown : cfg.bVisor; }
+void autoBrightnessStep();
 uint32_t loopCount = 0, loopsPerSec = 0; unsigned long loopRateStart = 0; //loop() runs per second, for the system monitor
 uint16_t currentEarsFrame = 0, currentVisorFrame = 0; //frame indexes: scrolling text can have hundreds of frames
 uint8_t numOfSegm, numAnimBlush, totalAnims;
@@ -849,6 +867,19 @@ void startWiFiWeb() {
     cfg.getBool(request, "boopCountEna", cfg.boopCountEna);
     cfg.getBool(request, "boopLightEna", cfg.boopLightEna);
     if(cfg.getInt(request, "boopShade", cfg.boopShade)) cfg.boopShade = constrain(cfg.boopShade, 5, 90);
+    //auto-brightness: any change takes a fresh look at the light straight away
+    bool autoChanged = false;
+    autoChanged |= cfg.getBool(request, "autoBriEna", cfg.autoBriEna);
+    if(cfg.getString(request, "autoBriMode", cfg.autoBriMode)) {
+      autoChanged = true;
+      if(cfg.autoBriMode != "blank" && cfg.autoBriMode != "live" && cfg.autoBriMode != "hybrid") cfg.autoBriMode = "blank";
+    }
+    if(cfg.getInt(request, "autoBriSecs", cfg.autoBriSecs)) { autoChanged = true; cfg.autoBriSecs = constrain(cfg.autoBriSecs, 5, 3600); }
+    if(cfg.getInt(request, "autoBriMin", cfg.autoBriMin)) { autoChanged = true; cfg.autoBriMin = constrain(cfg.autoBriMin, 0, 15); }
+    if(cfg.getInt(request, "autoBriMax", cfg.autoBriMax)) { autoChanged = true; cfg.autoBriMax = constrain(cfg.autoBriMax, 0, 15); }
+    if(cfg.getInt(request, "autoBriDark", cfg.autoBriDark)) { autoChanged = true; cfg.autoBriDark = constrain(cfg.autoBriDark, 0, 65000); }
+    if(cfg.getInt(request, "autoBriBright", cfg.autoBriBright)) { autoChanged = true; cfg.autoBriBright = constrain(cfg.autoBriBright, 1, 65535); }
+    if(autoChanged) autoBriMeasureReq = true;
     if(cfg.getInt(request, "boopCount", cfg.boopCount)) boopCountDirty = false; //the Reset button
     cfg.getInt(request, "transMs", cfg.transMs);
     cfg.getFloat(request, "sleepTol", cfg.sleepTol);
@@ -956,6 +987,11 @@ void startWiFiWeb() {
     }
   });
 
+  server.on("/autobri", HTTP_GET, [](AsyncWebServerRequest *request){ //measure=1: look at the light now
+    if(request->hasParam("measure")) autoBriMeasureReq = true; //the loop task does it; the web task never touches I2C
+    request->send(200, "text/plain", "ok");
+  });
+
   server.on("/boopcal", HTTP_GET, [](AsyncWebServerRequest *request){ //measure the resting reading
     boopCalRequest = true;                 //the loop task does it; the web task never touches I2C
     request->send(200, "text/plain", "ok");
@@ -1011,6 +1047,12 @@ void startWiFiWeb() {
     st["lightOk"] = lightNormal >= LIGHT_MIN;                         //bright enough for the shadow check
     st["boopsIgnored"] = boopsIgnored;
     st["booping"] = booping;
+    st["oled"] = oledInitDone;
+    st["bright"] = visorBright();                                     //what the panels are actually set to
+    st["autoLevel"] = autoLevel;                                      //-1 until auto-brightness has a reading
+    st["ambient"] = ambient;                                          //the light reading brightness was last set from
+    st["ambientLive"] = ambientLive < 0 ? -1 : (int)(ambientLive + 0.5f);
+    st["measuredAgo"] = lastMeasureAt ? (millis() - lastMeasureAt) / 1000 : -1;
     st["display"] = displayOn;
     st["sleeping"] = sleeping;
     st["anim"] = anim;
@@ -1438,6 +1480,87 @@ void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
   FdisplayVisor = true;
 }
 
+//--------------------------------//Auto-brightness
+//A light reading -> the brightness it should give. Log scale between the dark and bright calibration
+//points, because eyes see light that way: a room at 50 and one at 500 feel far more different than
+//500 and 950. A change has to be worth over half a step, so it can't hover between two levels.
+bool liveRebase = false; //hybrid: re-take the live reference once the panels have settled after a blank
+
+void setAmbient(float v) {
+  ambient = (int)(v + 0.5f);
+  lastMeasureAt = millis();
+  float dark = max(cfg.autoBriDark, 0) + 1.0f;
+  float bright = max(cfg.autoBriBright, 0) + 1.0f;
+  if(bright < dark * 1.5f) bright = dark * 1.5f;
+  float t = (log(v + 1.0f) - log(dark)) / (log(bright) - log(dark));
+  t = constrain(t, 0.0f, 1.0f);
+  int lo = min(cfg.autoBriMin, cfg.autoBriMax), hi = max(cfg.autoBriMin, cfg.autoBriMax);
+  float want = lo + t * (hi - lo);
+  int8_t before = autoLevel;
+  if(autoLevel < 0 || fabsf(want - autoLevel) >= 0.6f) autoLevel = (int8_t)lround(want);
+  autoLevel = constrain(autoLevel, lo, hi); //the clamps may have just changed
+  if(autoLevel != before) logPrint("[I] Light " + String(ambient) + ": brightness " + String(autoLevel));
+}
+
+void autoBrightnessStep() {
+  unsigned long now = millis();
+  if(!cfg.autoBriEna || visorType != "MAX72XX" || !boopIs("APDS9930") || !ToFInitDone) {
+    if(blanking) { blanking = false; displayDirty = true; } //sensor gone mid-blank: put the panels back
+    if(autoShown >= 0) { autoLevel = autoShown = -1; brightnessDirty = true; } //back to the manual brightness
+    return;
+  }
+
+  if(blanking) { //panels are off: once a whole light reading fits in the dark, take it and switch them back on
+    if(now - blankStart >= BLANK_MS) {
+      int v = apds9930Read16(0x14);
+      blanking = false;
+      mx.control(MD_MAX72XX::SHUTDOWN, displayOn ? MD_MAX72XX::OFF : MD_MAX72XX::ON);
+      alsSkipUntil = now + 250;           //the next reading straddles the blank
+      if(v >= 0) { setAmbient(v); liveRebase = true; }
+    }
+    return;
+  }
+
+  bool asked = autoBriMeasureReq;
+  if((asked || autoLevel < 0 || now - autoLastCheck >= (unsigned long)cfg.autoBriSecs * 1000UL)
+     && transPhase == 0 && !booping) {    //never blink over a face change or a boop
+    autoBriMeasureReq = false;
+    autoLastCheck = now;
+    bool blank = cfg.autoBriMode != "live";
+    if(cfg.autoBriMode == "hybrid" && !asked && ambient >= 0) {
+      if(liveRebase && autoShown == autoLevel) { //settled since the last blank: the live reading with the panels at this level is the new reference
+        liveAtBlank = ambientLive;
+        liveRebase = false;
+        blank = false;
+      } else if(!liveRebase) {
+        float moved = liveAtBlank > 0 ? fabsf(ambientLive - liveAtBlank) / max(liveAtBlank, 5.0f) : 1.0f;
+        blank = moved >= 0.25f || ++hybridSkips >= 10; //and every tenth check regardless, in case the reference drifted
+      } else {
+        blank = false;                    //still stepping to the last level: look again next time
+      }
+    }
+    if(cfg.autoBriMode == "live") {
+      if(ambientLive >= 0) setAmbient(ambientLive);
+    } else if(blank) {
+      hybridSkips = 0;
+      if(!displayOn) {                    //already dark: nothing to blank
+        int v = apds9930Read16(0x14);
+        if(v >= 0) { setAmbient(v); liveRebase = true; }
+      } else {
+        blanking = true;
+        blankStart = now;
+        mx.control(MD_MAX72XX::SHUTDOWN, MD_MAX72XX::ON);
+      }
+    }
+  }
+
+  if(autoLevel >= 0 && autoShown != autoLevel && transPhase == 0 && now - autoLastStep >= 120) { //ease there a step at a time
+    autoLastStep = now;
+    autoShown = autoShown < 0 ? autoLevel : autoShown + (autoLevel > autoShown ? 1 : -1);
+    brightnessDirty = true;
+  }
+}
+
 void loop() {
   if(otaRebootAt && millis() >= otaRebootAt) { //an update was accepted: restart into it
     ESP.restart();
@@ -1451,11 +1574,12 @@ void loop() {
       logPrint(F("[I] New firmware confirmed"));
     }
   }
+  autoBrightnessStep();
   if(brightnessDirty && visorType == "MAX72XX") {
     brightnessDirty = false;
-    mx.control(MD_MAX72XX::INTENSITY, cfg.bVisor);
+    if(transPhase == 0) mx.control(MD_MAX72XX::INTENSITY, visorBright()); //a running transition owns the intensity
   }
-  if(displayDirty && visorType == "MAX72XX") { //from /display: MAX7219 shutdown turns the LEDs off but keeps the picture
+  if(displayDirty && visorType == "MAX72XX" && !blanking) { //from /display: MAX7219 shutdown turns the LEDs off but keeps the picture
     displayDirty = false;
     mx.control(MD_MAX72XX::SHUTDOWN, displayOn ? MD_MAX72XX::OFF : MD_MAX72XX::ON);
     logPrint(displayOn ? F("[I] Displays on") : F("[I] Displays off"));
@@ -1477,7 +1601,7 @@ void loop() {
         transPhase = 2;
       }
     } else {
-      if(transLevel < cfg.bVisor) {
+      if(transLevel < visorBright()) {
         mx.control(MD_MAX72XX::INTENSITY, ++transLevel);
       } else {
         transPhase = 0;
@@ -1654,7 +1778,12 @@ void loop() {
     if(boopIs("APDS9930") && ToFInitDone) {    //every 100 ms, to catch a paw's shadow as it arrives
       alsCh0 = apds9930Read16(0x14);
       alsCh1 = apds9930Read16(0x16);
-      if(alsCh0 >= 0) {
+      //While the panels are blanked for a light reading, and just after, the reading is the room
+      //without the panels: not a shadow, and not what normal looks like with them on.
+      if(alsCh0 >= 0 && !blanking && millis() >= alsSkipUntil) {
+        //the live reading for auto-brightness, held still while something is near the visor
+        if(ambientLive < 0) ambientLive = alsCh0;
+        else if(!booping && boopSignal() <= cfg.boopThresh / 2) ambientLive += (alsCh0 - ambientLive) * 0.05f;
         if(lightNormal < 0) lightNormal = alsCh0;
         shadeNow = lightNormal > 0 ? constrain((int)(100.0f * (1.0f - alsCh0 / lightNormal)), 0, 100) : 0;
         shadeBuf[shadeIdx] = shadeNow;
@@ -2034,8 +2163,14 @@ void loop() {
       logPrint(F("[E] An Error has occurred while initializing SSD1306."));
       cfg.oledEna = false;
     } else {
-      oledInitDone = true;
+      oledInitDone = true;               //switched on from the page: fill the screen straight away
+      oled.speak(false);
+      oled.writeSet(1);
+      if(currentAnim.endsWith(".json")) oled.writeAnim(currentAnim.substring(0, currentAnim.length() - 5));
     }
+  } else if (oledInitDone && !cfg.oledEna) { //switched off from the page
+    oled.off();
+    oledInitDone = false;
   }
 
   if((FdisplayEar || FdisplayBlush || FdisplayVisor) ) {
@@ -2075,7 +2210,7 @@ void loop() {
     } else if (visorType == "MAX72XX") {
       if(FdisplayVisor) {
         if(cfg.bVisor > 15) { cfg.bVisor = 15;}
-        if(transPhase == 0) mx.control(MD_MAX72XX::INTENSITY, cfg.bVisor); //a running transition owns the intensity
+        if(transPhase == 0) mx.control(MD_MAX72XX::INTENSITY, visorBright()); //a running transition owns the intensity
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
         FdisplayVisor = false;
@@ -2154,10 +2289,10 @@ void loop() {
   xSemaphoreGive(animQueueMutex);
   if(cfg.transEna && visorType == "MAX72XX" && transPhase == 0 && (queuedAnim != "" || queuedPost != "")) {
     transAnim = queuedAnim; transPost = queuedPost; //hold the swap until the panels are dark
-    uint8_t levels = cfg.bVisor > 0 ? cfg.bVisor : 1; //the dip time is shared out over the brightness steps there are
+    uint8_t levels = visorBright() > 0 ? visorBright() : 1; //the dip time is shared out over the brightness steps there are
     transStepMs = cfg.transMs / levels;
     if(transStepMs < 1) transStepMs = 1;
-    transPhase = 1; transLevel = cfg.bVisor; transLastStep = millis();
+    transPhase = 1; transLevel = visorBright(); transLastStep = millis();
     queuedAnim = ""; queuedPost = "";
   }
   if(queuedAnim != "") {

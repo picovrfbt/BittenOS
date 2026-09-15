@@ -27,8 +27,8 @@ so gesture control is off the table unless the chip is swapped.
 
 - [x] **Boop counter** — done: counts, pops up on the nose once the paw moves away, resettable.
 - [x] **Light-confirmed boops** — done: the light sensor's shadow has to agree with proximity.
-- ~~**Auto-brightness**~~ — dropped (2026-09-14). The light sensor is now used to confirm boops,
-  and brightness stays manual; a separate brightness solution may come later.
+- [x] **Auto-brightness** — done (2026-09-15), after all: Blank, Hybrid and Live methods, check
+      interval, Lowest/Highest clamps, and dark/bright calibration points from the light sensor.
 
 ## Needs parts
 

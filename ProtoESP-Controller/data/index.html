@@ -256,10 +256,11 @@
 
     <section class="card">
       <h2>Brightness</h2>
-      <div class="control">
+      <div class="control" id="briControl">
         <div class="control-head"><label for="brightness">Panels</label><output id="brightnessVal">5</output></div>
         <input type="range" min="0" max="15" value="5" id="brightness">
       </div>
+      <p class="hint" id="autoBriHint" hidden>Auto-brightness is on, so the light sensor sets this. Change it in Settings &gt; Auto-brightness.</p>
     </section>
 
     <section class="card">
@@ -342,6 +343,78 @@
           <input type="checkbox" class="toggle" data-key="boopCountEna" data-label="Boop counter"></label>
         <div class="row"><span class="row-text"><b id="boopTotal">—</b><small>boops so far</small></span>
           <button class="btn small danger" type="button" onclick="resetBoops()">Reset</button></div>
+      </div>
+    </section>
+
+    <!-- Auto-brightness -->
+    <section class="section">
+      <h2 class="section-title">Auto-brightness</h2>
+      <div class="group" data-group="autoBriEna">
+        <label class="row"><span class="row-text"><b>Auto-brightness</b><small>The light sensor sets the panel brightness</small></span>
+          <input type="checkbox" class="toggle" data-key="autoBriEna" data-label="Auto-brightness"></label>
+
+        <div class="meter dep">
+          <div class="meter-status" id="autoStatus"><i></i><b id="autoStatusText">—</b><span id="autoAgo"></span></div>
+          <div>
+            <div class="gauge-head"><span>Brightness</span><b id="autoLevelText">—</b></div>
+            <div class="gauge" id="autoGauge"><i></i><em hidden></em></div>
+          </div>
+        </div>
+
+        <div class="row dep"><span class="row-text"><b>Method</b><small id="autoModeHint"></small></span>
+          <select id="autoBriMode" data-key="autoBriMode" data-label="Method" aria-label="Method" style="text-transform:none">
+            <option value="blank">Blank</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="live">Live</option>
+          </select></div>
+
+        <div class="row dep"><span class="row-text"><b>Check every</b><small id="autoSecsHint">How often it looks at the light</small></span>
+          <select id="autoBriSecs" data-key="autoBriSecs" data-label="Check every" aria-label="Check every" style="text-transform:none">
+            <option value="10">10 seconds</option>
+            <option value="30">30 seconds</option>
+            <option value="60">1 minute</option>
+            <option value="120">2 minutes</option>
+            <option value="300">5 minutes</option>
+            <option value="600">10 minutes</option>
+          </select></div>
+
+        <div class="row dep"><span class="row-text"><b>Lowest</b><small>In the dark</small></span>
+          <div class="stepper" data-key="autoBriMin" data-label="Lowest brightness" data-min="0" data-max="15" data-step="1"><button type="button" aria-label="Less">−</button><output>1</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row dep"><span class="row-text"><b>Highest</b><small>In bright light. High settings draw a lot of power.</small></span>
+          <div class="stepper" data-key="autoBriMax" data-label="Highest brightness" data-min="0" data-max="15" data-step="1"><button type="button" aria-label="Less">−</button><output>8</output><button type="button" aria-label="More">+</button></div></div>
+
+        <div class="row dep"><span class="row-text"><b>Look now</b><small id="ambientText">Light reading —</small></span>
+          <button class="btn small" type="button" onclick="measureLight()">Measure</button></div>
+        <div class="row dep"><span class="row-text"><b>Dark point</b><small id="darkText">Reading 5 gives Lowest</small></span>
+          <button class="btn small" type="button" onclick="setLightPoint('autoBriDark')">Use now</button></div>
+        <div class="row dep"><span class="row-text"><b>Bright point</b><small id="brightText">Reading 400 gives Highest</small></span>
+          <button class="btn small" type="button" onclick="setLightPoint('autoBriBright')">Use now</button></div>
+
+        <details class="sub dep">
+          <summary><span>How it works</span></summary>
+          <div class="sub-body">
+            <p class="hint">The panels shine into the light sensor, so a reading with them on partly measures the panels themselves. The methods get round that differently:</p>
+            <p class="hint"><b>Blank</b> switches the panels off for about a quarter of a second at each check and reads the room without them. The most accurate, at the cost of a short blink.</p>
+            <p class="hint"><b>Hybrid</b> watches the reading with the panels on, which costs nothing, and only blanks when the light seems to have changed by a quarter or more (and every tenth check regardless). Few blinks, and it still reacts when you walk outside.</p>
+            <p class="hint"><b>Live</b> never blinks. It uses a smoothed reading with the panels on, so the panels' own glow pushes it a little brighter. Fine if the sensor is shielded from the panels.</p>
+            <p class="hint">To calibrate: in the darkest place you'll wear it, press <b>Measure</b>, then <b>Use now</b> on Dark point. Do the same in bright light for Bright point. Brightness is spread between Lowest and Highest on the way between the two. It never blinks over a face change or a boop.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Status screen -->
+    <section class="section">
+      <h2 class="section-title">Status screen</h2>
+      <div class="group" data-group="oledEna">
+        <label class="row"><span class="row-text"><b>Status screen</b><small id="oledHint">0.96" SSD1306 OLED inside the helmet</small></span>
+          <input type="checkbox" class="toggle" data-key="oledEna" data-label="Status screen"></label>
+        <div class="row dep"><span class="row-text"><b>Screen brightness</b></span>
+          <select id="bOled" data-key="bOled" data-label="Screen brightness" aria-label="Screen brightness" style="text-transform:none">
+            <option value="0">Dim</option>
+            <option value="1">Medium</option>
+            <option value="2">Normal</option>
+          </select></div>
       </div>
     </section>
 
@@ -951,6 +1024,8 @@
     if (document.hidden) return;
     try {
       const s = await (await fetch('/stats', NO_CACHE)).json();
+      lastStats = s;
+      updateAutoBri(s);
       if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
       $('boopTotal').textContent = s.boops === undefined ? '—' : s.boops;
       if (currentView === 'settings') updateBoopMeter(s);
@@ -1045,7 +1120,14 @@
   function setControl(el, v) {
     if (el.classList.contains('stepper')) setStepper(el, v);
     else if (el.type === 'checkbox') el.checked = !!v;
-    else { el.value = v; if (el.type === 'range') showRange(el); }
+    else {
+      // a saved value the picker doesn't list (set from a config file, say) still shows, rather than a blank
+      if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === String(v)) && !FACE_PICKERS.includes(el.id))
+        el.add(new Option(el.id === 'autoBriSecs' ? v + ' seconds' : String(v), String(v)));
+      el.value = v;
+      if (el.type === 'range') showRange(el);
+    }
+    if (el.id === 'autoBriMode') showModeHint();
   }
 
   // Greys out the rows that belong to a switch that's off. Each row answers only to its nearest
@@ -1100,9 +1182,83 @@
   }
 
   const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol'];
-  const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, transMs: 80, sleepTol: 0.2, sleepMins: 5};
+  const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, transMs: 80, sleepTol: 0.2, sleepMins: 5,
+                    autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2};
+
+  /* ---------- auto-brightness ---------- */
+  const lightPoints = {autoBriDark: 5, autoBriBright: 400};
+  let lastStats = null;
+  const autoOn = () => document.querySelector('[data-key=autoBriEna]').checked;
+
+  function showModeHint() {
+    $('autoModeHint').textContent = {blank: 'Blinks for a moment at each check', hybrid: 'Blinks only when the light changes',
+                                     live: 'Never blinks; the panels’ glow skews it a little'}[$('autoBriMode').value] || '';
+  }
+  function showLightPoints() {
+    $('darkText').textContent = 'Reading ' + lightPoints.autoBriDark + ' gives Lowest';
+    $('brightText').textContent = 'Reading ' + lightPoints.autoBriBright + ' gives Highest';
+  }
+
+  function updateAutoBri(s) {
+    const on = autoOn();
+    const auto = on && typeof s.autoLevel === 'number' && s.autoLevel >= 0;
+    // Mask tab: the slider follows the sensor while auto is in charge
+    $('brightness').disabled = on;
+    $('briControl').style.opacity = on ? '.55' : '';
+    $('autoBriHint').hidden = !on;
+    if (typeof s.bright === 'number' && (on || document.activeElement !== $('brightness'))) {
+      if (on) { $('brightness').value = s.bright; setFill($('brightness')); }
+      $('brightnessVal').textContent = on ? 'Auto · ' + s.bright : $('brightness').value;
+    }
+    if (currentView !== 'settings') return;
+    const status = $('autoStatus');
+    status.classList.remove('near', 'boop', 'bad');
+    let text;
+    if (s.autoLevel === undefined) { text = 'This firmware has no auto-brightness'; status.classList.add('bad'); }
+    else if (!s.boop) { text = 'Needs the light sensor, which isn’t found'; status.classList.add('bad'); }
+    else if (!on) text = 'Off — the Mask tab slider sets brightness';
+    else if (!auto) { text = 'Waiting for the first reading…'; status.classList.add('near'); }
+    else { text = 'Brightness ' + s.bright + ' from light ' + s.ambient; status.classList.add('boop'); }
+    $('autoStatusText').textContent = text;
+    $('autoAgo').textContent = auto && s.measuredAgo >= 0 ? 'checked ' + fmtAgo(s.measuredAgo) : '';
+    const g = $('autoGauge');
+    g.querySelector('i').style.width = ((s.bright || 0) / 15 * 100) + '%';
+    g.classList.toggle('idle', !auto);
+    $('autoLevelText').textContent = typeof s.bright === 'number' ? s.bright + ' of 15' : '—';
+    $('ambientText').textContent = 'Light reading ' + (s.ambient >= 0 ? s.ambient : '—') + (s.ambientLive >= 0 ? ' (live ' + s.ambientLive + ')' : '');
+    $('oledHint').textContent = document.querySelector('[data-key=oledEna]').checked && s.oled === false
+      ? 'Switched on but not found: check wiring, address 0x3C' : '0.96" SSD1306 OLED inside the helmet';
+  }
+  function fmtAgo(sec) { return sec < 60 ? sec + ' s ago' : Math.round(sec / 60) + ' min ago'; }
+
+  async function measureLight() {
+    try {
+      await fetch('/autobri?measure=1', NO_CACHE);
+      toast(autoOn() && $('autoBriMode').value === 'live' ? 'Reading the light' : 'Measuring — the panels may blink');
+      setTimeout(refreshStats, 900);
+    } catch (e) { toast('Could not reach the mask', true); }
+  }
+
+  async function setLightPoint(key) {
+    const s = lastStats || {};
+    // prefer the last proper reading; the live one is there if nothing has been measured yet
+    const v = s.ambient >= 0 ? s.ambient : s.ambientLive >= 0 ? s.ambientLive : -1;
+    if (v < 0) { toast('No light reading yet — press Measure first', true); return; }
+    const other = key === 'autoBriDark' ? lightPoints.autoBriBright : lightPoints.autoBriDark;
+    if (key === 'autoBriDark' ? v >= other : v <= other) {
+      if (!confirm('That reading (' + v + ') isn’t ' + (key === 'autoBriDark' ? 'darker' : 'brighter') + ' than the other point (' + other + '). Use it anyway?')) return;
+    }
+    if (await saveParams(key + '=' + v, (key === 'autoBriDark' ? 'Dark' : 'Bright') + ' point set to ' + v)) {
+      lightPoints[key] = v;
+      showLightPoints();
+    }
+  }
+  $('autoBriMode').addEventListener('change', showModeHint);
+  document.querySelector('[data-key=autoBriEna]').addEventListener('change', () => setTimeout(refreshStats, 800));
 
   function loadIntoInputs(o) {
+    for (const k of Object.keys(lightPoints)) if (o[k] !== undefined) lightPoints[k] = o[k];
+    showLightPoints();
     for (const el of document.querySelectorAll('[data-key]')) {
       const key = el.dataset.key;
       const v = o[key] !== undefined ? o[key] : DEFAULTS[key];
@@ -1171,7 +1327,7 @@
       let o;
       try { o = JSON.parse(e.target.result); } catch (err) { o = null; }
       if (!o || o.wifiName === undefined) { toast('That doesn\'t look like a config file', true); return; }
-      const keys = new Set([...document.querySelectorAll('[data-key]')].map(el => el.dataset.key).concat(TILT_KEYS, ['bVisor']));
+      const keys = new Set([...document.querySelectorAll('[data-key]')].map(el => el.dataset.key).concat(TILT_KEYS, ['bVisor', 'autoBriDark', 'autoBriBright']));
       const p = new URLSearchParams();
       for (const k of keys) if (o[k] !== undefined) p.set(k, o[k]);
       if (await saveParams(p.toString(), 'Config loaded and saved')) {

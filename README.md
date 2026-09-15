@@ -31,6 +31,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 
 - Head tilt from a BMI270
 - Boops from an APDS-9930, using both its proximity sensor and its light sensor: a boop has to come close *and* cast a shadow, so stray readings don't count
+- Auto-brightness from the same light sensor, with three ways of keeping the panels' own glow out of the reading (blank, hybrid, live), a check interval, and low/high clamps
 - A boop counter that pops up on the nose panels once the paw moves away
 - The I2C bus is checked every 10 seconds, and a sensor that drops out reconnects by itself without restarting the mask
 
@@ -109,7 +110,7 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Change | Where | Why |
 |---|---|---|
 | Phone-friendly redesign, MAX7219 only | `data/index.html`, `data/animator.html` | Built for phones; RGB, ear-LED and other-helmet controls removed. The old pages are in `ui_backup/` and git tag `ui-before-redesign`. |
-| Tabbed layout, settings that save themselves | `data/index.html` | Mask, Settings and System tabs along the bottom. Settings are grouped rows by feature — switches, steppers and face pickers instead of a long form — and each sends only its own setting the moment it changes, going back if the mask doesn't accept it. Rows under a switch that's off are greyed. OLED controls are gone (not fitted); speech, fan and the remote are folded under *Parts not fitted yet*. Tilt positions and WiFi keep a button, and Remote (BLE) still needs a restart, since BLE only starts at boot. |
+| Tabbed layout, settings that save themselves | `data/index.html` | Mask, Settings and System tabs along the bottom. Settings are grouped rows by feature — switches, steppers and face pickers instead of a long form — and each sends only its own setting the moment it changes, going back if the mask doesn't accept it. Rows under a switch that's off are greyed. A Status screen group switches the SSD1306 OLED and its brightness; speech, fan and the remote are folded under *Parts not fitted yet*. Tilt positions and WiFi keep a button, and Remote (BLE) still needs a restart, since BLE only starts at boot. |
 | Live sliders | `data/index.html`, `src/main.cpp` (`/brightness`) | Brightness, fan and transition apply as you drag; the main loop drives the panels, since the web server can't safely do it mid-draw |
 | Face manager, scrolling text, power button, system card, home screen icon | `data/index.html`, `src/main.cpp` | See [What it does](#what-it-does) |
 | Sleep mode and wake sensitivity | `src/main.cpp`, `data/index.html` | Sleeps after a set time without movement. Staying asleep and waking use different thresholds, so it doesn't jolt awake at a knock but still wakes easily when picked up. |
@@ -124,6 +125,7 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Light-confirmed boops | `src/main.cpp`, `data/index.html` | Proximity alone still gave random boops through a visor. A paw close enough to boop also shades the APDS-9930's light sensor, which a bad proximity reading can't fake, so a boop must also be a set percentage darker than normal within the last second. Normal light is tracked (up fast, down slowly, frozen while something is near). Below a minimum level it's too dark to cast a shadow, and boops fall back to proximity alone. Ignored boops are counted. |
 | Boop counter | `src/main.cpp`, `data/index.html` | Counts every boop and pops the total up on the nose once the paw moves away, so it never covers the boop face. Resettable. Saved a while after the boops stop, not on every one. |
 | Sensors that recover themselves | `src/main.cpp` | The bus is swept every 10 seconds, a few addresses at a time so the animation never stalls. A sensor that stops answering is restarted automatically — and the retries no longer depend on the feature being switched on. |
+| Auto-brightness | `src/main.cpp` (`autoBrightnessStep`), `data/index.html` | The panels shine into the sensor, so a plain reading partly measures them. **Blank** switches them off for 240 ms (two light-integration cycles) and reads the room; **Hybrid** watches the free live reading and only blanks when it moves 25% or more (and every tenth check); **Live** never blinks and accepts the glow. Readings map to brightness on a log scale between two calibration points, clamped to Lowest/Highest, with half-a-step hysteresis and one step per 120 ms. It never blanks over a face change or a boop, and the boop shadow check ignores readings taken during and just after a blank. |
 | Ambient light reading | `src/main.cpp`, `data/index.html` | Read every 100 ms for the shadow check. Shown as raw channels on the System tab, not lux: a tinted visor passes infrared far better than visible light, which throws the standard formula off |
 
 ### Updates
