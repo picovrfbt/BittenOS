@@ -71,6 +71,8 @@ pin 13 -> 5V, pin 12 -> GND     0.1uF capacitor between pins 14 and 7
 
 ### Mounting the boop sensor
 
+**Bridge the LED jumper first.** Most APDS-9930 boards power the infrared LED from a separate **VL** pin, with a small solder jumper (often labelled **PS**) that joins it to VCC. Left open, the light sensor works but the LED never fires, so proximity sits at a low number (around 12 raw) and doesn't move even with a hand right on the chip. Bridge the jumper with a blob of solder, or wire VL to 3V3.
+
 A proximity sensor behind a visor sees its own infrared bouncing off the inside, which raises its resting reading (section 6, step 9 covers calibrating for it). To keep that reflection small:
 
 - Put a light barrier — a strip of foam or black tape — between the sensor's **LED** and its **detector**. They're a couple of millimetres apart on the chip. To tell which end is which, point a phone camera at the sensor while the mask is on: phone cameras see infrared, so the LED shows as a faint purple-white glow.
@@ -389,6 +391,7 @@ See `ProtoESP-Controller/readme.md` and `touchSensors.md` for sensor wiring.
 | A feature switch flips back on its own | The mask didn't accept the change — usually the phone briefly lost the WiFi. Flip it again. |
 | Mouth moves by itself | Speech is on with no microphone. Turn Speech off. |
 | Tilt sensor shows as not found | Check the BMI270's 3V3, GND, SDA (GPIO 8) and SCL (GPIO 9), and look for `0x68` or `0x69` under **I2C devices** on the System tab. The mask looks for it every 5 seconds, so it picks up a fixed wire by itself. |
+| Boop sensor found, Shadow works, but Closeness never moves | The infrared LED isn't powered: bridge the PS jumper on the sensor board, or wire VL to 3V3 (section 2, *Mounting the boop sensor*). |
 | Boop sensor shows as not found | Look for `0x39` under **I2C devices**. Not there: check the APDS-9930's 3V3 (not 5V), GND, SDA and SCL, which it shares with the BMI270. There but not starting: the chip doesn't match `boopMode` in `src/main.cpp`. |
 | Boop never triggers, or triggers constantly | Watch the meter in Settings > Boop. Press **Calibrate** with nothing near the visor, then set Boop distance again (section 6, step 9). If random boops still get through, check **Confirm with light** is on. If real boops say *no shadow — ignored*, lower **Shadow needed**. If **Boop sensor readings** on the System tab show raw near 255 at rest, the visor reflection is too strong — fit a light barrier or close the air gap (section 2). |
 | Tilt triggers at the wrong time | Recalibrate (section 6, step 8). Raise Tolerance if it triggers too easily, or lower it if it doesn't trigger. |
