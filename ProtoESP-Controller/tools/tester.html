@@ -72,6 +72,15 @@
         Layout comes from <code>data/visType.txt</code>. Mic, boop and tilt aren't simulated.</p>
     </section>
     <section>
+      <h2>Inside screen (128×64)</h2>
+      <div id="visorBox"><canvas id="oled" style="width:384px"></canvas></div>
+      <div class="row">
+        <button onclick="window.location.href='/__screen'">Open screen designer</button>
+      </div>
+      <p class="note">The status screen as the layout in <code>data/screen.json</code> draws it, with this virtual mask's data.
+        Not fitted to the real mask yet.</p>
+    </section>
+    <section>
       <h2>Board log</h2>
       <div id="log"></div>
       <p class="note">Web pages are served live from <code>data/</code>, so reload to see your edits.
@@ -81,6 +90,7 @@
   </div>
 </main>
 
+<script src="/__screen_render.js"></script>
 <script>
   const frame = document.getElementById('frame');
   const canvas = document.getElementById('visor');
@@ -265,6 +275,19 @@
     catch (e) { layout = []; }
     drawnKey = '';
   }
+
+  // status screen preview: the saved layout (or the example if none), redrawn with live data
+  let screenLayout = null;
+  async function pollScreen() {
+    if (!window.ScreenSim) return;
+    try {
+      const r = await fetch('/__screenlayout', {cache: 'no-store'});
+      screenLayout = r.ok ? await r.json() : ScreenSim.EXAMPLE;
+      const d = ScreenSim.normalise(await (await fetch('/__screendata', {cache: 'no-store'})).json());
+      ScreenSim.paint(document.getElementById('oled'), ScreenSim.renderBuffer(screenLayout, d).buf, 3, 'white');
+    } catch (e) { /* server down: poll() already says so */ }
+  }
+  setInterval(pollScreen, 500);
 
   loadLayout();
   frame.addEventListener('load', loadLayout);   // pick up visType.txt edits on page reload
