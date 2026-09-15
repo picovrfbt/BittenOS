@@ -103,6 +103,10 @@ Adafruit_APDS9960 apds;
 int apdsprox = 0; //latest proximity (0-255, higher = closer), read by loop() every 100 ms
 uint8_t imuFails = 0, apdsFails = 0;   //reads in a row that got nothing back
 volatile bool boopCalRequest = false;  //set by /boopcal, done on the loop task
+int boopRawBuf[5] = {0, 0, 0, 0, 0};   //the last five raw readings, for a median
+uint8_t boopRawIdx = 0;
+float boopFloor = -1;                  //the tracked resting level; -1 until the first reading
+uint8_t boopOver = 0, boopUnder = 0;   //checks in a row above the trigger / below the release
 
 inline bool boopIs(const char *m) { return strcmp(boopMode, m) == 0; }
 inline bool boopIsApds() { return boopIs("APDS9960") || boopIs("APDS9930"); }
@@ -169,11 +173,12 @@ bool apds9930Start() {
 bool boopSensorStart() { return boopIs("APDS9930") ? apds9930Start() : apdsStart(); }
 
 //A sensor behind a visor always sees its own IR bouncing off the inside of it, so the resting
-//reading is never zero. Measure that once (Calibrate) and work from how far above it we are,
-//rather than from the raw number - otherwise the threshold has to be guessed around whatever
-//the visor happens to reflect.
+//reading is never zero, and it wanders as the mask warms up or the visor shifts. So the resting
+//level is tracked (see where the readings come in, in loop()) and a boop is how far above it the
+//reading is, rather than the raw number against a fixed threshold.
 int boopSignal() {
-  int v = apdsprox - cfg.boopBase;
+  if(boopFloor < 0) return 0;
+  int v = apdsprox - (int)(boopFloor + 0.5f);
   return v < 0 ? 0 : v;
 }
 
@@ -976,7 +981,7 @@ void startWiFiWeb() {
     st["boops"] = cfg.boopCount;
     st["i2c"] = i2cFound;
     st["boopRaw"] = apdsprox;
-    st["boopBase"] = cfg.boopBase;
+    st["boopBase"] = boopFloor < 0 ? 0 : (int)(boopFloor + 0.5f);   //the tracked resting level
     st["boopSig"] = boopSignal();
     st["als0"] = alsCh0;
     st["als1"] = alsCh1;
@@ -1594,7 +1599,30 @@ void loop() {
         }
       } else {
         apdsFails = 0;
-        apdsprox = prox;
+        if(boopFloor < 0) {                    //first reading: prime the median and the resting level
+          for(int i = 0; i < 5; i++) boopRawBuf[i] = prox;
+          boopFloor = prox;
+        }
+        //Median of the last five: a stray spike or two can't move it. Three was tried first and still
+        //let about one false boop through every six minutes in simulation; five let none through at
+        //any threshold, and still catches a 0.3 s tap every time.
+        boopRawBuf[boopRawIdx] = prox;
+        boopRawIdx = (boopRawIdx + 1) % 5;
+        int sorted5[5];
+        memcpy(sorted5, boopRawBuf, sizeof(sorted5));
+        for(int i = 1; i < 5; i++) {           //insertion sort, five numbers
+          int v = sorted5[i], j = i - 1;
+          while(j >= 0 && sorted5[j] > v) { sorted5[j + 1] = sorted5[j]; j--; }
+          sorted5[j + 1] = v;
+        }
+        apdsprox = sorted5[2];
+        //Track the resting level. It follows a weaker reflection down quickly and creeps up slowly
+        //with drift, so a boop - a fast rise - is never mistaken for drift. It holds still during a
+        //boop, so a paw left on the visor isn't soaked into it.
+        if(!booping) {
+          if(apdsprox < boopFloor) boopFloor += (apdsprox - boopFloor) * 0.3f;
+          else boopFloor += (apdsprox - boopFloor) * 0.01f;
+        }
       }
     }
     if(boopIs("APDS9930") && ToFInitDone && millis() - lastAlsRead >= 500) {
@@ -1770,6 +1798,7 @@ void loop() {
       }
       if(taken > 0) {
         cfg.boopBase = sum / taken;
+        boopFloor = cfg.boopBase;              //start tracking from here
         cfg.save();
         logPrint("[I] Boop resting level set to " + String(cfg.boopBase) + " of 255");
       }
@@ -1850,19 +1879,40 @@ void loop() {
     } else if (boopIsApds()) {
       if(ToFInitDone) {
         //apdsprox is read every 100 ms in the I2C sensor section
-        if(booping == false && boopSignal() > cfg.boopThresh) {
-          logPrint("[I] BOOP (signal " + String(boopSignal()) + " over " + String(cfg.boopThresh) + ")");
-          booping = true;
-          countBoop();
-          boopoldanim = currentAnim;
-          loadAnim(cfg.aBoop,"");
-          lastMillsBoop = millis();
-        } else if(booping == true && lastMillsBoop+1000<millis() && boopSignal() < (cfg.boopThresh * 3) / 4) {
-          logPrint(F("[I] ToF unBOOP"));   //a little lower than the trigger, so it can't chatter
-          booping = false;
-          endBoop();
-          if(!wasTilt) {
-            loadAnim(boopoldanim,"");
+        //Three checks in a row (about 300 ms) to start a boop and two to end one, so stray readings do neither.
+        //Release is a good way under the trigger, so it can't chatter at the boundary.
+        int sig = boopSignal();
+        if(booping == false) {
+          boopUnder = 0;
+          boopOver = (sig > cfg.boopThresh) ? boopOver + 1 : 0;
+          if(boopOver >= 3) {
+            boopOver = 0;
+            logPrint("[I] BOOP (signal " + String(sig) + " over " + String(cfg.boopThresh) + ")");
+            booping = true;
+            countBoop();
+            boopoldanim = currentAnim;
+            loadAnim(cfg.aBoop,"");
+            lastMillsBoop = millis();
+          }
+        } else if(lastMillsBoop+1000<millis()) {
+          boopUnder = (sig < (cfg.boopThresh * 3) / 5) ? boopUnder + 1 : 0;
+          //Still "booped" after 8 s almost always means the resting level moved - a visor shifted, or
+          //it warmed up - rather than a real paw. Let go and take this as the new resting level, or
+          //it would stay latched and no real boop could ever register.
+          bool stuck = millis() - lastMillsBoop > 8000;
+          if(boopUnder >= 2 || stuck) {
+            if(stuck) {
+              boopFloor = apdsprox;
+              logPrint(F("[I] Boop held 8 s: taking that as the new resting level"));
+            } else {
+              logPrint(F("[I] ToF unBOOP"));
+            }
+            boopUnder = 0;
+            booping = false;
+            endBoop();
+            if(!wasTilt) {
+              loadAnim(boopoldanim,"");
+            }
           }
         }
       }

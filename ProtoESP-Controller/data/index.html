@@ -321,7 +321,7 @@
         <div class="field"><label for="wifiPass">WiFi password <small>9+ characters</small></label>
           <input type="text" id="wifiPass" name="wifiPass" minlength="9" autocomplete="off"></div>
       </div>
-      <p class="hint">Boop: the sensor always sees some of its own light reflecting off the inside of the visor, so first press <b>Calibrate</b> with nothing near the visor — that measures the resting level and takes it off the readings. Then press <b>Read</b> with nothing near (it should be close to 0) and again with your hand on the visor, and set Boop distance between the two. A boop triggers when the reading rises above it.</p>
+      <p class="hint">Boop: the sensor always sees some of its own light reflecting off the inside of the visor, so it never reads zero at rest. The mask tracks that resting level by itself; <b>Calibrate</b> resets it to right now, with nothing near the visor. Press <b>Read</b> with nothing near (it should be close to 0) and again with your hand on the visor, and set Boop distance between the two. A boop needs the reading above it for three checks in a row.</p>
       <p class="hint">If Read still shows a large number with nothing near the visor after calibrating, the visor is reflecting too much straight back into the sensor. Check <b>Boop reading</b> on the System card: if raw is near 255 there is no room left to detect anything, and the sensor needs a light barrier between its LED and its detector, or to sit closer to the visor with no air gap.</p>
       <p class="hint">Change the WiFi name if other ProtoESP protogens are nearby, so their remotes don't connect to yours. You'll need to reconnect after the mask restarts.</p>
       <button class="btn primary block" type="submit">Save settings</button>
