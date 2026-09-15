@@ -38,8 +38,8 @@ START = time.time()  # for the emulated uptime
 # a bool instead of a string (getBool/getInt/getFloat in src/fileOp.cpp).
 SAVECONFIG_KEYS = {
     'boopEna': bool, 'speechEna': bool, 'tiltEna': bool, 'bleEna': bool, 'oledEna': bool,
-    'sleepEna': bool, 'transEna': bool, 'bobEna': bool, 'boopCountEna': bool,
-    'boopCount': int, 'boopBase': int, 'transMs': int, 'sleepTol': float,
+    'sleepEna': bool, 'transEna': bool, 'bobEna': bool, 'boopCountEna': bool, 'boopLightEna': bool,
+    'boopCount': int, 'boopBase': int, 'boopShade': int, 'transMs': int, 'sleepTol': float,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
@@ -96,6 +96,7 @@ class VirtualBoard:
         self.sleeping = False          # /sleep: the sleeping face is showing
         self.wake_to = ''              # the face to return to when it wakes
         self.boop_at = 0.0             # when the last simulated boop happened, for the counter pop
+        self.boop_until = 0.0          # a simulated paw is on the snout until then
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -279,6 +280,7 @@ class Handler(BaseHTTPRequestHandler):
             if safe_name(face) and os.path.isfile(board.anim_path(face)):
                 board.show(face)
             held = max(1.0, min(10.0, float(q.get('hold', 1.0))))   # how long the paw stays
+            board.boop_until = time.time() + held
             timer = threading.Timer(held, end_boop, [back_to])
             timer.daemon = True
             timer.start()
@@ -344,10 +346,19 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, KeyError, TypeError):
                 frames = 0
             anims_bytes = sum(os.path.getsize(board.anim_path(f)) for f in board.anims())
+            # A pretend boop sensor: a few counts of noise at rest, and a paw that's close and
+            # shading the sensor while a Boop button's hold lasts.
+            paw = time.time() < board.boop_until
+            noise = int(time.time() * 7) % 4
+            sig = 60 + noise if paw else noise
+            shade = 70 + noise if paw else noise
             return self.reply(200, json.dumps({
                 'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,
                 'psramFree': 8200000, 'psramSize': 8388608, 'fsUsed': 160000 + anims_bytes, 'fsTotal': 4063232,
-                'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': False,
+                'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': True,
+                'boopRaw': 40 + sig, 'boopBase': 40, 'boopSig': sig, 'booping': paw,
+                'als0': int(180 * (100 - shade) / 100), 'als1': 420, 'lightNormal': 180, 'shade': shade,
+                'lightOk': True, 'boopsIgnored': 0, 'i2c': '0x39 0x68 (virtual)',
                 'boops': int(board.config.get('boopCount') or 0),
                 'display': board.display_on, 'sleeping': board.sleeping,
                 'anim': board.current, 'frame': 0, 'frames': frames,

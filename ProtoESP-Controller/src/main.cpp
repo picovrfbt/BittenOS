@@ -115,6 +115,7 @@ inline bool boopIsApds() { return boopIs("APDS9960") || boopIs("APDS9930"); }
 void logPrint(const char *str);
 void logPrint(const String &str);
 bool apdsStart();
+extern bool booping;
 
 //--------------------------------//APDS-9930: proximity only, straight at the registers
 #define apds9930Addr 0x39
@@ -153,7 +154,25 @@ int apds9930Prox() { //0-255, higher = closer; -1 if it didn't answer
 //visor passes infrared far better than visible, which throws it right off. The two raw numbers
 //and the ratio between them are what actually says what the visor is doing.
 int alsCh0 = -1, alsCh1 = -1;
-unsigned long lastAlsRead = 0;
+
+//Shadow check for boops. A paw close enough to boop blocks the light reaching the sensor, while
+//a stray proximity reading doesn't change the light at all, so when there is light to block a
+//boop must also darken it. "Normal" light follows brighter quickly (lights on, paw gone) and
+//darker slowly (walking into a dim room), so a paw arriving over half a second barely moves it.
+//Too dark to cast a shadow - night, a dark room - and boops go on proximity alone.
+#define LIGHT_MIN 20                       //normal CH0 below this: too dark for the shadow check
+float lightNormal = -1;                    //-1 until the first reading
+int shadeNow = 0;                          //percent darker than normal
+uint8_t shadeBuf[10] = {0};                //the last second of shade, as the shadow leads the reading a little
+uint8_t shadeIdx = 0;
+uint16_t boopsIgnored = 0;                 //proximity said boop but nothing shaded the sensor
+bool boopIgnoreLogged = false;
+
+int shadeRecent() {                        //darkest shade in the last second
+  int m = 0;
+  for(int i = 0; i < 10; i++) if(shadeBuf[i] > m) m = shadeBuf[i];
+  return m;
+}
 
 bool apds9930Start() {
   Wire.beginTransmission(apds9930Addr);
@@ -828,6 +847,8 @@ void startWiFiWeb() {
     cfg.getBool(request, "transEna", cfg.transEna);
     cfg.getBool(request, "bobEna", cfg.bobEna);
     cfg.getBool(request, "boopCountEna", cfg.boopCountEna);
+    cfg.getBool(request, "boopLightEna", cfg.boopLightEna);
+    if(cfg.getInt(request, "boopShade", cfg.boopShade)) cfg.boopShade = constrain(cfg.boopShade, 5, 90);
     if(cfg.getInt(request, "boopCount", cfg.boopCount)) boopCountDirty = false; //the Reset button
     cfg.getInt(request, "transMs", cfg.transMs);
     cfg.getFloat(request, "sleepTol", cfg.sleepTol);
@@ -985,6 +1006,11 @@ void startWiFiWeb() {
     st["boopSig"] = boopSignal();
     st["als0"] = alsCh0;
     st["als1"] = alsCh1;
+    st["lightNormal"] = lightNormal < 0 ? -1 : (int)(lightNormal + 0.5f);
+    st["shade"] = shadeNow;                                           //percent darker than normal, right now
+    st["lightOk"] = lightNormal >= LIGHT_MIN;                         //bright enough for the shadow check
+    st["boopsIgnored"] = boopsIgnored;
+    st["booping"] = booping;
     st["display"] = displayOn;
     st["sleeping"] = sleeping;
     st["anim"] = anim;
@@ -1625,10 +1651,20 @@ void loop() {
         }
       }
     }
-    if(boopIs("APDS9930") && ToFInitDone && millis() - lastAlsRead >= 500) {
-      lastAlsRead = millis();                   //light changes slowly; no need to read it often
+    if(boopIs("APDS9930") && ToFInitDone) {    //every 100 ms, to catch a paw's shadow as it arrives
       alsCh0 = apds9930Read16(0x14);
       alsCh1 = apds9930Read16(0x16);
+      if(alsCh0 >= 0) {
+        if(lightNormal < 0) lightNormal = alsCh0;
+        shadeNow = lightNormal > 0 ? constrain((int)(100.0f * (1.0f - alsCh0 / lightNormal)), 0, 100) : 0;
+        shadeBuf[shadeIdx] = shadeNow;
+        shadeIdx = (shadeIdx + 1) % 10;
+        //Hold normal still during a boop and while something is near, so a paw isn't soaked into it
+        if(!booping && boopSignal() <= cfg.boopThresh / 2) {
+          if(alsCh0 > lightNormal) lightNormal += (alsCh0 - lightNormal) * 0.3f;
+          else lightNormal += (alsCh0 - lightNormal) * 0.02f;
+        }
+      }
     }
     if(tiltInitDone) {
       if(readAccel()) imuFails = 0;
@@ -1884,10 +1920,20 @@ void loop() {
         int sig = boopSignal();
         if(booping == false) {
           boopUnder = 0;
-          boopOver = (sig > cfg.boopThresh) ? boopOver + 1 : 0;
-          if(boopOver >= 3) {
+          boopOver = (sig > cfg.boopThresh) ? min(boopOver + 1, 3) : 0;
+          if(boopOver == 0) boopIgnoreLogged = false;
+          //With light to block, it also needs a shadow in the last second. Still over but no shadow
+          //stays waiting rather than resetting, so a shadow arriving a moment later still counts.
+          bool shadowOk = !cfg.boopLightEna || !boopIs("APDS9930") || lightNormal < LIGHT_MIN || shadeRecent() >= cfg.boopShade;
+          if(boopOver >= 3 && !shadowOk && !boopIgnoreLogged) {
+            boopIgnoreLogged = true;
+            boopsIgnored++;
+            logPrint("[I] Boop ignored: signal " + String(sig) + " but only " + String(shadeRecent()) + "% shade");
+          }
+          if(boopOver >= 3 && shadowOk) {
             boopOver = 0;
-            logPrint("[I] BOOP (signal " + String(sig) + " over " + String(cfg.boopThresh) + ")");
+            boopIgnoreLogged = false;
+            logPrint("[I] BOOP (signal " + String(sig) + " over " + String(cfg.boopThresh) + ", " + String(shadeRecent()) + "% shade)");
             booping = true;
             countBoop();
             boopoldanim = currentAnim;

@@ -61,6 +61,8 @@ void Config::setDefault() {
   boopCountEna = true;
   boopCount = 0;
   boopBase = 0;    //resting proximity, i.e. the visor's own reflection
+  boopLightEna = true; //a boop also has to shade the light sensor, when there's light to shade
+  boopShade = 30;  //percent darker than normal that counts as a shadow
   transMs = 80;    //one direction of the dip, split across the brightness steps
   sleepTol = 0.2;  //g of movement before the mask counts as awake
   save();
@@ -107,6 +109,8 @@ bool Config::save() {
   doc["boopCountEna"] = boopCountEna;
   doc["boopCount"] = boopCount;
   doc["boopBase"] = boopBase;
+  doc["boopLightEna"] = boopLightEna;
+  doc["boopShade"] = boopShade;
   doc["transMs"] = transMs;
   doc["sleepTol"] = sleepTol;
   
@@ -220,6 +224,8 @@ bool Config::load() {
   boopCountEna = doc["boopCountEna"] | true;
   boopCount = doc["boopCount"] | 0;
   boopBase = doc["boopBase"] | 0;
+  boopLightEna = doc["boopLightEna"] | true;
+  boopShade = doc["boopShade"] | 30;
   transMs = doc["transMs"] | 80;
   sleepTol = doc["sleepTol"] | 0.2f;
 
