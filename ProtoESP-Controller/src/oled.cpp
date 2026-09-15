@@ -16,6 +16,12 @@ void SSDOLED::oledBright(int level) const {
     }
 }
 
+//--------------------------------//OLED off (switched off from the web page); init() wakes it again
+void SSDOLED::off() const {
+  u8g2.clearDisplay();
+  u8g2.setPowerSave(1);
+}
+
 //--------------------------------//OLED Init
 bool SSDOLED::init(uint8_t oledAddr, int brightness, bool INA) {
   INAavail = INA;

@@ -21,8 +21,10 @@ private:
 //--------------------------------//Config variables store/save/load/default
 class Config {
 public:
-  bool boopEna, speechEna, tiltEna, bleEna, oledEna, sleepEna, transEna, bobEna, boopCountEna, boopLightEna;
+  bool boopEna, speechEna, tiltEna, bleEna, oledEna, sleepEna, transEna, bobEna, boopCountEna, boopLightEna, autoBriEna;
   int bEar,bVisor,bOled,rbSpeed,rbWidth,spMin,spMax,spTrig,fanDuty,boopThresh,sleepMins,transMs,boopCount,boopBase,boopShade;
+  int autoBriSecs,autoBriMin,autoBriMax,autoBriDark,autoBriBright;
+  String autoBriMode;
   float neutralX,neutralY,neutralZ,tiltX,tiltY,tiltZ,upX,upY,upZ,tiltTol,sleepTol;
   String aTilt,aUp,aBoop,aSleep,visColorStr,wifiName = "ProtoWiFi",wifiPass = "Proto1234";
   unsigned long visColor;

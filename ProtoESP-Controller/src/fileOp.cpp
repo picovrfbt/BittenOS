@@ -63,6 +63,13 @@ void Config::setDefault() {
   boopBase = 0;    //resting proximity, i.e. the visor's own reflection
   boopLightEna = true; //a boop also has to shade the light sensor, when there's light to shade
   boopShade = 30;  //percent darker than normal that counts as a shadow
+  autoBriEna = false;
+  autoBriMode = "blank"; //blank, live or hybrid
+  autoBriSecs = 60;      //how often it looks at the light
+  autoBriMin = 1;        //brightness clamps, 0-15
+  autoBriMax = 8;
+  autoBriDark = 5;       //light-sensor readings that map to the clamps
+  autoBriBright = 400;
   transMs = 80;    //one direction of the dip, split across the brightness steps
   sleepTol = 0.2;  //g of movement before the mask counts as awake
   save();
@@ -111,6 +118,13 @@ bool Config::save() {
   doc["boopBase"] = boopBase;
   doc["boopLightEna"] = boopLightEna;
   doc["boopShade"] = boopShade;
+  doc["autoBriEna"] = autoBriEna;
+  doc["autoBriMode"] = autoBriMode;
+  doc["autoBriSecs"] = autoBriSecs;
+  doc["autoBriMin"] = autoBriMin;
+  doc["autoBriMax"] = autoBriMax;
+  doc["autoBriDark"] = autoBriDark;
+  doc["autoBriBright"] = autoBriBright;
   doc["transMs"] = transMs;
   doc["sleepTol"] = sleepTol;
   
@@ -226,6 +240,13 @@ bool Config::load() {
   boopBase = doc["boopBase"] | 0;
   boopLightEna = doc["boopLightEna"] | true;
   boopShade = doc["boopShade"] | 30;
+  autoBriEna = doc["autoBriEna"] | false;
+  autoBriMode = doc["autoBriMode"] | "blank";
+  autoBriSecs = doc["autoBriSecs"] | 60;
+  autoBriMin = doc["autoBriMin"] | 1;
+  autoBriMax = doc["autoBriMax"] | 8;
+  autoBriDark = doc["autoBriDark"] | 5;
+  autoBriBright = doc["autoBriBright"] | 400;
   transMs = doc["transMs"] | 80;
   sleepTol = doc["sleepTol"] | 0.2f;
 

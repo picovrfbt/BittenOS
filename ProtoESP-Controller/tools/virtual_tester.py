@@ -40,6 +40,8 @@ SAVECONFIG_KEYS = {
     'boopEna': bool, 'speechEna': bool, 'tiltEna': bool, 'bleEna': bool, 'oledEna': bool,
     'sleepEna': bool, 'transEna': bool, 'bobEna': bool, 'boopCountEna': bool, 'boopLightEna': bool,
     'boopCount': int, 'boopBase': int, 'boopShade': int, 'transMs': int, 'sleepTol': float,
+    'autoBriEna': bool, 'autoBriMode': str, 'autoBriSecs': int, 'autoBriMin': int, 'autoBriMax': int,
+    'autoBriDark': int, 'autoBriBright': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
@@ -97,6 +99,10 @@ class VirtualBoard:
         self.wake_to = ''              # the face to return to when it wakes
         self.boop_at = 0.0             # when the last simulated boop happened, for the counter pop
         self.boop_until = 0.0          # a simulated paw is on the snout until then
+        self.ambient = 180             # room light the pretend sensor sees, set from the dashboard
+        self.measured = 180            # the reading auto-brightness last took
+        self.measure_at = 0.0
+        self.measure_now = False
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -158,6 +164,31 @@ class VirtualBoard:
 board = None
 
 
+def auto_brightness():
+    """Auto-brightness the way src/main.cpp works it out: the room light from the tester's slider,
+    measured every autoBriSecs (a blank shows as a short blink on the virtual face), mapped on a log
+    scale between the dark and bright points, then clamped. Call with board.lock held."""
+    import math
+    cfg = board.config
+    if not cfg.get('autoBriEna'):
+        return {'bright': min(15, max(0, to_int(str(cfg.get('bVisor', 5))))), 'level': -1, 'ambient': -1, 'ago': -1, 'blanking': False}
+    now = time.time()
+    secs = max(5, int(cfg.get('autoBriSecs') or 60))
+    if board.measure_at == 0 or now - board.measure_at >= secs or board.measure_now:
+        board.measure_now = False
+        board.measure_at = now
+        board.measured = board.ambient
+    dark = max(0, int(cfg.get('autoBriDark') or 0)) + 1.0
+    bright = max(0, int(cfg.get('autoBriBright') or 400)) + 1.0
+    bright = max(bright, dark * 1.5)
+    t = (math.log(board.measured + 1.0) - math.log(dark)) / (math.log(bright) - math.log(dark))
+    t = min(1.0, max(0.0, t))
+    lo, hi = sorted((int(cfg.get('autoBriMin', 1)), int(cfg.get('autoBriMax', 8))))
+    level = int(round(lo + t * (hi - lo)))
+    blanking = cfg.get('autoBriMode', 'blank') != 'live' and now - board.measure_at < 0.24
+    return {'bright': level, 'level': level, 'ambient': board.measured, 'ago': int(now - board.measure_at), 'blanking': blanking}
+
+
 def stats_dict():
     """The /stats reply: plausible numbers shaped like the firmware's. Call with board.lock held."""
     try:
@@ -171,7 +202,10 @@ def stats_dict():
     noise = int(time.time() * 7) % 4
     sig = 60 + noise if paw else noise
     shade = 70 + noise if paw else noise
+    auto = auto_brightness()
     return {
+        'bright': auto['bright'], 'autoLevel': auto['level'], 'ambient': auto['ambient'],
+        'ambientLive': board.ambient + 12, 'measuredAgo': auto['ago'], 'oled': bool(board.config.get('oledEna')),
         'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,
         'psramFree': 8200000, 'psramSize': 8388608, 'fsUsed': 160000 + anims_bytes, 'fsTotal': 4063232,
         'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': True,
@@ -284,7 +318,9 @@ class Handler(BaseHTTPRequestHandler):
                 'anim': board.current,
                 'displayOn': board.display_on,
                 'sleeping': board.sleeping,
-                'brightness': min(15, max(0, to_int(str(cfg.get('bVisor', 5))))),
+                'brightness': auto_brightness()['bright'],
+                'blanking': auto_brightness()['blanking'],
+                'ambient': board.ambient,
                 'fan': cfg.get('fanDuty'),
                 'toggles': {k: cfg.get(k) for k in ('boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna', 'bobEna', 'boopCountEna')},
                 'boopCount': int(cfg.get('boopCount') or 0),
@@ -310,6 +346,10 @@ class Handler(BaseHTTPRequestHandler):
             timer = threading.Timer(held, end_boop, [back_to])
             timer.daemon = True
             timer.start()
+            return self.text('OK')
+
+        if path == '/__light' and method == 'POST':   # the dashboard's room light slider
+            board.ambient = max(0, min(5000, to_int(q.get('value', '180'))))
             return self.text('OK')
 
         if path == '/__button' and method == 'POST':
@@ -444,6 +484,11 @@ class Handler(BaseHTTPRequestHandler):
                 board.save_config()
             board.version += 1
             return self.text('Set brightness to: %d' % value)
+
+        if path == '/autobri':   # measure=1: take a reading now
+            if 'measure' in q:
+                board.measure_now = True
+            return self.text('ok')
 
         if path == '/fanpwm':
             if 'duty' not in q:

@@ -69,6 +69,7 @@ public:
   void writeRGB(String) const;
   void speak(bool) const;
   void remote(bool) const;
+  void off() const;
 private:
   bool INAavail = false;
 };
