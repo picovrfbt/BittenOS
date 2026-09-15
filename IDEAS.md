@@ -25,30 +25,10 @@ The sensor fitted is an **APDS-9930**, not the 9960 originally planned - a diffe
 answers on the same address. It does proximity and ambient light. It has **no gesture engine**,
 so gesture control is off the table unless the chip is swapped.
 
-- [ ] **Auto-brightness** — map the ambient reading to MAX7219 intensity 0–15 and apply it
-      slowly, with hysteresis, clamped to a Min and Max you set.
-
-      Decisions already made, so they don't get re-litigated:
-
-      - **No lux figure.** A tinted visor passes infrared far better than visible light, so the
-        standard lux formula is wrong through one. Calibrate two points instead — read indoors
-        for the bottom of the range, outdoors for the top — the way the boop baseline works.
-      - **The panels leak into the sensor**, which is a feedback loop, not just noise: brighter
-        panels raise the reading, which raises brightness again. A light barrier so the sensor
-        can't see the panels is the first fix and helps the boop sensor too.
-      - **If blanking is needed** — briefly shutting the panels off to read true ambient — the
-        user wants it **once a minute, not every few seconds**. The blink is the cost, so it has
-        to be rare. Worth knowing: that means up to a minute's lag walking outdoors. A hybrid
-        avoids it — watch the unblanked reading continuously, which is free, and only spend a
-        blank when it suggests the light has really changed.
-      - **Power.** Driving to brightness 15 outdoors pulls far more than the ~3 W at brightness 5
-        and can brown out the board when the panels are fed from its 5 V pin, so the Max setting
-        has to be capped to what the supply can take.
-
-      First step is measurement, not code: with the sensor working, compare the Ambient light
-      reading on the System card at brightness 0 and 15 in a dark room. If it barely moves the
-      shroud is doing its job; if it jumps, blanking is required.
 - [x] **Boop counter** — done: counts, pops up on the nose once the paw moves away, resettable.
+- [x] **Light-confirmed boops** — done: the light sensor's shadow has to agree with proximity.
+- ~~**Auto-brightness**~~ — dropped (2026-09-14). The light sensor is now used to confirm boops,
+  and brightness stays manual; a separate brightness solution may come later.
 
 ## Needs parts
 

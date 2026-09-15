@@ -16,7 +16,7 @@
   :root {
     --bg:#0b0f17; --surface:#131a26; --surface2:#1a2333; --line:#253047;
     --text:#e8edf6; --dim:#8c97ad; --faint:#5f6b82;
-    --accent:#4da3ff; --accent-soft:rgba(77,163,255,.14); --bad:#ff6b6b;
+    --accent:#4da3ff; --accent-soft:rgba(77,163,255,.14); --bad:#ff6b6b; --good:#3ddc97; --warn:#ffb84d;
     --radius:16px;
     color-scheme: dark;
   }
@@ -24,12 +24,13 @@
   html, body { margin:0; background:var(--bg); color:var(--text); }
   body {
     font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
   }
+  [hidden] { display:none !important; }
 
   /* top bar */
   .topbar { position:sticky; top:0; z-index:10; background:rgba(11,15,23,.86); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
-  .topbar-in { max-width:760px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:12px; }
+  .topbar-in { max-width:760px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:10px; }
   .brand { flex:none; font-weight:700; font-size:18px; letter-spacing:.02em; line-height:1.15; }
   .brand small { display:block; font-weight:400; font-size:12px; color:var(--dim); letter-spacing:0; }
   .now { margin-left:auto; display:flex; align-items:center; gap:8px; min-width:0; flex:0 1 auto;
@@ -37,11 +38,22 @@
   .now span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-transform:capitalize; }
   .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent); flex:none; }
 
-  main { max-width:760px; margin:0 auto; padding:16px; display:grid; gap:16px; }
-  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; }
-  .card h2 { margin:0 0 12px; font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; }
+  /* bottom tabs: where a thumb already is */
+  .tabs { position:fixed; left:0; right:0; bottom:0; z-index:15; background:rgba(11,15,23,.94); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+          border-top:1px solid var(--line); padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .tabs-in { max-width:520px; margin:0 auto; display:grid; grid-template-columns:repeat(3, 1fr); }
+  .tab { appearance:none; -webkit-appearance:none; background:none; border:0; color:var(--faint); font:inherit; font-size:12px; font-weight:600;
+         min-height:60px; padding:8px 4px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; }
+  .tab svg { width:24px; height:24px; }
+  .tab.on { color:var(--accent); }
+  .tab:focus-visible { outline:2px solid var(--accent); outline-offset:-4px; border-radius:12px; }
 
-  /* display power */
+  main { max-width:760px; margin:0 auto; padding:16px 16px calc(92px + env(safe-area-inset-bottom)); }
+  .view { display:grid; gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; }
+  .card h2, .section-title { margin:0 0 12px; font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; }
+
+  /* display power / sleep */
   .power { flex:none; width:42px; height:42px; padding:0; border-radius:50%; cursor:pointer; display:grid; place-items:center;
            border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent); box-shadow:0 0 14px rgba(77,163,255,.3);
            transition:color .15s, border-color .15s, box-shadow .15s, background .15s; }
@@ -66,10 +78,9 @@
   .face.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 0 18px rgba(77,163,255,.22); }
   .face.busy { opacity:.55; }
   .empty { color:var(--dim); font-size:14px; }
+  @media (max-width:360px) { .faces { grid-template-columns:1fr 1fr; } }
 
-  /* face manager */
   .card-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
-  .card-head h2 { margin-bottom:12px; }
   .linkbtn { appearance:none; -webkit-appearance:none; background:none; border:0; color:var(--accent); cursor:pointer;
              font:inherit; font-size:13px; font-weight:600; padding:4px 6px; margin:0 -6px 12px 0; border-radius:8px; }
   .face-wrap { display:flex; flex-direction:column; gap:6px; }
@@ -82,7 +93,6 @@
 
   /* sliders */
   .control { display:grid; gap:6px; }
-  .control + .control { margin-top:14px; }
   .control-head { display:flex; justify-content:space-between; align-items:baseline; font-weight:600; }
   .control-head output { color:var(--accent); font-variant-numeric:tabular-nums; }
   input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:34px; background:transparent; margin:0; cursor:pointer; }
@@ -94,15 +104,14 @@
   input[type=range]::-moz-range-progress { height:8px; border-radius:4px; background:var(--accent); }
   input[type=range]::-moz-range-thumb { width:20px; height:20px; border-radius:50%; background:#fff; border:3px solid var(--accent); }
 
-  /* switches */
-  .switches { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
-  .switch { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:50px;
-            background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:600; }
-  .switch input { -webkit-appearance:none; appearance:none; flex:none; width:46px; height:28px; margin:0; border-radius:14px;
-                  background:#2a3448; position:relative; cursor:pointer; transition:background .15s; }
-  .switch input::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:#fff; transition:transform .15s; }
-  .switch input:checked { background:var(--accent); }
-  .switch input:checked::after { transform:translateX(18px); }
+  /* on/off switch */
+  .toggle { -webkit-appearance:none; appearance:none; flex:none; width:50px; height:30px; margin:0; border-radius:15px;
+            background:#2a3448; position:relative; cursor:pointer; transition:background .15s; }
+  .toggle::after { content:""; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff;
+                   box-shadow:0 1px 3px rgba(0,0,0,.4); transition:transform .15s; }
+  .toggle:checked { background:var(--accent); }
+  .toggle:checked::after { transform:translateX(20px); }
+  .toggle:disabled { opacity:.6; }
 
   /* buttons */
   .btn { -webkit-appearance:none; appearance:none; border:1px solid var(--line); background:var(--surface2); color:var(--text);
@@ -110,70 +119,112 @@
          display:inline-flex; align-items:center; justify-content:center; text-align:center; }
   .btn:active { transform:scale(.98); }
   .btn.primary { background:var(--accent); border-color:var(--accent); color:#04101f; }
-  .btn.block { width:100%; margin-top:14px; }
+  .btn.small { min-height:40px; padding:8px 14px; font-size:14px; border-radius:10px; flex:none; }
+  .btn.danger { color:var(--bad); }
+  .btn:disabled { opacity:.6; cursor:wait; }
   .tools { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
 
-  /* collapsible sections */
-  details.card { padding:0; }
-  details.card > summary { list-style:none; cursor:pointer; padding:16px; display:flex; align-items:center; justify-content:space-between;
-    font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; }
-  details.card > summary::-webkit-details-marker { display:none; }
-  details.card > summary::after { content:"›"; font-size:22px; line-height:1; transform:rotate(90deg); transition:transform .15s; }
-  details[open].card > summary::after { transform:rotate(-90deg); }
-  details.card > form { padding:0 16px 16px; }
-
-  .fields { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
-  .field { display:grid; gap:6px; }
-  .field label { font-size:13px; color:var(--dim); }
-  .field label small { color:var(--faint); }
   input[type=text], input[type=number], select { width:100%; min-height:46px; background:var(--bg); color:var(--text);
     border:1px solid var(--line); border-radius:10px; padding:10px 12px; font:inherit; }
-  input:focus-visible, select:focus-visible, .btn:focus-visible, .face:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-
-  .xyz { display:grid; grid-template-columns:48px 1fr 1fr 1fr auto; gap:8px; align-items:center; }
-  .xyz + .xyz { margin-top:10px; }
-  .xyz > span { font-size:13px; font-weight:600; color:var(--dim); }
-  .xyz .btn { min-height:46px; padding:8px 12px; font-size:14px; }
-  @media (max-width:430px) {
-    .xyz { grid-template-columns:1fr 1fr 1fr; }
-    .xyz > span, .xyz .btn { grid-column:1 / -1; }
-  }
-  .inline { display:flex; gap:8px; }
-  .inline input { flex:1; min-width:0; }
-  .inline .btn { flex:none; min-height:46px; padding:8px 14px; }
+  input:focus-visible, select:focus-visible, .btn:focus-visible, .face:focus-visible, summary:focus-visible, .toggle:focus-visible,
+  .stepper button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .hint { font-size:13px; color:var(--dim); margin:12px 0 0; }
+
+  /* settings: grouped rows, label on the left, control on the right */
+  .section { display:grid; }
+  .section-title { margin:0 4px 8px; display:flex; align-items:center; gap:8px; }
+  .group { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+  .row { display:flex; align-items:center; gap:12px; padding:12px 16px; min-height:60px; }
+  .group > * + * { border-top:1px solid var(--line); }
+  .row-text { flex:1; min-width:0; display:grid; gap:1px; }
+  .row-text b { font-weight:600; }
+  .row-text small { color:var(--dim); font-size:13px; line-height:1.3; }
+  .row select { width:auto; max-width:52%; min-height:40px; padding:8px 10px; text-transform:capitalize; }
+  .row.stack { display:grid; gap:4px; }
+  .row.stack .control-head { font-weight:400; }
+  .row.stack .control-head b { font-weight:600; }
+  .row.buttons { justify-content:flex-end; flex-wrap:wrap; min-height:0; }
+  .row.buttons .row-text { flex-basis:100%; }
+  .dep { transition:opacity .15s; }
+  .dep.dim { opacity:.45; }
+
+  .stepper { flex:none; display:flex; align-items:center; border:1px solid var(--line); border-radius:12px; background:var(--bg); }
+  .stepper button { appearance:none; -webkit-appearance:none; width:44px; height:42px; background:none; border:0; color:var(--accent);
+                    font:inherit; font-size:22px; line-height:1; cursor:pointer; border-radius:11px; touch-action:manipulation; }
+  .stepper button:active { background:var(--accent-soft); }
+  .stepper output { min-width:58px; text-align:center; font-weight:600; font-variant-numeric:tabular-nums; font-size:15px; }
+
+  details.sub > summary { list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:12px;
+                          padding:14px 16px; min-height:56px; font-weight:600; }
+  details.sub > summary::-webkit-details-marker { display:none; }
+  details.sub > summary::after { content:"›"; font-size:22px; line-height:1; color:var(--dim); transform:rotate(90deg); transition:transform .15s; }
+  details.sub[open] > summary::after { transform:rotate(-90deg); }
+  details.sub > summary small { display:block; font-weight:400; color:var(--dim); font-size:13px; }
+  .sub-body { padding:0 16px 16px; }
+  .sub-body .hint:first-child { margin-top:0; }
+
+  /* live boop meter */
+  .meter { padding:14px 16px; display:grid; gap:12px; background:var(--surface2); }
+  .meter-status { display:flex; align-items:center; gap:8px; font-weight:600; }
+  .meter-status i { width:10px; height:10px; border-radius:50%; background:var(--faint); flex:none; transition:background .15s, box-shadow .15s; }
+  .meter-status.near i { background:var(--warn); box-shadow:0 0 8px var(--warn); }
+  .meter-status.boop i { background:var(--good); box-shadow:0 0 10px var(--good); }
+  .meter-status.bad i { background:var(--bad); }
+  .meter-status span { margin-left:auto; font-weight:400; font-size:13px; color:var(--dim); white-space:nowrap; }
+  .gauge-head { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:var(--dim); margin-bottom:6px; }
+  .gauge-head b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
+  .gauge { position:relative; height:10px; border-radius:5px; background:#2a3448; }
+  .gauge > i { display:block; height:100%; width:0; border-radius:5px; background:var(--accent); transition:width .25s; }
+  .gauge > em { position:absolute; top:-5px; bottom:-5px; width:3px; margin-left:-1px; border-radius:2px; background:var(--warn); left:50%; }
+  .gauge.over > i { background:var(--good); }
+  .gauge.idle { opacity:.4; }
 
   /* system monitor */
   .stats { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
-  .stat { display:grid; gap:4px; align-content:start; background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+  .stat { display:grid; gap:4px; align-content:start; background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; min-width:0; }
   .stat span { font-size:12px; color:var(--dim); }
   .stat b { font-size:16px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .stat.ok b { color:#3ddc97; }
+  .stat.wide { grid-column:1 / -1; }
+  .stat.wide b { white-space:normal; font-size:15px; }
+  .stat.ok b { color:var(--good); }
   .stat.bad b { color:var(--bad); }
   .bar { display:block; height:6px; margin-top:2px; border-radius:3px; background:#2a3448; overflow:hidden; }
   .bar > i { display:block; height:100%; width:0; background:var(--accent); transition:width .4s; }
-  .stat.warn .bar > i { background:#ffb84d; }
+  .stat.warn .bar > i { background:var(--warn); }
+
+  /* tilt positions */
+  .xyz { display:grid; grid-template-columns:44px 1fr 1fr 1fr auto; gap:8px; align-items:center; }
+  .xyz + .xyz { margin-top:10px; }
+  .xyz > span { font-size:13px; font-weight:600; color:var(--dim); }
+  .xyz input { min-height:42px; padding:8px; text-align:center; }
+  @media (max-width:430px) {
+    .xyz { grid-template-columns:1fr 1fr 1fr; }
+    .xyz > span { grid-column:1 / -1; margin-top:4px; }
+    .xyz .btn { grid-column:1 / -1; }
+  }
 
   /* scrolling text */
   .textform { display:flex; gap:8px; }
   .textform input { flex:1; min-width:0; }
   .textform .btn { flex:none; }
-  .btn:disabled { opacity:.6; cursor:wait; }
   .seg { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-top:10px; }
   .seg.two { grid-template-columns:repeat(2, 1fr); }
   .seg label { position:relative; display:flex; align-items:center; justify-content:center; min-height:42px; cursor:pointer;
-               border:1px solid var(--line); border-radius:10px; background:var(--surface2); font-weight:600; font-size:14px; }
+               border:1px solid var(--line); border-radius:10px; background:var(--surface2); font-weight:600;
+               font-size:13px; padding:4px 6px; text-align:center; line-height:1.15; }
   .seg input { position:absolute; opacity:0; pointer-events:none; }
   .seg label.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
-  .seg label { font-size:13px; padding:4px 6px; text-align:center; line-height:1.15; }
 
-  footer { text-align:center; color:var(--dim); font-size:13px; padding:4px 16px 28px; }
+  .wifi { display:grid; gap:10px; padding:14px 16px; }
+  .wifi label { display:grid; gap:6px; font-size:13px; color:var(--dim); }
+
+  footer { text-align:center; color:var(--dim); font-size:13px; padding:8px 16px 4px; }
   .rainbow-text { font-weight:bold; text-decoration:none;
     background-image:repeating-linear-gradient(45deg, violet, indigo, blue, green, yellow, orange, red, violet); background-size:800% 800%;
     -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:rainbow 8s ease infinite; }
   @keyframes rainbow { 0% {background-position:0% 50%} 50% {background-position:100% 25%} 100% {background-position:0% 50%} }
 
-  .toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:20; max-width:calc(100% - 32px);
+  .toast { position:fixed; left:50%; bottom:calc(76px + env(safe-area-inset-bottom)); z-index:20; max-width:calc(100% - 32px);
     transform:translate(-50%, 16px); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
     background:#1f2a3d; border:1px solid var(--line); border-radius:12px; padding:12px 18px; font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,.45); }
   .toast.show { opacity:1; transform:translate(-50%, 0); }
@@ -196,165 +247,266 @@
 </header>
 
 <main>
-  <section class="card">
-    <div class="card-head"><h2>Faces</h2><button class="linkbtn" type="button" id="manageBtn">Manage</button></div>
-    <div class="faces" id="faces"><p class="empty">Loading faces…</p></div>
-  </section>
+  <!-- ================= MASK ================= -->
+  <div class="view" id="view-mask">
+    <section class="card">
+      <div class="card-head"><h2>Faces</h2><button class="linkbtn" type="button" id="manageBtn">Manage</button></div>
+      <div class="faces" id="faces"><p class="empty">Loading faces…</p></div>
+    </section>
 
-  <section class="card">
-    <h2>Scrolling text</h2>
-    <form id="textForm" class="textform" autocomplete="off">
-      <input type="text" id="scrollText" maxlength="64" placeholder="Type a message, press Enter" enterkeyhint="send" aria-label="Message">
-      <button class="btn primary" type="submit">Show</button>
-    </form>
-    <div class="seg" id="speedSeg" role="radiogroup" aria-label="Scroll speed">
-      <label><input type="radio" name="speed" value="160">Very slow</label>
-      <label><input type="radio" name="speed" value="90">Slow</label>
-      <label class="on"><input type="radio" name="speed" value="55" checked>Normal</label>
-      <label><input type="radio" name="speed" value="30">Fast</label>
-    </div>
-    <div class="seg two" id="repeatSeg" role="radiogroup" aria-label="Repeat">
-      <label class="on"><input type="radio" name="repeat" value="loop" checked>Repeat</label>
-      <label><input type="radio" name="repeat" value="once">Play once</label>
-    </div>
-    <p class="hint">Scrolls across the mouth panels while the eyes keep the current face. Repeat keeps going until you tap a face; Play once goes back to that face after one pass.</p>
-  </section>
-
-  <section class="card">
-    <h2>Display</h2>
-    <div class="control">
-      <div class="control-head"><label for="brightness">Brightness</label><output id="brightnessVal">5</output></div>
-      <input type="range" min="0" max="15" value="5" id="brightness">
-    </div>
-    <div class="control">
-      <div class="control-head"><label for="fanspeed">Fan</label><output id="fanVal">100%</output></div>
-      <input type="range" min="0" max="255" value="255" id="fanspeed">
-    </div>
-    <div class="control">
-      <div class="control-head"><label for="transMs">Transition</label><output id="transMsVal">80 ms</output></div>
-      <input type="range" min="20" max="400" step="10" value="80" id="transMs">
-    </div>
-    <p class="hint">Transition is how long the panels take to dim away when the face changes, and the same again coming back. Saves as soon as you let go. Needs Transitions switched on below.</p>
-  </section>
-
-  <section class="card">
-    <h2>Features</h2>
-    <div class="switches">
-      <label class="switch">Boop <input type="checkbox" id="boop"></label>
-      <label class="switch">Speech <input type="checkbox" id="speech"></label>
-      <label class="switch">Tilt <input type="checkbox" id="tilt"></label>
-      <label class="switch">Remote (BLE) <input type="checkbox" id="ble"></label>
-      <label class="switch">OLED <input type="checkbox" id="oled"></label>
-      <label class="switch">Auto sleep <input type="checkbox" id="sleepAuto"></label>
-      <label class="switch">Transitions <input type="checkbox" id="trans"></label>
-      <label class="switch">Mouth bob <input type="checkbox" id="bob"></label>
-      <label class="switch">Boop counter <input type="checkbox" id="boopCount"></label>
-    </div>
-    <p class="hint">Switches take effect the moment you flip them. Remote (BLE) starts at the next restart.</p>
-  </section>
-
-  <section class="card">
-    <h2>System</h2>
-    <div class="stats">
-      <div class="stat"><span>Uptime</span><b id="stUptime">—</b></div>
-      <div class="stat"><span>Chip temperature</span><b id="stTemp">—</b></div>
-      <div class="stat"><span>Loop speed</span><b id="stLoop">—</b></div>
-      <div class="stat"><span>WiFi devices</span><b id="stClients">—</b></div>
-      <div class="stat"><span>Memory</span><b id="stHeap">—</b><i class="bar"><i id="stHeapBar"></i></i></div>
-      <div class="stat"><span>PSRAM</span><b id="stPsram">—</b><i class="bar"><i id="stPsramBar"></i></i></div>
-      <div class="stat"><span>Storage</span><b id="stFs">—</b><i class="bar"><i id="stFsBar"></i></i></div>
-      <div class="stat"><span>Face frame</span><b id="stFrame">—</b></div>
-      <div class="stat"><span>Tilt sensor</span><b id="stTilt">—</b></div>
-      <div class="stat"><span>Boop sensor</span><b id="stBoop">—</b></div>
-      <div class="stat"><span>Boops</span><b id="stBoops">—</b></div>
-      <div class="stat"><span>I2C devices</span><b id="stI2c">—</b></div>
-      <div class="stat"><span>Boop reading</span><b id="stBoopSig">—</b></div>
-      <div class="stat"><span>Ambient light</span><b id="stAls">—</b></div>
-    </div>
-    <p class="hint">Updates every 2 seconds while this page is open.</p>
-  </section>
-
-  <section class="card">
-    <h2>Tools</h2>
-    <div class="tools">
-      <a class="btn" href="/animator.html">Animator</a>
-      <button class="btn" type="button" onclick="document.getElementById('zipInput').click()">Upload faces</button>
-      <button class="btn" type="button" onclick="downloadZip()">Download faces</button>
-      <button class="btn" type="button" onclick="document.getElementById('cfgFile').click()">Load config</button>
-      <a class="btn" href="/config.json" download>Download config</a>
-      <a class="btn" href="/update.html">Update firmware</a>
-    </div>
-    <input type="file" id="cfgFile" hidden accept=".json">
-    <input type="file" id="zipInput" hidden accept=".zip,.json">
-    <p class="hint">Upload faces takes a single .json face or a .zip of them. Faces with the same name are replaced.</p>
-  </section>
-
-  <details class="card">
-    <summary>Advanced settings</summary>
-    <form id="advForm">
-      <div class="fields">
-        <div class="field"><label for="bOled">OLED brightness <small>0–2, default 2</small></label>
-          <input type="number" id="bOled" name="bOled" min="0" max="2"></div>
-        <div class="field"><label for="spMin">Speech quiet level <small>100–2000, default 850</small></label>
-          <input type="number" id="spMin" name="spMin" min="100" max="2000"></div>
-        <div class="field"><label for="spMax">Speech range <small>200–800, default 500</small></label>
-          <input type="number" id="spMax" name="spMax" min="200" max="800"></div>
-        <div class="field"><label for="spTrig">Speech trigger point <small>2–100, default 10</small></label>
-          <input type="number" id="spTrig" name="spTrig" min="2" max="100"></div>
-        <div class="field"><label for="boopThresh">Boop distance <small>how far above resting counts as a boop</small></label>
-          <div class="inline"><input type="number" id="boopThresh" name="boopThresh" min="1" max="250">
-            <button class="btn" type="button" onclick="readBoop()">Read</button>
-            <button class="btn" type="button" onclick="calBoop()">Calibrate</button></div></div>
-        <div class="field"><label for="aTilt">Tilt-sideways face</label><select id="aTilt" name="aTilt"></select></div>
-        <div class="field"><label for="aUp">Tilt-up face</label><select id="aUp" name="aUp"></select></div>
-        <div class="field"><label for="aBoop">Boop face</label><select id="aBoop" name="aBoop"></select></div>
-        <div class="field"><label for="aSleep">Sleeping face</label><select id="aSleep" name="aSleep"></select></div>
-        <div class="field"><label for="sleepMins">Sleep after <small>minutes of stillness</small></label>
-          <input type="number" id="sleepMins" name="sleepMins" min="1" max="120"></div>
-        <div class="field"><label for="sleepTol">Wake sensitivity <small>0.02–1, lower wakes easier</small></label>
-          <input type="number" id="sleepTol" name="sleepTol" step="any" min="0.02" max="1"></div>
-        <div class="field"><label>Boop counter <small>total so far</small></label>
-          <div class="inline"><input type="text" id="boopTotal" value="—" readonly>
-            <button class="btn" type="button" onclick="resetBoops()">Reset</button></div></div>
-        <div class="field"><label for="wifiName">WiFi name <small>9+ characters</small></label>
-          <input type="text" id="wifiName" name="wifiName" minlength="9" autocomplete="off"></div>
-        <div class="field"><label for="wifiPass">WiFi password <small>9+ characters</small></label>
-          <input type="text" id="wifiPass" name="wifiPass" minlength="9" autocomplete="off"></div>
+    <section class="card">
+      <h2>Brightness</h2>
+      <div class="control">
+        <div class="control-head"><label for="brightness">Panels</label><output id="brightnessVal">5</output></div>
+        <input type="range" min="0" max="15" value="5" id="brightness">
       </div>
-      <p class="hint">Boop: the sensor always sees some of its own light reflecting off the inside of the visor, so it never reads zero at rest. The mask tracks that resting level by itself; <b>Calibrate</b> resets it to right now, with nothing near the visor. Press <b>Read</b> with nothing near (it should be close to 0) and again with your hand on the visor, and set Boop distance between the two. A boop needs the reading above it for three checks in a row.</p>
-      <p class="hint">If Read still shows a large number with nothing near the visor after calibrating, the visor is reflecting too much straight back into the sensor. Check <b>Boop reading</b> on the System card: if raw is near 255 there is no room left to detect anything, and the sensor needs a light barrier between its LED and its detector, or to sit closer to the visor with no air gap.</p>
-      <p class="hint">Change the WiFi name if other ProtoESP protogens are nearby, so their remotes don't connect to yours. You'll need to reconnect after the mask restarts.</p>
-      <button class="btn primary block" type="submit">Save settings</button>
-    </form>
-  </details>
+    </section>
 
-  <details class="card">
-    <summary>Tilt calibration</summary>
-    <form id="tiltForm">
-      <div class="xyz"><span>Idle</span>
-        <input type="number" name="neutralX" step="any" min="-1" max="1" placeholder="X" aria-label="Idle X">
-        <input type="number" name="neutralY" step="any" min="-1" max="1" placeholder="Y" aria-label="Idle Y">
-        <input type="number" name="neutralZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Idle Z">
-        <button class="btn" type="button" onclick="pullFor('Neutral')">Read</button></div>
-      <div class="xyz"><span>Tilt</span>
-        <input type="number" name="tiltX" step="any" min="-1" max="1" placeholder="X" aria-label="Tilt X">
-        <input type="number" name="tiltY" step="any" min="-1" max="1" placeholder="Y" aria-label="Tilt Y">
-        <input type="number" name="tiltZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Tilt Z">
-        <button class="btn" type="button" onclick="pullFor('Tilt')">Read</button></div>
-      <div class="xyz"><span>Up</span>
-        <input type="number" name="upX" step="any" min="-1" max="1" placeholder="X" aria-label="Up X">
-        <input type="number" name="upY" step="any" min="-1" max="1" placeholder="Y" aria-label="Up Y">
-        <input type="number" name="upZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Up Z">
-        <button class="btn" type="button" onclick="pullFor('Up')">Read</button></div>
-      <div class="field" style="margin-top:14px"><label for="tiltTol">Tolerance <small>0.01–1</small></label>
-        <input type="number" id="tiltTol" name="tiltTol" step="any" min="0.01" max="1"></div>
-      <p class="hint">Hold your head in each position and press Read to capture it from the accelerometer.</p>
-      <button class="btn primary block" type="submit">Save tilt</button>
-    </form>
-  </details>
+    <section class="card">
+      <h2>Scrolling text</h2>
+      <form id="textForm" class="textform" autocomplete="off">
+        <input type="text" id="scrollText" maxlength="64" placeholder="Type a message" enterkeyhint="send" aria-label="Message">
+        <button class="btn primary" type="submit">Show</button>
+      </form>
+      <div class="seg" id="speedSeg" role="radiogroup" aria-label="Scroll speed">
+        <label><input type="radio" name="speed" value="160">Very slow</label>
+        <label><input type="radio" name="speed" value="90">Slow</label>
+        <label class="on"><input type="radio" name="speed" value="55" checked>Normal</label>
+        <label><input type="radio" name="speed" value="30">Fast</label>
+      </div>
+      <div class="seg two" id="repeatSeg" role="radiogroup" aria-label="Repeat">
+        <label class="on"><input type="radio" name="repeat" value="loop" checked>Repeat</label>
+        <label><input type="radio" name="repeat" value="once">Play once</label>
+      </div>
+      <p class="hint">Scrolls across the mouth while the eyes keep the current face. Repeat runs until you tap a face; Play once goes back to it after one pass.</p>
+    </section>
+  </div>
 
-  <footer>Coded by <a target="_blank" href="https://github.com/ncplyn" class="rainbow-text">@NCPlyn</a></footer>
+  <!-- ================= SETTINGS ================= -->
+  <div class="view" id="view-settings" hidden>
+    <p class="hint" style="margin:0 4px">Every setting here saves the moment you change it.</p>
+
+    <!-- Boop -->
+    <section class="section">
+      <h2 class="section-title">Boop</h2>
+      <div class="group" data-group="boopEna">
+        <label class="row"><span class="row-text"><b>Boop</b><small>Change face when something touches the snout</small></span>
+          <input type="checkbox" class="toggle" data-key="boopEna" data-label="Boop"></label>
+
+        <div class="meter dep" aria-live="off">
+          <div class="meter-status" id="boopStatus"><i></i><b id="boopStatusText">Waiting for the sensor…</b><span id="boopIgnored"></span></div>
+          <div>
+            <div class="gauge-head"><span>Closeness</span><b id="proxText">—</b></div>
+            <div class="gauge" id="proxGauge"><i></i><em></em></div>
+          </div>
+          <div>
+            <div class="gauge-head"><span>Shadow</span><b id="shadeText">—</b></div>
+            <div class="gauge" id="shadeGauge"><i></i><em></em></div>
+          </div>
+        </div>
+
+        <div class="row dep"><span class="row-text"><b>Boop distance</b><small>How close counts. The yellow line on Closeness.</small></span>
+          <div class="stepper" data-key="boopThresh" data-label="Boop distance" data-min="1" data-max="250" data-step="1"><button type="button" aria-label="Less">−</button><output>15</output><button type="button" aria-label="More">+</button></div></div>
+
+        <label class="row dep"><span class="row-text"><b>Confirm with light</b><small>A boop must also shade the sensor. Stops random boops.</small></span>
+          <input type="checkbox" class="toggle" data-key="boopLightEna" data-label="Confirm with light" data-master="boopLightEna"></label>
+
+        <div class="row stack dep" data-group="boopLightEna">
+          <div class="control-head dep"><label for="boopShade"><b>Shadow needed</b></label><output id="boopShadeVal">30%</output></div>
+          <input type="range" class="dep" min="5" max="90" step="5" value="30" id="boopShade" data-key="boopShade" data-label="Shadow needed">
+        </div>
+
+        <div class="row dep"><span class="row-text"><b>Boop face</b></span>
+          <select id="aBoop" data-key="aBoop" data-label="Boop face" aria-label="Boop face"></select></div>
+
+        <div class="row dep"><span class="row-text"><b>Resting level</b><small>Press with nothing near the visor</small></span>
+          <button class="btn small" type="button" onclick="calBoop()">Calibrate</button></div>
+
+        <details class="sub dep">
+          <summary><span>How to set it up</span></summary>
+          <div class="sub-body">
+            <p class="hint">1. With nothing near the visor, press <b>Calibrate</b>. Closeness should sit near 0.</p>
+            <p class="hint">2. Hold your hand on the snout and watch Closeness. Set <b>Boop distance</b> about halfway between resting and your hand.</p>
+            <p class="hint">3. In normal light, your hand should push <b>Shadow</b> well past its yellow line. If it doesn't, lower <b>Shadow needed</b>.</p>
+            <p class="hint">In the dark there's no light to shade, so boops go on closeness alone and the Shadow bar greys out. Random boops that are ignored are counted at the top right of the meter.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Boop counter -->
+    <section class="section">
+      <h2 class="section-title">Boop counter</h2>
+      <div class="group" data-group="boopCountEna">
+        <label class="row"><span class="row-text"><b>Show the count</b><small>Pops up on the nose after each boop</small></span>
+          <input type="checkbox" class="toggle" data-key="boopCountEna" data-label="Boop counter"></label>
+        <div class="row"><span class="row-text"><b id="boopTotal">—</b><small>boops so far</small></span>
+          <button class="btn small danger" type="button" onclick="resetBoops()">Reset</button></div>
+      </div>
+    </section>
+
+    <!-- Face changes -->
+    <section class="section">
+      <h2 class="section-title">Face changes</h2>
+      <div class="group" data-group="transEna">
+        <label class="row"><span class="row-text"><b>Transitions</b><small>Dim away and back when the face changes</small></span>
+          <input type="checkbox" class="toggle" data-key="transEna" data-label="Transitions"></label>
+        <div class="row stack dep">
+          <div class="control-head"><label for="transMs"><b>Transition speed</b></label><output id="transMsVal">80 ms</output></div>
+          <input type="range" min="20" max="400" step="10" value="80" id="transMs" data-key="transMs" data-label="Transition speed">
+        </div>
+      </div>
+      <div class="group" style="margin-top:10px">
+        <label class="row"><span class="row-text"><b>Mouth bob</b><small>The mouth lifts a pixel every second or so</small></span>
+          <input type="checkbox" class="toggle" data-key="bobEna" data-label="Mouth bob"></label>
+      </div>
+    </section>
+
+    <!-- Sleep -->
+    <section class="section">
+      <h2 class="section-title">Sleep</h2>
+      <div class="group" data-group="sleepEna">
+        <label class="row"><span class="row-text"><b>Auto sleep</b><small>Sleeping face when you've been still a while</small></span>
+          <input type="checkbox" class="toggle" data-key="sleepEna" data-label="Auto sleep"></label>
+        <div class="row dep"><span class="row-text"><b>Sleep after</b><small>Minutes of stillness</small></span>
+          <div class="stepper" data-key="sleepMins" data-label="Sleep after" data-min="1" data-max="120" data-step="1" data-unit=" min"><button type="button" aria-label="Less">−</button><output>5 min</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row dep"><span class="row-text"><b>Wake sensitivity</b><small>Lower wakes with less movement</small></span>
+          <div class="stepper" data-key="sleepTol" data-label="Wake sensitivity" data-min="0.02" data-max="1" data-step="0.02"><button type="button" aria-label="Less">−</button><output>0.20</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row dep"><span class="row-text"><b>Sleeping face</b></span>
+          <select id="aSleep" data-key="aSleep" data-label="Sleeping face" aria-label="Sleeping face"></select></div>
+      </div>
+    </section>
+
+    <!-- Tilt -->
+    <section class="section">
+      <h2 class="section-title">Tilt</h2>
+      <div class="group" data-group="tiltEna">
+        <label class="row"><span class="row-text"><b>Tilt faces</b><small>Change face when you tilt your head</small></span>
+          <input type="checkbox" class="toggle" data-key="tiltEna" data-label="Tilt"></label>
+        <div class="row dep"><span class="row-text"><b>Head tilted sideways</b></span>
+          <select id="aTilt" data-key="aTilt" data-label="Sideways face" aria-label="Sideways face"></select></div>
+        <div class="row dep"><span class="row-text"><b>Head tilted up</b></span>
+          <select id="aUp" data-key="aUp" data-label="Tilt-up face" aria-label="Tilt-up face"></select></div>
+        <details class="sub dep">
+          <summary><span>Calibrate positions<small>Teach it how your head sits</small></span></summary>
+          <form id="tiltForm" class="sub-body">
+            <p class="hint">Hold your head in each position and press Read.</p>
+            <div class="xyz" style="margin-top:12px"><span>Idle</span>
+              <input type="number" name="neutralX" step="any" min="-1" max="1" placeholder="X" aria-label="Idle X">
+              <input type="number" name="neutralY" step="any" min="-1" max="1" placeholder="Y" aria-label="Idle Y">
+              <input type="number" name="neutralZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Idle Z">
+              <button class="btn small" type="button" onclick="pullFor('Neutral')">Read</button></div>
+            <div class="xyz"><span>Side</span>
+              <input type="number" name="tiltX" step="any" min="-1" max="1" placeholder="X" aria-label="Sideways X">
+              <input type="number" name="tiltY" step="any" min="-1" max="1" placeholder="Y" aria-label="Sideways Y">
+              <input type="number" name="tiltZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Sideways Z">
+              <button class="btn small" type="button" onclick="pullFor('Tilt')">Read</button></div>
+            <div class="xyz"><span>Up</span>
+              <input type="number" name="upX" step="any" min="-1" max="1" placeholder="X" aria-label="Up X">
+              <input type="number" name="upY" step="any" min="-1" max="1" placeholder="Y" aria-label="Up Y">
+              <input type="number" name="upZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Up Z">
+              <button class="btn small" type="button" onclick="pullFor('Up')">Read</button></div>
+            <div class="xyz" style="grid-template-columns:1fr auto"><span style="grid-column:auto;margin:0">Tolerance <small style="font-weight:400">0.01–1</small></span>
+              <input type="number" name="tiltTol" step="any" min="0.01" max="1" style="width:96px" aria-label="Tolerance"></div>
+            <button class="btn primary" type="submit" style="width:100%;margin-top:14px">Save positions</button>
+          </form>
+        </details>
+      </div>
+    </section>
+
+    <!-- WiFi -->
+    <section class="section">
+      <h2 class="section-title">WiFi</h2>
+      <div class="group">
+        <form class="wifi" id="wifiForm" autocomplete="off">
+          <label>Network name<input type="text" id="wifiName" name="wifiName" minlength="9" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label>Password<input type="text" id="wifiPass" name="wifiPass" minlength="9" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <p class="hint" style="margin:0">9 characters or more. Change the name if other ProtoESP masks are nearby. You'll need to reconnect afterwards.</p>
+          <button class="btn primary" type="submit">Save WiFi</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Parts not fitted -->
+    <section class="section">
+      <h2 class="section-title">Parts not fitted yet</h2>
+      <div class="group">
+        <details class="sub">
+          <summary><span>Microphone, fan and remote<small>For when those parts go in</small></span></summary>
+          <div>
+            <div data-group="speechEna">
+              <label class="row"><span class="row-text"><b>Speech</b><small>Mouth moves with your voice. Needs a MAX9814 mic; with none fitted the mouth flaps randomly.</small></span>
+                <input type="checkbox" class="toggle" data-key="speechEna" data-label="Speech"></label>
+              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Quiet level</b><small>Default 850</small></span>
+                <div class="stepper" data-key="spMin" data-label="Quiet level" data-min="100" data-max="2000" data-step="50"><button type="button" aria-label="Less">−</button><output>850</output><button type="button" aria-label="More">+</button></div></div>
+              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Range</b><small>Default 500</small></span>
+                <div class="stepper" data-key="spMax" data-label="Speech range" data-min="200" data-max="800" data-step="25"><button type="button" aria-label="Less">−</button><output>500</output><button type="button" aria-label="More">+</button></div></div>
+              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Trigger point</b><small>Default 10</small></span>
+                <div class="stepper" data-key="spTrig" data-label="Trigger point" data-min="2" data-max="100" data-step="1"><button type="button" aria-label="Less">−</button><output>10</output><button type="button" aria-label="More">+</button></div></div>
+            </div>
+            <div class="row stack" style="border-top:1px solid var(--line)">
+              <div class="control-head"><label for="fanspeed"><b>Fan</b></label><output id="fanVal">100%</output></div>
+              <input type="range" min="0" max="255" value="255" id="fanspeed">
+            </div>
+            <label class="row" style="border-top:1px solid var(--line)"><span class="row-text"><b>Remote (BLE)</b><small>Starts at the next restart</small></span>
+              <input type="checkbox" class="toggle" data-key="bleEna" data-label="Remote (BLE)"></label>
+          </div>
+        </details>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= SYSTEM ================= -->
+  <div class="view" id="view-system" hidden>
+    <section class="card">
+      <h2>Status</h2>
+      <div class="stats">
+        <div class="stat"><span>Uptime</span><b id="stUptime">—</b></div>
+        <div class="stat"><span>Chip temperature</span><b id="stTemp">—</b></div>
+        <div class="stat"><span>Tilt sensor</span><b id="stTilt">—</b></div>
+        <div class="stat"><span>Boop sensor</span><b id="stBoop">—</b></div>
+        <div class="stat"><span>Memory</span><b id="stHeap">—</b><i class="bar"><i id="stHeapBar"></i></i></div>
+        <div class="stat"><span>PSRAM</span><b id="stPsram">—</b><i class="bar"><i id="stPsramBar"></i></i></div>
+        <div class="stat"><span>Storage</span><b id="stFs">—</b><i class="bar"><i id="stFsBar"></i></i></div>
+        <div class="stat"><span>WiFi devices</span><b id="stClients">—</b></div>
+        <div class="stat"><span>Loop speed</span><b id="stLoop">—</b></div>
+        <div class="stat"><span>Face frame</span><b id="stFrame">—</b></div>
+        <div class="stat wide"><span>Boop sensor readings</span><b id="stBoopSig">—</b></div>
+        <div class="stat wide"><span>Ambient light</span><b id="stAls">—</b></div>
+        <div class="stat wide"><span>I2C devices</span><b id="stI2c">—</b></div>
+      </div>
+      <p class="hint">Updates every 2 seconds while this tab is open.</p>
+    </section>
+
+    <section class="card">
+      <h2>Tools</h2>
+      <div class="tools">
+        <a class="btn" href="/animator.html">Animator</a>
+        <button class="btn" type="button" onclick="document.getElementById('zipInput').click()">Upload faces</button>
+        <button class="btn" type="button" onclick="downloadZip()">Download faces</button>
+        <button class="btn" type="button" onclick="document.getElementById('cfgFile').click()">Load config</button>
+        <a class="btn" href="/config.json" download>Download config</a>
+        <a class="btn" href="/update.html">Update firmware</a>
+      </div>
+      <input type="file" id="cfgFile" hidden accept=".json">
+      <input type="file" id="zipInput" hidden accept=".zip,.json">
+      <p class="hint">Upload faces takes a single .json face or a .zip of them. Faces with the same name are replaced.</p>
+    </section>
+
+    <footer>Coded by <a target="_blank" href="https://github.com/ncplyn" class="rainbow-text">@NCPlyn</a></footer>
+  </div>
 </main>
+
+<nav class="tabs" aria-label="Sections">
+  <div class="tabs-in" role="tablist">
+    <button class="tab on" type="button" role="tab" data-view="mask" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M7.5 10.5h2M14.5 10.5h2M8 14.5l2 1.5 2-1.5 2 1.5 2-1.5"/></svg>Mask</button>
+    <button class="tab" type="button" role="tab" data-view="settings" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Settings</button>
+    <button class="tab" type="button" role="tab" data-view="system" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></svg>System</button>
+  </div>
+</nav>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -376,12 +528,31 @@
     range.style.setProperty('--fill', ((range.value - range.min) / (range.max - range.min) * 100) + '%');
   }
 
+  /* ---------- tabs ---------- */
+  let currentView = 'mask';
+  function showView(name) {
+    if (!$('view-' + name)) name = 'mask';
+    currentView = name;
+    for (const t of document.querySelectorAll('.tab')) {
+      const on = t.dataset.view === name;
+      t.classList.toggle('on', on);
+      t.setAttribute('aria-selected', String(on));
+    }
+    for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + name;
+    try { localStorage.setItem('tab', name); } catch (e) {}
+    window.scrollTo(0, 0);
+    scheduleStats(true);
+  }
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showView(t.dataset.view)));
+
   /* ---------- faces ---------- */
   function setActive(name) {
     if (/\.json$/.test(name)) lastFace = name;
     $('activeAnim').textContent = name === 'POSTAnimLoad' ? 'Custom' : (name.replace(/\.json$/, '') || '—');
     document.querySelectorAll('.face').forEach(b => b.classList.toggle('on', b.dataset.anim === name));
   }
+
+  const FACE_PICKERS = ['aTilt', 'aUp', 'aBoop', 'aSleep'];
 
   async function loadFiles() {
     const parts = (await (await fetch('/getfiles', NO_CACHE)).text()).split(';');
@@ -415,11 +586,11 @@
       wrap.appendChild(acts);
       grid.appendChild(wrap);
     }
-    // face pickers in Advanced settings, keeping their current choice
-    for (const id of ['aTilt', 'aUp', 'aBoop', 'aSleep']) {
+    // face pickers in Settings, keeping their current choice
+    for (const id of FACE_PICKERS) {
       const sel = $(id), keep = sel.value;
       sel.innerHTML = '';
-      for (const name of parts) sel.add(new Option(name, name));
+      for (const name of parts) sel.add(new Option(name.replace(/\.json$/, ''), name));
       if (keep) sel.value = keep;
     }
     setActive(current);
@@ -511,7 +682,6 @@
     }));
   }
 
-  // one request at a time so the mask isn't flooded
   // The mask's web server drops a request now and then when several land together. A dropped
   // visType.txt used to leave every tile black with nothing said about it, so: retry, and if it
   // still fails, say so instead of showing blank tiles.
@@ -528,6 +698,7 @@
     throw last;
   }
 
+  // one request at a time so the mask isn't flooded
   async function loadPreviews() {
     try {
       const parsed = parseLayout(await (await fetchRetry('/visType.txt', 3)).text());
@@ -709,7 +880,16 @@
     }
   });
 
-  /* ---------- system monitor ---------- */
+  /* ---------- status polling ---------- */
+  // Every 2 s normally; faster on Settings so the boop meter feels live. Nothing while the
+  // phone screen is off or the tab is in the background.
+  let statsTimer = null;
+  function scheduleStats(now) {
+    clearTimeout(statsTimer);
+    if (now) refreshStats();
+    statsTimer = setTimeout(() => scheduleStats(true), currentView === 'settings' ? 600 : 2000);
+  }
+
   function fmtBytes(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB'; }
   function fmtUptime(s) {
     const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
@@ -725,10 +905,56 @@
     $(id).closest('.stat').classList.toggle('ok', found);
     $(id).closest('.stat').classList.toggle('bad', !found);
   }
+  function setGauge(id, pct, markPct, over, idle) {
+    const g = $(id);
+    g.querySelector('i').style.width = Math.max(0, Math.min(100, pct)) + '%';
+    g.querySelector('em').style.left = Math.max(0, Math.min(100, markPct)) + '%';
+    g.classList.toggle('over', !!over);
+    g.classList.toggle('idle', !!idle);
+  }
+
+  function updateBoopMeter(s) {
+    const status = $('boopStatus'), text = $('boopStatusText');
+    status.classList.remove('near', 'boop', 'bad');
+    if (!s.boop) {
+      status.classList.add('bad');
+      text.textContent = 'Boop sensor not found';
+      $('proxText').textContent = $('shadeText').textContent = '—';
+      setGauge('proxGauge', 0, 50, false, true);
+      setGauge('shadeGauge', 0, 30, false, true);
+      $('boopIgnored').textContent = '';
+      return;
+    }
+    const thr = stepperValue(document.querySelector('.stepper[data-key=boopThresh]'));
+    const need = Number($('boopShade').value);
+    const useLight = document.querySelector('[data-key=boopLightEna]').checked;
+    const sig = Number(s.boopSig) || 0;
+    const scale = Math.max(thr * 2, sig, 10);   // the line sits in the middle until the reading goes past it
+    setGauge('proxGauge', sig / scale * 100, thr / scale * 100, sig > thr, false);
+    $('proxText').textContent = sig + ' of ' + thr;
+
+    const hasLight = s.shade !== undefined;
+    const lightOk = hasLight && s.lightOk;
+    const shade = hasLight ? Number(s.shade) || 0 : 0;
+    setGauge('shadeGauge', shade, need, lightOk && shade >= need, !useLight || !lightOk);
+    $('shadeText').textContent = !hasLight ? '—' : !useLight ? 'Off' : !lightOk ? 'Too dark to use' : shade + '% of ' + need + '%';
+
+    if (s.booping) { status.classList.add('boop'); text.textContent = 'Booped!'; }
+    else if (sig > thr) {
+      status.classList.add('near');
+      text.textContent = useLight && lightOk && shade < need ? 'Close, but no shadow — ignored' : 'Something close…';
+    } else text.textContent = 'Nothing near';
+    $('boopIgnored').textContent = s.boopsIgnored ? s.boopsIgnored + ' ignored' : '';
+  }
+
   async function refreshStats() {
-    if (document.hidden) return;   // no polling while the phone screen is off or the tab is in the background
+    if (document.hidden) return;
     try {
       const s = await (await fetch('/stats', NO_CACHE)).json();
+      if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
+      $('boopTotal').textContent = s.boops === undefined ? '—' : s.boops;
+      if (currentView === 'settings') updateBoopMeter(s);
+      if (currentView !== 'system') return;
       $('stUptime').textContent = fmtUptime(s.uptime);
       $('stTemp').textContent = typeof s.tempC === 'number' ? s.tempC.toFixed(1) + ' °C' : '—';
       $('stLoop').textContent = s.loopHz + ' /s';
@@ -740,22 +966,19 @@
       $('stFs').textContent = fmtBytes(s.fsUsed) + ' of ' + fmtBytes(s.fsTotal);
       setBar('stFsBar', s.fsUsed, s.fsTotal);
       $('stFrame').textContent = s.frames ? (s.frame + 1) + ' of ' + s.frames : '—';
-      if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
       setSensor('stTilt', s.tilt);
       setSensor('stBoop', s.boop);
-      $('stBoops').textContent = s.boops === undefined ? '—' : s.boops;
-      $('boopTotal').value = s.boops === undefined ? '—' : s.boops;
       $('stI2c').textContent = s.i2c ? s.i2c : '—';
       $('stBoopSig').textContent = s.boopSig === undefined ? '—'
-        : s.boopSig + '  (raw ' + s.boopRaw + ', resting ' + s.boopBase + ')';
+        : 'closeness ' + s.boopSig + ' (raw ' + s.boopRaw + ', resting ' + s.boopBase + ')'
+          + (s.boopsIgnored !== undefined ? ', ' + s.boopsIgnored + ' ignored' : '');
       // CH0 is visible+IR, CH1 mostly IR. Through a tinted visor CH1 tends to dwarf CH0,
       // which is why no lux figure is shown - it would be wrong.
       $('stAls').textContent = (s.als0 === undefined || s.als0 < 0) ? '—'
-        : s.als0 + ' visible+IR, ' + s.als1 + ' IR';
+        : s.als0 + ' visible+IR, ' + s.als1 + ' IR' + (s.lightNormal >= 0 ? ' (normal ' + s.lightNormal + ', shade ' + s.shade + '%)' : '');
     } catch (e) { /* mask out of reach or older firmware: keep the last values */ }
   }
-  setInterval(refreshStats, 2000);
-  document.addEventListener('visibilitychange', refreshStats);
+  document.addEventListener('visibilitychange', () => scheduleStats(true));
 
   /* ---------- brightness and fan ---------- */
   // Brightness (MAX7219, 0-15): the panels follow the slider live, saved on release.
@@ -770,13 +993,6 @@
   $('brightness').addEventListener('input', () => sendBrightness(false));
   $('brightness').addEventListener('change', () => sendBrightness(true));
 
-  function showTrans() {
-    $('transMsVal').textContent = $('transMs').value + ' ms';
-    setFill($('transMs'));
-  }
-  $('transMs').addEventListener('input', showTrans);
-  $('transMs').addEventListener('change', () => saveParams('transMs=' + $('transMs').value, 'Transition speed saved'));
-
   function showFan() {
     $('fanVal').textContent = Math.round($('fanspeed').value / 255 * 100) + '%';
     setFill($('fanspeed'));
@@ -790,77 +1006,133 @@
     } catch (e) { toast('Could not reach the mask', true); }
   });
 
-  /* ---------- settings ---------- */
-  function loadIntoInputs(jsonText) {
-    const o = JSON.parse(jsonText);
-    $('boop').checked = o.boopEna; $('speech').checked = o.speechEna; $('tilt').checked = o.tiltEna;
-    $('ble').checked = o.bleEna;   $('oled').checked = o.oledEna;
-    $('sleepAuto').checked = o.sleepEna;
-    $('trans').checked = o.transEna !== false; //on unless the mask says otherwise
-    $('bob').checked = !!o.bobEna;
-    $('boopCount').checked = o.boopCountEna !== false;
-    for (const k of ['bOled', 'spMin', 'spMax', 'spTrig', 'aTilt', 'aUp', 'aBoop', 'aSleep', 'sleepMins', 'sleepTol', 'boopThresh', 'wifiName', 'wifiPass',
-                     'neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol']) {
-      if (o[k] !== undefined) byName(k).value = o[k];
-    }
-    $('fanspeed').value = o.fanDuty; showFan();
-    $('transMs').value = o.transMs === undefined ? 80 : o.transMs; showTrans();
-    const bri = Math.min(15, Math.max(0, o.bVisor));
-    $('brightness').value = bri; $('brightnessVal').textContent = bri; setFill($('brightness'));
-    lastBrightness = String(bri);
-  }
-
-  async function loadConfig() {
-    loadIntoInputs(await (await fetch('/config.json', NO_CACHE)).text());
-  }
+  /* ---------- settings: every control saves itself ---------- */
+  // Each control carries data-key, the setting name /saveconfig takes. Only that one setting is
+  // sent, so changing one can't overwrite another. If the mask doesn't take it, the control is
+  // put back, so it never shows a state the mask isn't actually in.
 
   // /saveconfig answers with a redirect to saved.html when it worked
   async function saveParams(params, okMsg) {
     try {
       const r = await fetch('/saveconfig?' + params, NO_CACHE);
-      if (r.url.includes('saved.html')) toast(okMsg);
-      else toast(await r.text(), true);
+      if (r.url.includes('saved.html')) { if (okMsg) toast(okMsg); return true; }
+      toast(await r.text(), true);
     } catch (e) { toast('Could not reach the mask', true); }
+    return false;
   }
 
-  function saveFeatures() {
-    const p = new URLSearchParams();
-    for (const [key, id] of [['boopEna', 'boop'], ['speechEna', 'speech'], ['tiltEna', 'tilt'], ['bleEna', 'ble'], ['oledEna', 'oled'], ['sleepEna', 'sleepAuto'], ['transEna', 'trans'], ['bobEna', 'bob'], ['boopCountEna', 'boopCount']]) {
-      p.set(key, $(id).checked);
+  const RANGE_UNITS = {boopShade: v => v + '%', transMs: v => v + ' ms'};
+  function showRange(el) {
+    const out = $(el.id + 'Val');
+    if (out) out.textContent = RANGE_UNITS[el.dataset.key] ? RANGE_UNITS[el.dataset.key](el.value) : el.value;
+    setFill(el);
+  }
+
+  function stepDecimals(st) { return (st.dataset.step.split('.')[1] || '').length; }
+  function stepperValue(st) { return st._v === undefined ? Number(st.querySelector('output').textContent) || 0 : st._v; }
+  function setStepper(st, v) {
+    const min = Number(st.dataset.min), max = Number(st.dataset.max), dec = stepDecimals(st);
+    v = Math.min(max, Math.max(min, Number(v)));
+    st._v = Number(v.toFixed(dec));
+    st.querySelector('output').textContent = st._v.toFixed(dec) + (st.dataset.unit || '');
+  }
+
+  function controlValue(el) {
+    if (el.classList.contains('stepper')) return stepperValue(el);
+    if (el.type === 'checkbox') return el.checked;
+    return el.value;
+  }
+  function setControl(el, v) {
+    if (el.classList.contains('stepper')) setStepper(el, v);
+    else if (el.type === 'checkbox') el.checked = !!v;
+    else { el.value = v; if (el.type === 'range') showRange(el); }
+  }
+
+  // Greys out the rows that belong to a switch that's off. Each row answers only to its nearest
+  // group, and nothing inside a row that's already greyed is greyed again, so it never doubles up.
+  function updateDeps() {
+    const isOff = g => {
+      const master = document.querySelector('.toggle[data-key=' + g.dataset.group + ']');
+      return !!master && !master.checked;
+    };
+    for (const d of document.querySelectorAll('.dep')) {
+      const g = d.parentElement.closest('[data-group]');
+      const dimmedAbove = d.parentElement.closest('.dep.dim');
+      d.classList.toggle('dim', !!g && isOff(g) && !dimmedAbove);
     }
-    saveParams(p.toString(), 'Features saved');
   }
 
-  // Each switch saves itself the moment it's flipped - there's no Save button. Only that one
-  // setting is sent, so flipping one can't overwrite another. If the mask doesn't take it, the
-  // switch is put back, so it never shows a state the mask isn't actually in.
-  const FEATURE_SWITCHES = [
-    ['boopEna', 'boop', 'Boop'], ['speechEna', 'speech', 'Speech'], ['tiltEna', 'tilt', 'Tilt'],
-    ['bleEna', 'ble', 'Remote (BLE)'], ['oledEna', 'oled', 'OLED'], ['sleepEna', 'sleepAuto', 'Auto sleep'],
-    ['transEna', 'trans', 'Transitions'], ['bobEna', 'bob', 'Mouth bob'], ['boopCountEna', 'boopCount', 'Boop counter']];
-  for (const [key, id, label] of FEATURE_SWITCHES) {
-    $(id).addEventListener('change', async e => {
-      const box = e.target, on = box.checked;
-      box.disabled = true;
-      try {
-        const r = await fetch('/saveconfig?' + key + '=' + on, NO_CACHE);
-        if (!r.url.includes('saved.html')) throw new Error(await r.text());
-        toast(label + (on ? ' on' : ' off') + (key === 'bleEna' ? ' — starts after a restart' : ''));
-      } catch (err) {
-        box.checked = !on;
-        toast('Could not change ' + label, true);
-      }
-      box.disabled = false;
-    });
+  async function saveControl(el, previous) {
+    const key = el.dataset.key, label = el.dataset.label || key, v = controlValue(el);
+    const isSwitch = el.type === 'checkbox';
+    if (isSwitch) el.disabled = true;
+    const msg = isSwitch ? label + (v ? ' on' : ' off') + (key === 'bleEna' ? ' — starts after a restart' : '')
+      : label + ' saved';
+    const ok = await saveParams(key + '=' + encodeURIComponent(v), msg);
+    if (!ok && previous !== undefined) { setControl(el, previous); }
+    if (isSwitch) el.disabled = false;
+    updateDeps();
   }
 
-  $('advForm').addEventListener('submit', e => {
-    e.preventDefault();
-    saveParams(new URLSearchParams(new FormData(e.target)).toString(), 'Settings saved');
-  });
+  for (const el of document.querySelectorAll('[data-key]')) {
+    if (el.classList.contains('stepper')) {
+      const [less, more] = el.querySelectorAll('button');
+      let before;
+      const bump = dir => {
+        if (el._timer === undefined || el._timer === null) before = stepperValue(el);
+        setStepper(el, stepperValue(el) + dir * Number(el.dataset.step));
+        clearTimeout(el._timer);
+        // a burst of taps saves once, a moment after the last
+        el._timer = setTimeout(() => { el._timer = null; if (stepperValue(el) !== before) saveControl(el, before); }, 700);
+      };
+      less.addEventListener('click', () => bump(-1));
+      more.addEventListener('click', () => bump(1));
+    } else if (el.type === 'range') {
+      el.addEventListener('input', () => showRange(el));
+      el.addEventListener('change', () => saveControl(el));
+    } else if (el.type === 'checkbox') {
+      el.addEventListener('change', () => { updateDeps(); saveControl(el, !el.checked); });
+    } else {
+      let before = el.value;
+      el.addEventListener('focus', () => { before = el.value; });
+      el.addEventListener('change', () => { saveControl(el, before); before = el.value; });
+    }
+  }
+
+  const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol'];
+  const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, transMs: 80, sleepTol: 0.2, sleepMins: 5};
+
+  function loadIntoInputs(o) {
+    for (const el of document.querySelectorAll('[data-key]')) {
+      const key = el.dataset.key;
+      const v = o[key] !== undefined ? o[key] : DEFAULTS[key];
+      if (v !== undefined) setControl(el, v);
+    }
+    for (const k of TILT_KEYS.concat(['wifiName', 'wifiPass'])) if (o[k] !== undefined) byName(k).value = o[k];
+    if (o.fanDuty !== undefined) { $('fanspeed').value = o.fanDuty; showFan(); }
+    if (o.bVisor !== undefined) {
+      const bri = Math.min(15, Math.max(0, o.bVisor));
+      $('brightness').value = bri; $('brightnessVal').textContent = bri; setFill($('brightness'));
+      lastBrightness = String(bri);
+    }
+    updateDeps();
+  }
+
+  async function loadConfig() {
+    loadIntoInputs(await (await fetch('/config.json', NO_CACHE)).json());
+  }
+
   $('tiltForm').addEventListener('submit', e => {
     e.preventDefault();
-    saveParams(new URLSearchParams(new FormData(e.target)).toString(), 'Tilt saved');
+    saveParams(new URLSearchParams(new FormData(e.target)).toString(), 'Tilt positions saved');
+  });
+
+  $('wifiForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('wifiName').value.trim(), pass = $('wifiPass').value;
+    if (name.length < 9 || pass.length < 9) { toast('Name and password need 9 characters or more', true); return; }
+    if (!confirm('Save the new WiFi details? You\'ll need to reconnect to "' + name + '" afterwards.')) return;
+    saveParams(new URLSearchParams({wifiName: name, wifiPass: pass}).toString(), 'WiFi saved');
   });
 
   async function pullFor(what) {
@@ -870,11 +1142,10 @@
       const xyz = text.split(';').map(parseFloat);
       if (xyz.length !== 3 || xyz.some(isNaN)) { toast(text, true); return; }   // e.g. "Tilt sensor (BMI270) not found"
       ['X', 'Y', 'Z'].forEach((axis, i) => { byName(prefix + axis).value = xyz[i].toFixed(2); });
-      toast((what === 'Neutral' ? 'Idle' : what) + ' position read');
+      toast({Neutral: 'Idle', Tilt: 'Sideways', Up: 'Up'}[what] + ' position read');
     } catch (e) { toast('Could not read the tilt sensor', true); }
   }
 
-  // Boop sensor reading for setting Boop distance: lower means something is closer
   async function resetBoops() {
     if (!confirm('Set the boop counter back to zero?')) return;
     await saveParams('boopCount=0', 'Boop counter reset');
@@ -882,31 +1153,31 @@
   }
 
   async function calBoop() {
-    if (!confirm('Measure the resting reading? Keep everything away from the visor.')) return;
+    if (!confirm('Measure the resting level? Keep everything away from the visor.')) return;
     try {
       await fetch('/boopcal', NO_CACHE);
-      toast('Measuring… give it a second, then press Read');
-      setTimeout(refreshStats, 1200);
+      toast('Measuring… keep clear for a second');
     } catch (e) { toast('Could not reach the mask', true); }
   }
 
-  async function readBoop() {
-    try {
-      const t = (await (await fetch('/tof', NO_CACHE)).text()).trim();
-      if (isNaN(parseFloat(t))) toast(t, true); else toast('Boop sensor reads ' + t);
-    } catch (e) { toast('Could not reach the mask', true); }
-  }
-
+  // Load config: everything in the file is applied and saved in one go, apart from WiFi (which
+  // would drop this connection) and the boop total and resting level, which belong to this mask.
   $('cfgFile').addEventListener('change', function () {
     const file = this.files[0];
     this.value = '';
-    if (!file || !file.name.includes('config.json')) { toast('Pick a config.json file', true); return; }
+    if (!file || !/\.json$/i.test(file.name)) { toast('Pick a config.json file', true); return; }
     const reader = new FileReader();
-    reader.onload = e => {
-      if (!e.target.result.includes('wifiName')) { toast('That doesn\'t look like a config file', true); return; }
-      loadIntoInputs(e.target.result);
-      saveFeatures();   // switches have no Save button, so apply the loaded ones straight away
-      toast('Config loaded. Features applied; save the other sections to keep them.');
+    reader.onload = async e => {
+      let o;
+      try { o = JSON.parse(e.target.result); } catch (err) { o = null; }
+      if (!o || o.wifiName === undefined) { toast('That doesn\'t look like a config file', true); return; }
+      const keys = new Set([...document.querySelectorAll('[data-key]')].map(el => el.dataset.key).concat(TILT_KEYS, ['bVisor']));
+      const p = new URLSearchParams();
+      for (const k of keys) if (o[k] !== undefined) p.set(k, o[k]);
+      if (await saveParams(p.toString(), 'Config loaded and saved')) {
+        loadIntoInputs(Object.assign({}, o, {wifiName: $('wifiName').value, wifiPass: $('wifiPass').value}));
+        if (o.bVisor !== undefined) sendBrightness(true);
+      }
     };
     reader.readAsText(file, 'UTF-8');
   });
@@ -987,8 +1258,8 @@
   /* ---------- face manager ---------- */
   const BOOT_FACE = 'default.json';   // what the firmware loads at startup
   const onMask = () => (document.querySelector('.face.on') || {dataset: {}}).dataset.anim;
-  // the four face pickers in Advanced settings that could be left pointing at a gone name
-  const usedInSettings = name => ['aTilt', 'aUp', 'aBoop', 'aSleep'].filter(id => $(id).value === name);
+  // the face pickers in Settings that could be left pointing at a gone name
+  const usedInSettings = name => FACE_PICKERS.filter(id => $(id).value === name);
 
   $('manageBtn').addEventListener('click', () => {
     const on = $('faces').classList.toggle('managing');
@@ -1007,7 +1278,7 @@
       delete animCache[name];
       await loadFiles();
       loadPreviews();
-      toast(used.length ? 'Deleted. Advanced settings still point at it — pick another face there.' : label + ' deleted');
+      toast(used.length ? 'Deleted. Settings still point at it — pick another face there.' : label + ' deleted');
     } catch (e) { toast('Could not reach the mask', true); }
   }
 
@@ -1029,14 +1300,17 @@
       if (wasOn) await fetch('/change?anim=' + encodeURIComponent(label + '.json'), {redirect: 'manual'});
       await loadFiles();
       loadPreviews();
-      toast(used.length ? 'Renamed. Advanced settings still point at the old name.' : 'Renamed to ' + label);
+      toast(used.length ? 'Renamed. Settings still point at the old name.' : 'Renamed to ' + label);
     } catch (e) { toast('Could not reach the mask', true); }
   }
 
   /* ---------- start ---------- */
   setFill($('brightness'));
   showFan();
-  showTrans();
+  document.querySelectorAll('input[type=range][data-key]').forEach(showRange);
+  let savedTab = 'mask';
+  try { savedTab = localStorage.getItem('tab') || 'mask'; } catch (e) {}
+  showView(savedTab);
   (async () => {
     try {
       await loadFiles();   // fills the face pickers before the config selects a value in them

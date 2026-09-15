@@ -19,16 +19,18 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 
 - Face tiles with previews, showing half of each face at double size since nearly all of them are mirror images
 - Face manager: upload, download, rename and delete faces without reflashing
-- Feature switches that take effect the moment they're flipped
-- Brightness, fan and transition sliders, and a power button that turns the displays off while the mask keeps running
-- A System card: uptime, temperature, memory, storage, what's on the I2C bus, and live sensor readings
+- Three tabs along the bottom — Mask, Settings, System — sized for a phone held in one hand
+- Settings grouped by feature that save the moment they're changed, with parts that aren't fitted folded out of the way
+- A live boop meter showing closeness and shadow against their trigger lines, for setting boops up
+- Brightness and transition sliders, and a power button that turns the displays off while the mask keeps running
+- A System tab: uptime, temperature, memory, storage, what's on the I2C bus, and raw sensor readings
 - The web Animator from ProtoESP, with touch drawing
 - Installs on a phone's home screen with its own icon
 
 **Sensors**
 
 - Head tilt from a BMI270
-- Boops from an APDS-9930 proximity sensor, calibrated against the visor's own reflection
+- Boops from an APDS-9930, using both its proximity sensor and its light sensor: a boop has to come close *and* cast a shadow, so stray readings don't count
 - A boop counter that pops up on the nose panels once the paw moves away
 - The I2C bus is checked every 10 seconds, and a sensor that drops out reconnects by itself without restarting the mask
 
@@ -107,7 +109,7 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Change | Where | Why |
 |---|---|---|
 | Phone-friendly redesign, MAX7219 only | `data/index.html`, `data/animator.html` | Built for phones; RGB, ear-LED and other-helmet controls removed. The old pages are in `ui_backup/` and git tag `ui-before-redesign`. |
-| Instant feature switches | `data/index.html` | No Save button. Each switch sends only its own setting and flips back if the mask doesn't accept it. Remote (BLE) still needs a restart, since BLE only starts at boot. |
+| Tabbed layout, settings that save themselves | `data/index.html` | Mask, Settings and System tabs along the bottom. Settings are grouped rows by feature — switches, steppers and face pickers instead of a long form — and each sends only its own setting the moment it changes, going back if the mask doesn't accept it. Rows under a switch that's off are greyed. OLED controls are gone (not fitted); speech, fan and the remote are folded under *Parts not fitted yet*. Tilt positions and WiFi keep a button, and Remote (BLE) still needs a restart, since BLE only starts at boot. |
 | Live sliders | `data/index.html`, `src/main.cpp` (`/brightness`) | Brightness, fan and transition apply as you drag; the main loop drives the panels, since the web server can't safely do it mid-draw |
 | Face manager, scrolling text, power button, system card, home screen icon | `data/index.html`, `src/main.cpp` | See [What it does](#what-it-does) |
 | Sleep mode and wake sensitivity | `src/main.cpp`, `data/index.html` | Sleeps after a set time without movement. Staying asleep and waking use different thresholds, so it doesn't jolt awake at a knock but still wakes easily when picked up. |
@@ -119,9 +121,10 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | BMI270 tilt sensor | `src/main.cpp` | Replaces the LSM6DS3 driver, whose chip check rejects common clones. Tries addresses 0x68 and 0x69. |
 | APDS-9930 driver | `src/main.cpp` | The 9930 answers on the same address as the APDS-9960, and the Adafruit 9960 library refuses it by device ID. It has its own small driver here, which logs the ID instead of enforcing it. |
 | Boop detection that holds up behind a visor | `src/main.cpp`, `data/index.html` | A sensor behind a visor always sees its own infrared reflecting back, so it never reads zero, and that level wanders. Readings are smoothed (the middle of the last five), the resting level is tracked automatically, and a boop needs three readings in a row to start and two to end. A boop still held after 8 s is released and taken as the new resting level, so it can never stay latched. **Calibrate** resets the resting level. |
+| Light-confirmed boops | `src/main.cpp`, `data/index.html` | Proximity alone still gave random boops through a visor. A paw close enough to boop also shades the APDS-9930's light sensor, which a bad proximity reading can't fake, so a boop must also be a set percentage darker than normal within the last second. Normal light is tracked (up fast, down slowly, frozen while something is near). Below a minimum level it's too dark to cast a shadow, and boops fall back to proximity alone. Ignored boops are counted. |
 | Boop counter | `src/main.cpp`, `data/index.html` | Counts every boop and pops the total up on the nose once the paw moves away, so it never covers the boop face. Resettable. Saved a while after the boops stop, not on every one. |
 | Sensors that recover themselves | `src/main.cpp` | The bus is swept every 10 seconds, a few addresses at a time so the animation never stalls. A sensor that stops answering is restarted automatically — and the retries no longer depend on the feature being switched on. |
-| Ambient light reading | `src/main.cpp`, `data/index.html` | Shown as raw channels on the System card, not lux: a tinted visor passes infrared far better than visible light, which throws the standard formula off |
+| Ambient light reading | `src/main.cpp`, `data/index.html` | Read every 100 ms for the shadow check. Shown as raw channels on the System tab, not lux: a tinted visor passes infrared far better than visible light, which throws the standard formula off |
 
 ### Updates
 
