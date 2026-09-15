@@ -199,10 +199,10 @@ A mask still on the old 8MB table needs one USB flash before over-the-air update
 7. The physical button across GPIO 21 and 47 (the 13mm button that came with the face) works without your phone. A short press goes to the next face after the one showing. Holding it for 1.5 seconds turns the displays off or on. The homepage doesn't refresh by itself, so reload it to see the change.
 8. **Tilt:** open Tilt calibration. Hold your head normally and press Read on Idle, tilt your head sideways and press Read on Tilt, look up and press Read on Up, then press Save tilt. Then flip on **Tilt** under Features. The Read buttons work even with Tilt switched off.
 9. **Boop:** the sensor always sees some of its own infrared reflecting off the inside of the visor, so it never reads zero at rest. In Advanced settings:
-    1. Press **Calibrate** with nothing near the visor. That measures the resting level, and readings are measured from it from then on.
+    1. Press **Calibrate** with nothing near the visor. The mask also tracks the resting level on its own — following it down quickly, creeping up slowly as things warm up — so this just gives it a clean start.
     2. Press **Read** with nothing near the visor. It should be close to 0.
     3. Press **Read** again with your hand on the visor.
-    4. Set **Boop distance** between the two numbers and press Save settings. A boop triggers when the reading rises above it.
+    4. Set **Boop distance** between the two numbers and press Save settings. A boop needs the reading above it for three checks in a row (about 300 ms), so stray readings can't trigger it. If a boop is still held after 8 seconds, the mask assumes the resting level moved rather than a paw being there, lets go, and starts from the new level.
     5. Flip on **Boop** under Features.
 
     **Boop reading** on the System card shows the signal, with the raw and resting values behind it. If raw sits near 255 with nothing near the visor, the reflection has used up the whole range and no setting will fix it — see *Mounting the boop sensor* in section 2.
