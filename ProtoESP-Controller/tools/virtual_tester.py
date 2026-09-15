@@ -158,6 +158,32 @@ class VirtualBoard:
 board = None
 
 
+def stats_dict():
+    """The /stats reply: plausible numbers shaped like the firmware's. Call with board.lock held."""
+    try:
+        frames = len(json.loads(board.current_anim_text())['visor']['frames'])
+    except (ValueError, KeyError, TypeError):
+        frames = 0
+    anims_bytes = sum(os.path.getsize(board.anim_path(f)) for f in board.anims())
+    # A pretend boop sensor: a few counts of noise at rest, and a paw that's close and
+    # shading the sensor while a Boop button's hold lasts.
+    paw = time.time() < board.boop_until
+    noise = int(time.time() * 7) % 4
+    sig = 60 + noise if paw else noise
+    shade = 70 + noise if paw else noise
+    return {
+        'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,
+        'psramFree': 8200000, 'psramSize': 8388608, 'fsUsed': 160000 + anims_bytes, 'fsTotal': 4063232,
+        'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': True,
+        'boopRaw': 40 + sig, 'boopBase': 40, 'boopSig': sig, 'booping': paw,
+        'als0': int(180 * (100 - shade) / 100), 'als1': 420, 'lightNormal': 180, 'shade': shade,
+        'lightOk': True, 'boopsIgnored': 0, 'i2c': '0x39 0x68 (virtual)',
+        'boops': int(board.config.get('boopCount') or 0),
+        'display': board.display_on, 'sleeping': board.sleeping,
+        'anim': board.current, 'frame': 0, 'frames': frames,
+    }
+
+
 def end_boop(back_to):
     """The paw has gone: put the face back and start the counter pop."""
     with board.lock:
@@ -341,27 +367,39 @@ class Handler(BaseHTTPRequestHandler):
             return self.redirect('/saved.html?main')
 
         if path == '/stats':   # system monitor: plausible numbers shaped like the firmware's reply
-            try:
-                frames = len(json.loads(board.current_anim_text())['visor']['frames'])
-            except (ValueError, KeyError, TypeError):
-                frames = 0
-            anims_bytes = sum(os.path.getsize(board.anim_path(f)) for f in board.anims())
-            # A pretend boop sensor: a few counts of noise at rest, and a paw that's close and
-            # shading the sensor while a Boop button's hold lasts.
-            paw = time.time() < board.boop_until
-            noise = int(time.time() * 7) % 4
-            sig = 60 + noise if paw else noise
-            shade = 70 + noise if paw else noise
+            return self.reply(200, json.dumps(stats_dict()), 'application/json')
+
+        # ---- screen designer (tester only) ----
+        if path == '/__screen':
+            return self.static(HERE, 'screen.html')
+        if path == '/__screen_render.js':
+            return self.static(HERE, 'screen_render.js')
+        if path == '/__screenlayout':   # the layout lives in data/screen.json, so it ships with the web files
+            layout_path = os.path.join(DATA, 'screen.json')
+            if method == 'POST':
+                try:
+                    layout = json.loads(form.get('layout', ''))
+                    if not isinstance(layout, dict) or not isinstance(layout.get('elements'), list):
+                        raise ValueError('no elements list')
+                except ValueError as e:
+                    return self.reply(400, 'Bad layout: %s' % e)
+                with open(layout_path, 'w', encoding='utf-8') as f:
+                    json.dump(layout, f, indent=1)
+                board.log('[I] Screen layout saved to data/screen.json (%d elements)' % len(layout['elements']))
+                return self.text('OK')
+            if os.path.isfile(layout_path):
+                return self.static(DATA, 'screen.json')
+            return self.reply(404, 'No layout saved yet')
+        if path == '/__screendata':   # everything the screen can show, in one request, without logging
+            s = stats_dict()
             return self.reply(200, json.dumps({
-                'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,
-                'psramFree': 8200000, 'psramSize': 8388608, 'fsUsed': 160000 + anims_bytes, 'fsTotal': 4063232,
-                'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': True,
-                'boopRaw': 40 + sig, 'boopBase': 40, 'boopSig': sig, 'booping': paw,
-                'als0': int(180 * (100 - shade) / 100), 'als1': 420, 'lightNormal': 180, 'shade': shade,
-                'lightOk': True, 'boopsIgnored': 0, 'i2c': '0x39 0x68 (virtual)',
-                'boops': int(board.config.get('boopCount') or 0),
-                'display': board.display_on, 'sleeping': board.sleeping,
-                'anim': board.current, 'frame': 0, 'frames': frames,
+                'anim': board.current, 'sleeping': board.sleeping, 'displayOn': board.display_on,
+                'brightness': min(15, max(0, to_int(str(cfg.get('bVisor', 5))))),
+                'boopCount': int(cfg.get('boopCount') or 0), 'wifi': cfg.get('wifiName'),
+                'boopThresh': int(cfg.get('boopThresh') or 15), 'boopShade': int(cfg.get('boopShade') or 30),
+                'wifiClients': s['wifiClients'], 'uptime': s['uptime'], 'tempC': s['tempC'],
+                'boopSig': s['boopSig'], 'shade': s['shade'], 'booping': s['booping'],
+                'tilt': s['tilt'], 'boop': s['boop'],
             }), 'application/json')
 
         if path == '/sleep':   # state=on|off|toggle, or no state to report

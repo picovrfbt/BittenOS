@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Screen designer</title>
+<link rel="shortcut icon" href="data:," />
+<style>
+  :root { --bg:#333743; --panel:#282c34; --line:#3f444d; --text:#e8e8ec; --dim:#9aa0ad; --accent:#6fb6ff; --bad:#ff8a80; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: Verdana, sans-serif; font-size:14px; }
+  header { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:18px; }
+  header p { margin:0; color:var(--dim); font-size:12px; }
+  header a { color:var(--accent); font-size:13px; }
+  #status { margin-left:auto; font-size:12px; color:var(--dim); }
+  #status.dirty { color:#ffd84a; }
+  main { display:flex; gap:20px; padding:20px; flex-wrap:wrap; align-items:flex-start; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
+  h2 { margin:0 0 10px; font-size:14px; color:var(--dim); font-weight:normal; text-transform:uppercase; letter-spacing:.06em; }
+  #left { flex: 1 1 700px; min-width:320px; display:flex; flex-direction:column; gap:20px; }
+  #right { flex: 0 1 360px; min-width:300px; display:flex; flex-direction:column; gap:20px; }
+  button, select, input { font:inherit; font-size:13px; }
+  button { background:#21252b; color:var(--text); border:1px solid var(--line); border-radius:4px; padding:6px 12px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { border-color:var(--accent); color:var(--accent); }
+  button.danger { color:var(--bad); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .row + .row { margin-top:10px; }
+  #screenWrap { position:relative; background:#111318; border-radius:10px; padding:18px; }
+  #screen { display:block; width:100%; max-width:768px; aspect-ratio:2 / 1; margin:0 auto; cursor:crosshair; touch-action:none; image-rendering:pixelated; }
+  .note { color:var(--dim); font-size:12px; margin:10px 0 0; line-height:1.5; }
+  code { background:#1d2026; padding:1px 5px; border-radius:3px; }
+  label.chk { display:inline-flex; gap:6px; align-items:center; color:var(--dim); font-size:13px; }
+  #list { display:flex; flex-direction:column; gap:4px; max-height:320px; overflow:auto; }
+  .item { display:flex; gap:8px; align-items:center; background:#21252b; border:1px solid var(--line); border-radius:4px; padding:6px 8px; cursor:pointer; font-size:13px; }
+  .item.on { border-color:var(--accent); }
+  .item .kind { color:var(--dim); font-size:11px; min-width:62px; }
+  .item .what { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+  .item .hid { color:var(--dim); font-size:11px; }
+  .props { display:grid; grid-template-columns:auto 1fr; gap:8px 10px; align-items:center; }
+  .props label { color:var(--dim); font-size:13px; }
+  .props input[type=text], .props input[type=number], .props select { width:100%; background:#1d2026; color:var(--text); border:1px solid var(--line); border-radius:4px; padding:5px 7px; }
+  .xy { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .warn { color:#ffd84a; font-size:12px; grid-column:1 / -1; }
+  #empty { color:var(--dim); font-size:13px; }
+  .sim { display:flex; gap:6px; flex-wrap:wrap; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chip { background:#21252b; border:1px solid var(--line); border-radius:12px; padding:2px 9px; font-size:12px; color:var(--dim); }
+  .chip b { color:var(--text); font-weight:normal; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Screen designer</h1>
+  <p>The 128×64 status screen, with live data from the virtual mask.</p>
+  <a href="/__tester">← Tester dashboard</a>
+  <span id="status">loading…</span>
+</header>
+<main>
+  <div id="left">
+    <section>
+      <h2>Screen</h2>
+      <div id="screenWrap"><canvas id="screen"></canvas></div>
+      <div class="row" style="margin-top:12px">
+        <span style="color:var(--dim);font-size:13px">Add:</span>
+        <button onclick="addEl('text')">Text</button>
+        <button onclick="addEl('value')">Live value</button>
+        <button onclick="addEl('bar')">Bar</button>
+        <button onclick="addEl('icon')">Icon</button>
+        <button onclick="addEl('rect')">Box</button>
+        <button onclick="addEl('line')">Line</button>
+      </div>
+      <div class="row">
+        <label class="chk">Panel colour
+          <select id="colour">
+            <option value="white">White</option>
+            <option value="blue">Blue</option>
+            <option value="yellowBlue">Yellow top / blue</option>
+          </select></label>
+        <label class="chk"><input type="checkbox" id="showBoxes" checked> Outline elements</label>
+        <label class="chk"><input type="checkbox" id="showHidden" checked> Ghost hidden elements</label>
+      </div>
+      <p class="note">Drag elements to move them. Arrow keys nudge the selected one a pixel (Shift for 5), Delete removes it.
+        Text is the mask's own 5×7 font at 1×, 2× or 3×, so what you see is exactly what the real screen will draw.</p>
+    </section>
+
+    <section>
+      <h2>Try it with the virtual mask</h2>
+      <div class="sim">
+        <button onclick="fetch('/__boop?hold=3', {method:'POST'})">Boop (3 s)</button>
+        <button onclick="fetch('/sleep?state=toggle')">Sleep / wake</button>
+        <button onclick="fetch('/__button', {method:'POST'})">Next face</button>
+        <button onclick="fetch('/display?state=toggle')">Displays off / on</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </section>
+  </div>
+
+  <div id="right">
+    <section>
+      <h2>Layout</h2>
+      <div class="row">
+        <button class="primary" id="saveBtn" onclick="save()">Save</button>
+        <button onclick="revert()">Revert</button>
+        <button onclick="download()">Download</button>
+        <button onclick="document.getElementById('fileIn').click()">Load file</button>
+      </div>
+      <div class="row">
+        <button onclick="startFrom(ScreenSim.EXAMPLE)">Start from example</button>
+        <button class="danger" onclick="startFrom({version:1, elements:[]})">Clear</button>
+      </div>
+      <input type="file" id="fileIn" hidden accept=".json">
+      <p class="note">Save writes <code>data/screen.json</code>, which goes onto the mask with the web files, ready for when the screen is fitted.</p>
+    </section>
+
+    <section>
+      <h2>Elements</h2>
+      <div id="list"></div>
+    </section>
+
+    <section>
+      <h2>Selected</h2>
+      <div id="props"><p id="empty">Click an element on the screen, or add one.</p></div>
+    </section>
+  </div>
+</main>
+
+<script src="/__screen_render.js"></script>
+<script>
+  const S = ScreenSim;
+  const canvas = document.getElementById('screen');
+  let layout = {version: 1, elements: []}, saved = '', sel = -1, data = S.normalise({}), boxes = [];
+  let drag = null;
+
+  /* ---------- drawing ---------- */
+  function scale() { return 6; }   // canvas pixels per screen pixel; CSS shrinks it to fit
+
+  function redraw() {
+    const r = S.renderBuffer(layout, data);
+    boxes = r.boxes;
+    const sc = scale();
+    const ctx = S.paint(canvas, r.buf, sc, document.getElementById('colour').value);
+    const outline = document.getElementById('showBoxes').checked, ghost = document.getElementById('showHidden').checked;
+    boxes.forEach(b => {
+      const isSel = b.i === sel;
+      if (!b.visible && ghost) {           // hidden right now (e.g. only while booped): show where it sits
+        ctx.fillStyle = 'rgba(111,182,255,.10)';
+        ctx.fillRect(b.x * sc, b.y * sc, b.w * sc, b.h * sc);
+      }
+      if (isSel || outline) {
+        ctx.strokeStyle = isSel ? '#6fb6ff' : 'rgba(255,255,255,.18)';
+        ctx.lineWidth = isSel ? 2 : 1;
+        ctx.setLineDash(b.visible ? [] : [6, 4]);
+        ctx.strokeRect(b.x * sc - 1, b.y * sc - 1, b.w * sc + 2, b.h * sc + 2);
+        ctx.setLineDash([]);
+      }
+    });
+    const dirty = JSON.stringify(layout) !== saved;
+    const st = document.getElementById('status');
+    st.textContent = dirty ? 'unsaved changes' : 'saved';
+    st.className = dirty ? 'dirty' : '';
+  }
+
+  /* ---------- element list and properties ---------- */
+  function describe(el) {
+    if (el.type === 'text') return '"' + (el.text || '') + '"';
+    if (el.type === 'value') return (S.SOURCES[el.source] || {label: '?'}).label;
+    if (el.type === 'bar') return (S.BARS[el.source] || {label: '?'}).label + ' bar';
+    if (el.type === 'icon') return el.icon + ' icon';
+    if (el.type === 'rect') return (el.h === 1 || el.w === 1 ? 'line' : el.fill ? 'filled box' : 'box') + ' ' + el.w + '×' + el.h;
+    return el.type;
+  }
+
+  function renderList() {
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+    if (!layout.elements.length) { list.innerHTML = '<p id="empty">Nothing on the screen yet.</p>'; return; }
+    layout.elements.forEach((el, i) => {
+      const row = document.createElement('div');
+      row.className = 'item' + (i === sel ? ' on' : '');
+      const show = el.show && el.show !== 'always' ? S.SHOW[el.show].label.toLowerCase() : '';
+      row.innerHTML = '<span class="kind"></span><span class="what"></span><span class="hid"></span>';
+      row.children[0].textContent = S.TYPES[el.type] || el.type;
+      row.children[1].textContent = describe(el);
+      row.children[2].textContent = show;
+      row.onclick = () => select(i);
+      list.appendChild(row);
+    });
+  }
+
+  function field(label, html) { return '<label>' + label + '</label><div>' + html + '</div>'; }
+  function opts(map, cur, labelOf) {
+    return Object.keys(map).map(k => '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + labelOf(k) + '</option>').join('');
+  }
+  function esc(s) { return String(s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+  function renderProps() {
+    const box = document.getElementById('props');
+    const el = layout.elements[sel];
+    if (!el) { box.innerHTML = '<p id="empty">Click an element on the screen, or add one.</p>'; return; }
+    let h = '<div class="props">';
+    h += field('Type', '<b>' + S.TYPES[el.type] + '</b>');
+    h += field('Position', '<div class="xy"><input type="number" data-k="x" value="' + el.x + '" title="x"><input type="number" data-k="y" value="' + el.y + '" title="y"></div>');
+    if (el.type === 'text') h += field('Text', '<input type="text" data-k="text" maxlength="40" value="' + esc(el.text) + '">');
+    if (el.type === 'value') {
+      h += field('Shows', '<select data-k="source">' + opts(S.SOURCES, el.source, k => S.SOURCES[k].label) + '</select>');
+      h += field('Before', '<input type="text" data-k="prefix" maxlength="12" value="' + esc(el.prefix) + '">');
+      h += field('After', '<input type="text" data-k="suffix" maxlength="12" value="' + esc(el.suffix) + '">');
+    }
+    if (el.type === 'text' || el.type === 'value') {
+      h += field('Size', '<select data-k="size" data-num>' + [1, 2, 3].map(n => '<option' + (n === el.size ? ' selected' : '') + ' value="' + n + '">' + n + '× (' + 8 * n + ' px tall)</option>').join('') + '</select>');
+      h += field('Anchor', '<select data-k="align">' + opts({left: 1, center: 1, right: 1}, el.align || 'left', k => ({left: 'Left edge at x', center: 'Centred on x', right: 'Right edge at x'})[k]) + '</select>');
+    }
+    if (el.type === 'icon') {
+      h += field('Icon', '<select data-k="icon">' + opts(S.ICONS, el.icon, k => k) + '</select>');
+      h += field('Size', '<select data-k="size" data-num>' + [1, 2, 3].map(n => '<option' + (n === el.size ? ' selected' : '') + ' value="' + n + '">' + n + '× (' + 8 * n + ' px)</option>').join('') + '</select>');
+    }
+    if (el.type === 'bar') {
+      h += field('Fills with', '<select data-k="source">' + opts(S.BARS, el.source, k => S.BARS[k].label) + '</select>');
+      h += field('Marker', '<input type="checkbox" data-k="marker"' + (el.marker ? ' checked' : '') + '> <span style="color:var(--dim);font-size:12px">line at the trigger point</span>');
+    }
+    if (el.type === 'bar' || el.type === 'rect') {
+      h += field('Size', '<div class="xy"><input type="number" data-k="w" min="1" max="128" value="' + el.w + '" title="width"><input type="number" data-k="h" min="1" max="64" value="' + el.h + '" title="height"></div>');
+    }
+    if (el.type === 'rect') h += field('Filled', '<input type="checkbox" data-k="fill"' + (el.fill ? ' checked' : '') + '>');
+    h += field('Show', '<select data-k="show">' + opts(S.SHOW, el.show || 'always', k => S.SHOW[k].label) + '</select>');
+    const b = boxes[sel];
+    if (b && (b.x < 0 || b.y < 0 || b.x + b.w > S.W || b.y + b.h > S.H)) h += '<div class="warn">Part of this is off the edge of the screen.</div>';
+    h += '</div><div class="row" style="margin-top:14px">'
+      + '<button onclick="move(-1)">Up list</button><button onclick="move(1)">Down list</button>'
+      + '<button onclick="dup()">Duplicate</button><button class="danger" onclick="del()">Delete</button></div>'
+      + '<p class="note">Later elements draw on top of earlier ones.</p>';
+    box.innerHTML = h;
+    box.querySelectorAll('[data-k]').forEach(inp => {
+      const ev = inp.type === 'checkbox' || inp.tagName === 'SELECT' ? 'change' : 'input';
+      inp.addEventListener(ev, () => {
+        const k = inp.dataset.k;
+        let v = inp.type === 'checkbox' ? inp.checked : inp.value;
+        if (inp.type === 'number' || inp.hasAttribute('data-num')) v = parseInt(v, 10) || 0;
+        el[k] = v;
+        redraw(); renderList();
+        if (inp.tagName === 'SELECT' || inp.type === 'checkbox') renderProps();
+      });
+    });
+  }
+
+  function select(i) { sel = i; renderList(); renderProps(); redraw(); }
+  function changed() { renderList(); renderProps(); redraw(); }
+
+  function addEl(kind) {
+    const base = {x: 4, y: 4, show: 'always'};
+    const el = {
+      text: {type: 'text', text: 'Hello', size: 1, align: 'left'},
+      value: {type: 'value', source: 'face', prefix: '', suffix: '', size: 1, align: 'left'},
+      bar: {type: 'bar', source: 'closeness', w: 60, h: 7, marker: true},
+      icon: {type: 'icon', icon: 'heart', size: 1},
+      rect: {type: 'rect', w: 30, h: 16, fill: false},
+      line: {type: 'rect', w: 128, h: 1, fill: true, x: 0},
+    }[kind];
+    layout.elements.push(Object.assign(base, el));
+    select(layout.elements.length - 1);
+  }
+  function move(dir) {
+    const j = sel + dir;
+    if (sel < 0 || j < 0 || j >= layout.elements.length) return;
+    const els = layout.elements;
+    [els[sel], els[j]] = [els[j], els[sel]];
+    select(j);
+  }
+  function dup() {
+    if (sel < 0) return;
+    const copy = JSON.parse(JSON.stringify(layout.elements[sel]));
+    copy.x += 4; copy.y += 4;
+    layout.elements.splice(sel + 1, 0, copy);
+    select(sel + 1);
+  }
+  function del() {
+    if (sel < 0) return;
+    layout.elements.splice(sel, 1);
+    select(Math.min(sel, layout.elements.length - 1));
+  }
+
+  /* ---------- dragging ---------- */
+  function toPixel(e) {
+    const r = canvas.getBoundingClientRect();
+    return [Math.floor((e.clientX - r.left) / r.width * S.W), Math.floor((e.clientY - r.top) / r.height * S.H)];
+  }
+  function hit(px, py) {
+    for (let k = boxes.length - 1; k >= 0; k--) {   // topmost first
+      const b = boxes[k];
+      if (px >= b.x - 1 && px <= b.x + b.w && py >= b.y - 1 && py <= b.y + b.h) return b.i;
+    }
+    return -1;
+  }
+  canvas.addEventListener('pointerdown', e => {
+    const [px, py] = toPixel(e);
+    const i = hit(px, py);
+    select(i);
+    if (i >= 0) {
+      const el = layout.elements[i];
+      drag = {dx: px - el.x, dy: py - el.y};
+      canvas.setPointerCapture(e.pointerId);
+    }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag || sel < 0) return;
+    const [px, py] = toPixel(e), el = layout.elements[sel];
+    const nx = px - drag.dx, ny = py - drag.dy;
+    if (nx !== el.x || ny !== el.y) { el.x = nx; el.y = ny; redraw(); }
+  });
+  canvas.addEventListener('pointerup', () => { if (drag) { drag = null; renderProps(); } });
+
+  document.addEventListener('keydown', e => {
+    if (sel < 0 || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    const step = e.shiftKey ? 5 : 1, el = layout.elements[sel];
+    const moves = {ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step]};
+    if (moves[e.key]) { el.x += moves[e.key][0]; el.y += moves[e.key][1]; e.preventDefault(); changed(); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); del(); }
+    else if (e.key === 'Escape') select(-1);
+  });
+
+  /* ---------- saving and loading ---------- */
+  async function save() {
+    const form = new FormData();
+    form.append('layout', JSON.stringify(layout));
+    const r = await fetch('/__screenlayout', {method: 'POST', body: form});
+    if (r.ok) { saved = JSON.stringify(layout); redraw(); }
+    else alert(await r.text());
+  }
+  async function revert() {
+    try {
+      const r = await fetch('/__screenlayout', {cache: 'no-store'});
+      layout = r.ok ? await r.json() : JSON.parse(JSON.stringify(S.EXAMPLE));
+      saved = r.ok ? JSON.stringify(layout) : '';
+    } catch (e) { layout = JSON.parse(JSON.stringify(S.EXAMPLE)); saved = ''; }
+    select(-1);
+  }
+  function startFrom(l) {
+    if (layout.elements.length && !confirm('Replace the current layout? (Nothing is lost until you press Save.)')) return;
+    layout = JSON.parse(JSON.stringify(l));
+    select(-1);
+  }
+  function download() {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(layout, null, 1)], {type: 'application/json'}));
+    a.download = 'screen.json';
+    a.click();
+  }
+  document.getElementById('fileIn').addEventListener('change', async function () {
+    const f = this.files[0]; this.value = '';
+    if (!f) return;
+    try {
+      const l = JSON.parse(await f.text());
+      if (!Array.isArray(l.elements)) throw new Error('no elements');
+      layout = l; select(-1);
+    } catch (e) { alert("That doesn't look like a screen layout"); }
+  });
+  window.addEventListener('beforeunload', e => { if (JSON.stringify(layout) !== saved) { e.preventDefault(); e.returnValue = ''; } });
+
+  ['colour', 'showBoxes', 'showHidden'].forEach(id => document.getElementById(id).addEventListener('change', redraw));
+
+  /* ---------- live data ---------- */
+  function chip(label, value) { return '<span class="chip">' + label + ' <b>' + value + '</b></span>'; }
+  async function poll() {
+    try {
+      const raw = await (await fetch('/__screendata', {cache: 'no-store'})).json();
+      data = S.normalise(raw);
+      document.getElementById('chips').innerHTML =
+        chip('Face', data.face) + chip('Booped', data.booping ? 'yes' : 'no') + chip('Sleeping', data.sleeping ? 'yes' : 'no') +
+        chip('Displays', data.displayOn ? 'on' : 'off') + chip('Boops', data.boops) + chip('Closeness', data.closeness) +
+        chip('Shadow', data.shade + '%');
+      if (!drag) redraw();
+    } catch (e) {
+      document.getElementById('status').textContent = 'tester server not running';
+    }
+  }
+
+  revert().then(() => { poll(); setInterval(poll, 400); });
+</script>
+</body>
+</html>

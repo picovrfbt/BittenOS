@@ -1,0 +1,118 @@
+{
+ "version": 1,
+ "elements": [
+  {
+   "type": "value",
+   "source": "face",
+   "prefix": "",
+   "suffix": "",
+   "x": 64,
+   "y": 4,
+   "size": 2,
+   "align": "center",
+   "show": "notBooped"
+  },
+  {
+   "type": "text",
+   "text": "BOOP!",
+   "x": 64,
+   "y": 0,
+   "size": 3,
+   "align": "center",
+   "show": "booped"
+  },
+  {
+   "type": "rect",
+   "x": 0,
+   "y": 25,
+   "w": 128,
+   "h": 1,
+   "fill": true,
+   "show": "always"
+  },
+  {
+   "type": "icon",
+   "icon": "paw",
+   "x": 2,
+   "y": 30,
+   "size": 1,
+   "show": "always"
+  },
+  {
+   "type": "value",
+   "source": "boops",
+   "prefix": "",
+   "suffix": "",
+   "x": 13,
+   "y": 30,
+   "size": 1,
+   "align": "left",
+   "show": "always"
+  },
+  {
+   "type": "icon",
+   "icon": "wifi",
+   "x": 52,
+   "y": 30,
+   "size": 1,
+   "show": "always"
+  },
+  {
+   "type": "value",
+   "source": "wifiClients",
+   "prefix": "",
+   "suffix": "",
+   "x": 63,
+   "y": 30,
+   "size": 1,
+   "align": "left",
+   "show": "always"
+  },
+  {
+   "type": "icon",
+   "icon": "moon",
+   "x": 118,
+   "y": 30,
+   "size": 1,
+   "show": "sleeping"
+  },
+  {
+   "type": "text",
+   "text": "close",
+   "x": 2,
+   "y": 43,
+   "size": 1,
+   "align": "left",
+   "show": "always"
+  },
+  {
+   "type": "bar",
+   "source": "closeness",
+   "x": 36,
+   "y": 44,
+   "w": 90,
+   "h": 6,
+   "marker": true,
+   "show": "always"
+  },
+  {
+   "type": "text",
+   "text": "shade",
+   "x": 2,
+   "y": 54,
+   "size": 1,
+   "align": "left",
+   "show": "always"
+  },
+  {
+   "type": "bar",
+   "source": "shade",
+   "x": 36,
+   "y": 55,
+   "w": 90,
+   "h": 6,
+   "marker": true,
+   "show": "always"
+  }
+ ]
+}
