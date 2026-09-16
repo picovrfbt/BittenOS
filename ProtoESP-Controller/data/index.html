@@ -1416,11 +1416,18 @@
             ? ' — it hears you' : ' — barely any difference, so it is not hearing your voice');
     }
     if (!on) { text.textContent = 'Speech is off'; return; }
-    micRawSeen.push(s.micRaw);
+    // A live mic's swing always jitters a little; a dead one sits at exactly the same number.
+    // (On a digital mic the raw mid-point sits near zero by nature, so swing is what to watch.)
+    micRawSeen.push(s.micSwing !== undefined ? s.micSwing : s.micRaw);
     if (micRawSeen.length > 8) micRawSeen.shift();
-    const dead = micRawSeen.length >= 6 && micRawSeen.every(v => v === micRawSeen[0]);
-    const GAIN_HINTS = {1: 'About right', 2: 'Too quiet — turn the pot on the mic board up',
-                        3: 'Clipping — turn the pot on the mic board down, then measure again'};
+    const digital = s.micType === 'I2S';
+    const dead = (digital && s.micReady === false) ||
+                 (micRawSeen.length >= 6 && micRawSeen.every(v => v === micRawSeen[0]));
+    // A digital mic has no gain pot, so the advice is about wiring and placement instead
+    const GAIN_HINTS = s.micType === 'I2S'
+      ? {1: 'About right', 2: 'Heard almost nothing — check the wiring, or move the mic closer', 3: 'About right'}
+      : {1: 'About right', 2: 'Too quiet — turn the pot on the mic board up',
+         3: 'Clipping — turn the pot on the mic board down, then measure again'};
     $('micGainRow').hidden = !(on && s.micGain);
     if (on && s.micGain) $('micGainText').textContent = GAIN_HINTS[s.micGain] || '';
     if (s.micLoud) { text.textContent = 'Listening — talk normally'; status.classList.add('near'); }

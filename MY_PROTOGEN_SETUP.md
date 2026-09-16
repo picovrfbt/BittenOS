@@ -63,7 +63,8 @@ pin 13 -> 5V, pin 12 -> GND     0.1uF capacitor between pins 14 and 7
 | 21 + 47 | Momentary button across these two neighbouring pins on the right header (47 is directly above 21). The firmware holds 47 low as the button's ground, so no GND wire or resistor is needed. Short press: next face. Hold 1.5 s: displays off/on. |
 | 8 / 9 | I2C SDA / SCL, shared by all I2C parts: BMI270 tilt sensor (address 0x68 or 0x69), APDS-9930 boop sensor (0x39), and later an OLED. Power the sensors from **3V3**, not 5V — the APDS-9930 is not 5V tolerant. |
 | 5 | Cheek/blush WS2812 LEDs (not fitted) |
-| 4 | Microphone analog out (not fitted). Any analog mic board works — MAX9814 or MAX4466 — powered from **3V3**, not 5V. Must stay on GPIO 1–10: those are the analog inputs WiFi doesn't use, and the mask's WiFi is always on. |
+| 4 / 5 / 6 | Digital microphone on I2S: **BCLK → 4, DOUT → 5, LRCL → 6**, matching the order a GY-SPH0645 board prints its pads, so the wires run straight across. Power from **3V3** only (the board takes 1.6–3.6V), and leave **SEL** unconnected for the left channel. Set by `micMode` in `src/main.cpp`. |
+| 4 (analog mic instead) | With `micMode "ANALOG"`, GPIO 4 is an analog mic's output (MAX4466, MAX9814) on 3V3. It must stay on GPIO 1–10 — those are the analog inputs WiFi doesn't use, and the mask's WiFi is always on. An analog mic shares the 3V3 rail with the panels and amplifies their switching noise, which is why this mask went digital. |
 | 2 / 42 | KY-032 boop sensor in / enable (not used) |
 | 13 | 4-pin fan PWM (not fitted) |
 
