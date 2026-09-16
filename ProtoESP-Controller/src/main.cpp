@@ -579,6 +579,8 @@ struct AnimNowVisor {
   int numOfFrames;
   FramesVisor* frames = nullptr;
   bool isMouth[MATRIXESNUM];
+  bool canBlink = false;      //the face says the mask may blink it (set in the face designer)
+  bool saysBlink = false;     //whether the face said anything at all; if not, fall back to the timings
 };
 
 AnimNowEars* earsNow;
@@ -697,6 +699,10 @@ bool loadAnim(String anim, String temp) {
     for(int y = 0; y < doc["visor"]["isMouth"].size(); y++) {
       visorNow->isMouth[y] = doc["visor"]["isMouth"][y].as<bool>();
     }
+    //canBlink: the face designer's "The mask may blink this face". Faces drawn before this existed
+    //say nothing, and those fall back to judging by the frame timings.
+    visorNow->saysBlink = !doc["visor"]["canBlink"].isNull();
+    visorNow->canBlink = doc["visor"]["canBlink"] | false;
     //Visor anim load
     visorNow->numOfFrames = doc["visor"]["frames"].size();
     visorNow->frames = (FramesVisor*) ps_malloc(sizeof(FramesVisor) * visorNow->numOfFrames);
@@ -1628,9 +1634,10 @@ unsigned long mouthBandAt = 0;
 //  blink - the mask does the blinking, at random intervals, and holds the face on its resting frame
 //          so its own blink cannot fire as well and stutter against this one
 //  still - hold the resting frame and never blink
-//Only faces that are "a long look plus a short blink" can be held: one frame far longer than the
-//rest. A face whose frames all run the same length is a real animation (confused, heart, angry),
-//and freezing that would throw away the whole thing, so those are always left to play themselves.
+//A face can say for itself whether the mask may blink it, with the tick box in the face designer.
+//Faces drawn before that existed say nothing, so those are judged by their frame timings instead:
+//"a long look plus a short blink" can be held, while a face whose frames all run the same length is
+//a real animation (confused, heart, angry) and freezing it would throw the whole thing away.
 uint8_t blinkStep = 0;              //0 open, 3 nearly shut
 unsigned long blinkStepAt = 0, nextBlinkAt = 0;
 int blinkRestFrame = 0;             //the long "eyes open" frame
@@ -1645,14 +1652,18 @@ void blinkCheckFace() {
   blinkRestFrame = 0;
   if(!visorNow || visorNow->numOfFrames < 1) return;
   int longest = 0, second = 0, longestIdx = 0;
+  bool toldByFace = visorNow->saysBlink;
+  if(toldByFace && !visorNow->canBlink) return;   //the face says no: leave it entirely alone
   for(int i = 0; i < visorNow->numOfFrames; i++) {
     int t = visorNow->frames[i].timespan;
     if(t > longest) { second = longest; longest = t; longestIdx = i; }
     else if(t > second) second = t;
   }
   blinkRestFrame = longestIdx;
-  //One frame at least three times any other: a still face with a blink tacked on the end
-  blinkFaceEligible = (visorNow->numOfFrames == 1) || (second > 0 && longest >= second * 3);
+  //The face's own say overrides the guess; otherwise one frame at least three times any other means
+  //a still face with a blink tacked on the end.
+  blinkFaceEligible = toldByFace ? true
+                                 : ((visorNow->numOfFrames == 1) || (second > 0 && longest >= second * 3));
 }
 
 bool blinkHoldsFace() {
