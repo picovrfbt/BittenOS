@@ -16,6 +16,11 @@ void SSDOLED::oledBright(int level) const {
     }
 }
 
+//--------------------------------//Screen the other way up (whoever calls this redraws after)
+void SSDOLED::setFlip(bool upsideDown) const {
+  u8g2.setFlipMode(upsideDown ? 1 : 0);
+}
+
 //--------------------------------//Whole-screen draw, for layouts from screen.json
 void SSDOLED::blit(const uint8_t *page_buffer) const {
   memcpy(u8g2.getBufferPtr(), page_buffer, 128 * 8);
@@ -36,7 +41,7 @@ bool SSDOLED::init(uint8_t oledAddr, int brightness, bool INA) {
   if(error == 0) {
     u8g2.setI2CAddress(oledAddr*2);
     u8g2.begin();
-    u8g2.setFlipMode(2);
+    u8g2.setFlipMode(0);                        //the caller applies the saved Upside down setting
     oledBright(brightness);
     return true;
   } else {

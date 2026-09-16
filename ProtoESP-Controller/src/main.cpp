@@ -117,6 +117,9 @@ void logPrint(const char *str);
 void logPrint(const String &str);
 bool apdsStart();
 extern bool booping;
+extern bool speaking;
+extern int micVolume;          //0-100, how loud it is against the Speech range
+extern float finalMicAvg;      //the raw smoothed mic reading, for the level meter
 
 //--------------------------------//APDS-9930: proximity only, straight at the registers
 #define apds9930Addr 0x39
@@ -348,6 +351,7 @@ uint8_t screenBuf[128 * 8], screenPrev[128 * 8];
 bool screenPrevValid = false;
 unsigned long lastScreenDraw = 0;
 volatile bool screenReloadReq = false;   //set by /savescreen
+volatile bool oledFlipReq = false;       //set when Upside down is changed
 void screenTick();
 inline bool oledLegacy(); //the old screen writes, only when no layout is loaded
 uint32_t loopCount = 0, loopsPerSec = 0; unsigned long loopRateStart = 0; //loop() runs per second, for the system monitor
@@ -904,6 +908,7 @@ void startWiFiWeb() {
     cfg.getBool(request, "bobEna", cfg.bobEna);
     cfg.getBool(request, "boopCountEna", cfg.boopCountEna);
     cfg.getBool(request, "boopLightEna", cfg.boopLightEna);
+    if(cfg.getBool(request, "oledFlip", cfg.oledFlip)) oledFlipReq = true; //the loop task talks to the screen
     if(cfg.getInt(request, "boopShade", cfg.boopShade)) cfg.boopShade = constrain(cfg.boopShade, 5, 90);
     //auto-brightness: any change takes a fresh look at the light straight away
     bool autoChanged = false;
@@ -1117,6 +1122,11 @@ void startWiFiWeb() {
     st["boopsIgnored"] = boopsIgnored;
     st["booping"] = booping;
     st["oled"] = oledInitDone;
+    st["mic"] = cfg.speechEna ? micVolume : -1;                       //0-100; -1 when Speech is off
+    st["micRaw"] = (int)(finalMicAvg + 0.5f);                         //raw reading, to tell "no mic" from "quiet"
+    st["micQuiet"] = (int)(micDC + 0.5f);                             //what it thinks silence is
+    st["micCal"] = micCalUntil != 0;
+    st["speaking"] = speaking;
     st["bright"] = visorBright();                                     //what the panels are actually set to
     st["autoLevel"] = autoLevel;                                      //-1 until auto-brightness has a reading
     st["ambient"] = ambient;                                          //the light reading brightness was last set from
@@ -1364,6 +1374,7 @@ void setup() {
       cfg.oledEna = false;
     } else {
       oledInitDone = true;
+      oled.setFlip(cfg.oledFlip);
       oled.speak(false);
       oled.writeSet(1);
     }
@@ -1642,6 +1653,16 @@ void screenTick() {
     screenLoadLayout();
     screenPrevValid = false;
     logPrint("[I] Screen layout reloaded, " + String(screenElementCount()) + " elements");
+  }
+  if(oledFlipReq && oledInitDone) {        //screen turned the other way up
+    oledFlipReq = false;
+    oled.setFlip(cfg.oledFlip);
+    screenPrevValid = false;
+    if(!screenHasLayout() && cfg.oledEna) { //the original screen doesn't redraw itself
+      oled.speak(speaking);
+      oled.writeSet(1);
+      if(currentAnim.endsWith(".json")) oled.writeAnim(currentAnim.substring(0, currentAnim.length() - 5));
+    }
   }
   if(!cfg.oledEna || !oledInitDone || !screenHasLayout()) return;
   if(millis() - lastScreenDraw < 400) return;   //a few times a second is plenty, and it shares I2C with the sensors
@@ -2287,6 +2308,7 @@ void loop() {
       cfg.oledEna = false;
     } else {
       oledInitDone = true;               //switched on from the page: fill the screen straight away
+      oled.setFlip(cfg.oledFlip);
       screenPrevValid = false;
       if(!screenHasLayout()) {
         oled.speak(false);

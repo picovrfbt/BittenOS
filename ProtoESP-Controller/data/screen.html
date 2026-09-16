@@ -64,7 +64,7 @@
 <header class="topbar">
   <div class="topbar-in">
     <div class="brand">Screen designer<small><span id="status">loading…</span></small></div>
-    <a href="/">← Mask</a>
+    <a href="/#design">← Back</a>
   </div>
 </header>
 
@@ -84,14 +84,22 @@
           <button class="btn" onclick="addEl('line')">Line</button>
         </div>
         <div class="row">
-          <label class="chk">Colour
+          <label class="chk">Panel
             <select id="colour" style="width:auto">
+              <option value="yellowBlue">Yellow / blue</option>
               <option value="white">White</option>
               <option value="blue">Blue</option>
-              <option value="yellowBlue">Yellow / blue</option>
             </select></label>
+          <label class="chk" id="yellowAtWrap">Yellow strip
+            <select id="yellowAt" style="width:auto">
+              <option value="top">At the top</option>
+              <option value="bottom">At the bottom</option>
+            </select></label>
+        </div>
+        <div class="row">
           <label class="chk"><input type="checkbox" id="showBoxes" checked> Outlines</label>
           <label class="chk"><input type="checkbox" id="showHidden" checked> Ghost hidden</label>
+          <label class="chk"><input type="checkbox" id="showStrip" checked> Mark the strip</label>
         </div>
         <p class="hint">Drag to move. Arrow keys nudge the selected element a pixel (Shift for 5), Delete removes it.
           The mask draws this with the same font, so what you see is what the screen shows.</p>
@@ -153,7 +161,20 @@
     const r = S.renderBuffer(layout, data);
     boxes = r.boxes;
     const sc = 6;
-    const ctx = S.paint(canvas, r.buf, sc, $('colour').value);
+    const twoColour = $('colour').value === 'yellowBlue';
+    $('yellowAtWrap').hidden = !twoColour;
+    const ctx = S.paint(canvas, r.buf, sc, $('colour').value, $('yellowAt').value);
+    if (twoColour && $('showStrip').checked) {   // where the yellow ends, so text isn't left straddling it
+      const edge = $('yellowAt').value === 'bottom' ? (S.H - S.YELLOW_ROWS) * sc : S.YELLOW_ROWS * sc;
+      ctx.strokeStyle = 'rgba(255,216,74,.55)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, edge);
+      ctx.lineTo(S.W * sc, edge);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     const outline = $('showBoxes').checked, ghost = $('showHidden').checked;
     boxes.forEach(b => {
       const isSel = b.i === sel;
@@ -345,6 +366,8 @@
       else { layout = JSON.parse(JSON.stringify(S.EXAMPLE)); saved = ''; }
     } catch (e) { layout = JSON.parse(JSON.stringify(S.EXAMPLE)); saved = ''; }
     if (!Array.isArray(layout.elements)) layout = {version: 1, elements: []};
+    $('colour').value = layout.panel || 'yellowBlue';
+    $('yellowAt').value = layout.yellowAt || 'top';
     select(-1);
   }
   function startFrom(l) {
@@ -368,7 +391,13 @@
     } catch (e) { toast("That doesn't look like a screen layout", true); }
   });
   window.addEventListener('beforeunload', e => { if (JSON.stringify(layout) !== saved) { e.preventDefault(); e.returnValue = ''; } });
-  ['colour', 'showBoxes', 'showHidden'].forEach(id => $(id).addEventListener('change', redraw));
+  // The panel's colours belong to the layout, so the preview looks like your screen next time too
+  ['colour', 'yellowAt'].forEach(id => $(id).addEventListener('change', () => {
+    layout.panel = $('colour').value;
+    layout.yellowAt = $('yellowAt').value;
+    redraw();
+  }));
+  ['showBoxes', 'showHidden', 'showStrip'].forEach(id => $(id).addEventListener('change', redraw));
 
   /* ---------- live data from the mask ---------- */
   function chip(label, value) { return '<span class="chip">' + label + ' <b>' + value + '</b></span>'; }

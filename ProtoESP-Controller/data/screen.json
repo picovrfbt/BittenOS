@@ -1,5 +1,7 @@
 {
  "version": 1,
+ "panel": "yellowBlue",
+ "yellowAt": "top",
  "elements": [
   {
    "type": "value",
@@ -7,24 +9,51 @@
    "prefix": "",
    "suffix": "",
    "x": 64,
-   "y": 4,
+   "y": 0,
    "size": 2,
    "align": "center",
    "show": "notBooped"
+  },
+  {
+   "type": "icon",
+   "icon": "wifi",
+   "x": 1,
+   "y": 4,
+   "size": 1,
+   "show": "notBooped"
+  },
+  {
+   "type": "value",
+   "source": "wifiClients",
+   "prefix": "",
+   "suffix": "",
+   "x": 10,
+   "y": 4,
+   "size": 1,
+   "align": "left",
+   "show": "notBooped"
+  },
+  {
+   "type": "icon",
+   "icon": "moon",
+   "x": 119,
+   "y": 4,
+   "size": 1,
+   "show": "sleeping"
   },
   {
    "type": "text",
    "text": "BOOP!",
    "x": 64,
    "y": 0,
-   "size": 3,
+   "size": 2,
    "align": "center",
    "show": "booped"
   },
   {
    "type": "rect",
    "x": 0,
-   "y": 25,
+   "y": 17,
    "w": 128,
    "h": 1,
    "fill": true,
@@ -34,7 +63,7 @@
    "type": "icon",
    "icon": "paw",
    "x": 2,
-   "y": 30,
+   "y": 22,
    "size": 1,
    "show": "always"
   },
@@ -44,43 +73,65 @@
    "prefix": "",
    "suffix": "",
    "x": 12,
-   "y": 30,
+   "y": 22,
    "size": 1,
    "align": "left",
    "show": "always"
   },
   {
    "type": "icon",
-   "icon": "wifi",
-   "x": 1,
-   "y": 1,
+   "icon": "eye",
+   "x": 34,
+   "y": 22,
    "size": 1,
    "show": "always"
   },
   {
    "type": "value",
-   "source": "wifiClients",
+   "source": "brightness",
    "prefix": "",
    "suffix": "",
-   "x": 10,
-   "y": 1,
+   "x": 44,
+   "y": 22,
    "size": 1,
    "align": "left",
    "show": "always"
   },
   {
    "type": "icon",
-   "icon": "moon",
-   "x": 118,
-   "y": 30,
+   "icon": "temp",
+   "x": 62,
+   "y": 22,
    "size": 1,
-   "show": "sleeping"
+   "show": "always"
+  },
+  {
+   "type": "value",
+   "source": "temp",
+   "prefix": "",
+   "suffix": "",
+   "x": 72,
+   "y": 22,
+   "size": 1,
+   "align": "left",
+   "show": "always"
+  },
+  {
+   "type": "value",
+   "source": "uptime",
+   "prefix": "",
+   "suffix": "",
+   "x": 126,
+   "y": 22,
+   "size": 1,
+   "align": "right",
+   "show": "always"
   },
   {
    "type": "text",
    "text": "close",
    "x": 2,
-   "y": 43,
+   "y": 36,
    "size": 1,
    "align": "left",
    "show": "always"
@@ -89,7 +140,7 @@
    "type": "bar",
    "source": "closeness",
    "x": 36,
-   "y": 44,
+   "y": 37,
    "w": 90,
    "h": 6,
    "marker": true,
@@ -99,7 +150,7 @@
    "type": "text",
    "text": "shade",
    "x": 2,
-   "y": 54,
+   "y": 50,
    "size": 1,
    "align": "left",
    "show": "always"
@@ -108,60 +159,11 @@
    "type": "bar",
    "source": "shade",
    "x": 36,
-   "y": 55,
+   "y": 51,
    "w": 90,
    "h": 6,
    "marker": true,
    "show": "always"
-  },
-  {
-   "x": 21,
-   "y": 30,
-   "show": "always",
-   "type": "icon",
-   "icon": "eye",
-   "size": 1
-  },
-  {
-   "x": 31,
-   "y": 30,
-   "show": "always",
-   "type": "value",
-   "source": "brightness",
-   "prefix": "",
-   "suffix": "",
-   "size": 1,
-   "align": "left"
-  },
-  {
-   "x": 49,
-   "y": 30,
-   "show": "always",
-   "type": "value",
-   "source": "temp",
-   "prefix": "",
-   "suffix": "",
-   "size": 1,
-   "align": "left"
-  },
-  {
-   "x": 39,
-   "y": 30,
-   "show": "always",
-   "type": "icon",
-   "icon": "temp",
-   "size": 1
-  },
-  {
-   "x": 86,
-   "y": 30,
-   "show": "always",
-   "type": "value",
-   "source": "uptime",
-   "prefix": "",
-   "suffix": "",
-   "size": 1,
-   "align": "left"
   }
  ]
 }
