@@ -133,6 +133,10 @@
   /* settings: grouped rows, label on the left, control on the right */
   .section { display:grid; }
   .section-title { margin:0 4px 8px; display:flex; align-items:center; gap:8px; }
+  /* a part that isn't wired yet: still usable, but clearly not doing anything */
+  .tag { text-transform:none; letter-spacing:0; font-size:11px; font-weight:600; color:var(--faint);
+         background:var(--surface2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
+  .group.notfitted { opacity:.55; }
   .group { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
   .row { display:flex; align-items:center; gap:12px; padding:12px 16px; min-height:60px; }
   .group > * + * { border-top:1px solid var(--line); }
@@ -440,14 +444,48 @@
           <input type="checkbox" class="toggle" data-key="oledEna" data-label="Status screen"></label>
         <div class="row dep"><span class="row-text"><b>Screen brightness</b></span>
           <select id="bOled" data-key="bOled" data-label="Screen brightness" aria-label="Screen brightness" style="text-transform:none">
-            <option value="0">Dim</option>
-            <option value="1">Medium</option>
-            <option value="2">Normal</option>
+            <option value="0">Dimmest</option>
+            <option value="1">Dim</option>
+            <option value="2">Medium</option>
+            <option value="3">Bright</option>
+            <option value="4">Brightest</option>
           </select></div>
         <label class="row dep"><span class="row-text"><b>Upside down</b><small>Turn the picture round for how the screen is mounted</small></span>
           <input type="checkbox" class="toggle" data-key="oledFlip" data-label="Upside down"></label>
         <div class="row dep"><span class="row-text"><b>Screen designer</b><small>Choose what the screen shows</small></span>
           <a class="btn small" href="/screen.html">Open</a></div>
+      </div>
+    </section>
+
+    <!-- Microphone -->
+    <section class="section">
+      <h2 class="section-title">Microphone</h2>
+      <div class="group" data-group="speechEna">
+        <label class="row"><span class="row-text"><b>Speech</b><small>The mouth moves with your voice, from the mic on GPIO 4</small></span>
+          <input type="checkbox" class="toggle" data-key="speechEna" data-label="Speech"></label>
+        <div class="meter dep">
+          <div class="meter-status" id="micStatus"><i></i><b id="micStatusText">Speech is off</b><span id="micNumbers"></span></div>
+          <div>
+            <div class="gauge-head"><span>Mic level</span><b id="micLevelText">—</b></div>
+            <div class="gauge" id="micGauge"><i></i><em></em></div>
+          </div>
+        </div>
+        <div class="row dep"><span class="row-text"><b>Quiet level</b><small>What silence reads as. Measured by itself when Speech is switched on.</small></span>
+          <div class="stepper" data-key="spMin" data-label="Quiet level" data-min="100" data-max="2500" data-step="50"><button type="button" aria-label="Less">−</button><output>850</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row dep"><span class="row-text"><b>Measure silence</b><small>Keep quiet for a second after pressing</small></span>
+          <button class="btn small" type="button" onclick="micCal()">Measure</button></div>
+        <div class="row dep"><span class="row-text"><b>Range</b><small>How loud counts as full volume. Default 500.</small></span>
+          <div class="stepper" data-key="spMax" data-label="Speech range" data-min="200" data-max="800" data-step="25"><button type="button" aria-label="Less">−</button><output>500</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row dep"><span class="row-text"><b>Trigger point</b><small>Level that counts as talking. The line on the meter. Default 10.</small></span>
+          <div class="stepper" data-key="spTrig" data-label="Trigger point" data-min="2" data-max="100" data-step="1"><button type="button" aria-label="Less">−</button><output>10</output><button type="button" aria-label="More">+</button></div></div>
+        <details class="sub dep">
+          <summary><span>If the mouth doesn't move</span></summary>
+          <div class="sub-body">
+            <p class="hint">Watch <b>Mic level</b> while you talk. <b>No signal</b> means the reading never moves at all, so the mask isn't hearing the mic: check its OUT wire on GPIO 4, and that it's powered from 3V3 rather than the panel 5V.</p>
+            <p class="hint">Moving but never reaching the line: turn the small screw pot on the mic board up, or lower <b>Trigger point</b>. Always over the line: turn the pot down, then press <b>Measure silence</b> again.</p>
+            <p class="hint">Only faces with mouth panels move, and speech is ignored while a boop or the sleeping face is showing.</p>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -533,40 +571,25 @@
       </div>
     </section>
 
-    <!-- Parts not fitted -->
+    <!-- Fan -->
     <section class="section">
-      <h2 class="section-title">Parts not fitted yet</h2>
-      <div class="group">
-        <details class="sub">
-          <summary><span>Microphone, fan and remote<small>For when those parts go in</small></span></summary>
-          <div>
-            <div data-group="speechEna">
-              <label class="row"><span class="row-text"><b>Speech</b><small>Mouth moves with your voice. Needs a mic on GPIO 4; with none fitted the mouth flaps randomly.</small></span>
-                <input type="checkbox" class="toggle" data-key="speechEna" data-label="Speech"></label>
-              <div class="meter dep">
-                <div class="meter-status" id="micStatus"><i></i><b id="micStatusText">Speech is off</b><span id="micNumbers"></span></div>
-                <div>
-                  <div class="gauge-head"><span>Mic level</span><b id="micLevelText">—</b></div>
-                  <div class="gauge" id="micGauge"><i></i><em></em></div>
-                </div>
-              </div>
-              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Quiet level</b><small>What silence reads as. Measured by itself when Speech is switched on.</small></span>
-                <div class="stepper" data-key="spMin" data-label="Quiet level" data-min="100" data-max="2500" data-step="50"><button type="button" aria-label="Less">−</button><output>850</output><button type="button" aria-label="More">+</button></div></div>
-              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Measure silence</b><small>Keep quiet for a second after pressing</small></span>
-                <button class="btn small" type="button" onclick="micCal()">Measure</button></div>
-              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Range</b><small>Default 500</small></span>
-                <div class="stepper" data-key="spMax" data-label="Speech range" data-min="200" data-max="800" data-step="25"><button type="button" aria-label="Less">−</button><output>500</output><button type="button" aria-label="More">+</button></div></div>
-              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Trigger point</b><small>Default 10</small></span>
-                <div class="stepper" data-key="spTrig" data-label="Trigger point" data-min="2" data-max="100" data-step="1"><button type="button" aria-label="Less">−</button><output>10</output><button type="button" aria-label="More">+</button></div></div>
-            </div>
-            <div class="row stack" style="border-top:1px solid var(--line)">
-              <div class="control-head"><label for="fanspeed"><b>Fan</b></label><output id="fanVal">100%</output></div>
-              <input type="range" min="0" max="255" value="255" id="fanspeed">
-            </div>
-            <label class="row" style="border-top:1px solid var(--line)"><span class="row-text"><b>Remote (BLE)</b><small>Starts at the next restart</small></span>
-              <input type="checkbox" class="toggle" data-key="bleEna" data-label="Remote (BLE)"></label>
-          </div>
-        </details>
+      <h2 class="section-title">Fan <span class="tag">Not installed</span></h2>
+      <div class="group notfitted">
+        <div class="row stack">
+          <div class="control-head"><label for="fanspeed"><b>Speed</b></label><output id="fanVal">100%</output></div>
+          <input type="range" min="0" max="255" value="255" id="fanspeed">
+        </div>
+        <div class="row"><span class="row-text"><small>Nothing is wired to the fan pin (GPIO 13), so this changes nothing yet.</small></span></div>
+      </div>
+    </section>
+
+    <!-- Remote -->
+    <section class="section">
+      <h2 class="section-title">Remote <span class="tag">Not installed</span></h2>
+      <div class="group notfitted">
+        <label class="row"><span class="row-text"><b>Remote (BLE)</b><small>ProtoESP's own wireless remote. Starts at the next restart.</small></span>
+          <input type="checkbox" class="toggle" data-key="bleEna" data-label="Remote (BLE)"></label>
+        <div class="row"><span class="row-text"><small>No remote is paired. If you fit one, switch this on and restart the mask.</small></span></div>
       </div>
     </section>
   </div>
