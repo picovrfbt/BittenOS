@@ -70,6 +70,7 @@ public:
   void speak(bool) const;
   void remote(bool) const;
   void off() const;
+  void blit(const uint8_t *page_buffer) const;   //1024 bytes, u8g2's own layout: page*128 + x, bit = y & 7
 private:
   bool INAavail = false;
 };

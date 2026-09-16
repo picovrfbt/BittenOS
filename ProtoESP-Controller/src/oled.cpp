@@ -16,6 +16,12 @@ void SSDOLED::oledBright(int level) const {
     }
 }
 
+//--------------------------------//Whole-screen draw, for layouts from screen.json
+void SSDOLED::blit(const uint8_t *page_buffer) const {
+  memcpy(u8g2.getBufferPtr(), page_buffer, 128 * 8);
+  u8g2.sendBuffer();
+}
+
 //--------------------------------//OLED off (switched off from the web page); init() wakes it again
 void SSDOLED::off() const {
   u8g2.clearDisplay();

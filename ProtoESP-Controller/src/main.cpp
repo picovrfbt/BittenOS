@@ -74,6 +74,7 @@ Config cfg;
 #include "Misc.h" //Misc/helping functions
 
 #include "oled.h"
+#include "screen.h"
 SSDOLED oled;
 
 #include "SparkFun_BMI270_Arduino_Library.h"
@@ -341,6 +342,14 @@ unsigned long blankStart = 0, alsSkipUntil = 0, lastMeasureAt = 0, autoLastCheck
 uint8_t hybridSkips = 0;                //hybrid checks in a row that didn't need a blank
 int visorBright() { return (cfg.autoBriEna && autoShown >= 0) ? autoShown : cfg.bVisor; }
 void autoBrightnessStep();
+//Status screen: drawn from /screen.json, the layout the on-board designer saves. With a layout in
+//place it owns the screen; without one, ProtoESP's original face-name screen is used instead.
+uint8_t screenBuf[128 * 8], screenPrev[128 * 8];
+bool screenPrevValid = false;
+unsigned long lastScreenDraw = 0;
+volatile bool screenReloadReq = false;   //set by /savescreen
+void screenTick();
+inline bool oledLegacy(); //the old screen writes, only when no layout is loaded
 uint32_t loopCount = 0, loopsPerSec = 0; unsigned long loopRateStart = 0; //loop() runs per second, for the system monitor
 uint16_t currentEarsFrame = 0, currentVisorFrame = 0; //frame indexes: scrolling text can have hundreds of frames
 uint8_t numOfSegm, numAnimBlush, totalAnims;
@@ -574,7 +583,7 @@ bool loadAnim(String anim, String temp) {
     currentVisorFrame = 0;
     currentEarsFrame = 0;
 
-    if(cfg.oledEna && oledInitDone) {
+    if(oledLegacy()) {
       oled.writeAnim(anim.substring(0,anim.length()-5));
       oled.writeRGB(vTAcro[visorNow->type]);
     }
@@ -613,11 +622,11 @@ class MyCallbacks: public NimBLECharacteristicCallbacks {
           visorNow->type++;
           if(visorNow->type == visTypeSize)
             visorNow->type = 0;
-          if(cfg.oledEna && oledInitDone)
+          if(oledLegacy())
             oled.writeRGB(vTAcro[visorNow->type]);
         } else if (temp.indexOf("set") > 0) {
           temp.remove(0,4);
-          if(cfg.oledEna && oledInitDone)
+          if(oledLegacy())
             oled.writeSet(temp.toInt()+1);
         }
       } else if (temp.toInt() > 0 && temp.toInt() <= totalAnims){ //legacy remote reasons
@@ -1016,6 +1025,28 @@ void startWiFiWeb() {
     }
   });
 
+  server.on("/savescreen", HTTP_POST, [](AsyncWebServerRequest *request){ //the screen designer saving a layout
+    if(!request->hasParam("layout", true)) {
+      request->send(200, "text/plain", F("No layout sent"));
+      return;
+    }
+    String layout = request->getParam("layout", true)->value();
+    if(layout.indexOf("elements") < 0) {          //cheap sanity check before overwriting the file
+      request->send(200, "text/plain", F("That doesn't look like a screen layout"));
+      return;
+    }
+    File f = LittleFS.open("/screen.json", "w");
+    if(!f) {
+      request->send(200, "text/plain", F("Could not open screen.json"));
+      return;
+    }
+    f.print(layout);
+    f.close();
+    screenReloadReq = true;                       //the loop task re-reads it and redraws
+    logPrint(F("[I] Screen layout saved"));
+    request->send(200, "text/plain", "ok");
+  });
+
   server.on("/miccal", HTTP_GET, [](AsyncWebServerRequest *request){ //listen to the silence, store it as the quiet level
     if(!cfg.speechEna) {
       request->send(200, "text/plain", F("Turn Speech on first"));
@@ -1324,6 +1355,9 @@ void setup() {
   tiltInitDone = imuBegin(); //set up even with tilt off, so the calibration Read buttons work
   logPrint(tiltInitDone ? F("[I] BMI270 ready") : F("[E] BMI270 not found on I2C (0x68/0x69)"));
 
+  if(screenLoadLayout()) logPrint("[I] Screen layout loaded, " + String(screenElementCount()) + " elements");
+  else logPrint(F("[I] No screen layout: using the original screen"));
+
   if(cfg.oledEna) {
     if(!oled.init(oledAddr,cfg.bOled,INApresent)) {
       logPrint(F("[E] An Error has occurred while initializing SSD1306!"));
@@ -1599,6 +1633,43 @@ void autoBrightnessStep() {
   }
 }
 
+//--------------------------------//Status screen from screen.json
+inline bool oledLegacy() { return cfg.oledEna && oledInitDone && !screenHasLayout(); }
+
+void screenTick() {
+  if(screenReloadReq) {                    //a new layout was just saved from the designer
+    screenReloadReq = false;
+    screenLoadLayout();
+    screenPrevValid = false;
+    logPrint("[I] Screen layout reloaded, " + String(screenElementCount()) + " elements");
+  }
+  if(!cfg.oledEna || !oledInitDone || !screenHasLayout()) return;
+  if(millis() - lastScreenDraw < 400) return;   //a few times a second is plenty, and it shares I2C with the sensors
+  lastScreenDraw = millis();
+  ScreenData d;
+  d.face = currentAnim.endsWith(".json") ? currentAnim.substring(0, currentAnim.length() - 5) : currentAnim;
+  d.wifiName = cfg.wifiName;
+  d.boops = cfg.boopCount;
+  d.wifiClients = WiFi.softAPgetStationNum();
+  d.brightness = visorBright();
+  d.uptime = millis() / 1000;
+  d.tempC = temperatureRead();
+  d.closeness = boopSignal();
+  d.boopThresh = cfg.boopThresh;
+  d.shade = shadeNow;
+  d.shadeNeed = cfg.boopShade;
+  d.booping = booping;
+  d.sleeping = sleeping;
+  d.displayOn = displayOn;
+  d.tilt = tiltInitDone;
+  d.boopSensor = ToFInitDone;
+  screenRender(screenBuf, d);
+  if(screenPrevValid && memcmp(screenBuf, screenPrev, sizeof(screenBuf)) == 0) return; //nothing changed: don't push pixels
+  memcpy(screenPrev, screenBuf, sizeof(screenBuf));
+  screenPrevValid = true;
+  oled.blit(screenBuf);
+}
+
 void loop() {
   if(otaRebootAt && millis() >= otaRebootAt) { //an update was accepted: restart into it
     ESP.restart();
@@ -1613,6 +1684,7 @@ void loop() {
     }
   }
   autoBrightnessStep();
+  screenTick();
   if(brightnessDirty && visorType == "MAX72XX") {
     brightnessDirty = false;
     if(transPhase == 0) mx.control(MD_MAX72XX::INTENSITY, visorBright()); //a running transition owns the intensity
@@ -1941,7 +2013,7 @@ void loop() {
       if(micVolume > cfg.spTrig) {
         if(!speaking) {
           speaking = true;
-          if(cfg.oledEna && oledInitDone) {
+          if(oledLegacy()) {
             oled.speak(true);
           }
           logPrint(F("[I] Speak"));
@@ -1950,7 +2022,7 @@ void loop() {
         if(speaking) {
           logPrint(F("[I] unSpeak"));
           speaking = false;
-          if(cfg.oledEna && oledInitDone) {
+          if(oledLegacy()) {
             oled.speak(false);
           }
           if(visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX")) {
@@ -2189,7 +2261,7 @@ void loop() {
   //Serial.println(">BP:"+String(micros()-looptime));
 
   //--------------------------------//OLED routine, ~~10ms qwq~~, 1-5ms.. eh better
-  if(cfg.oledEna && oledInitDone && vaStatLast+1000<millis()) {
+  if(oledLegacy() && vaStatLast+1000<millis()) {
     //looptime = micros();
     if(INApresent) {
       oled.writeINA(ina219.getBusVoltage_V(),ina219.getCurrent_mA());
@@ -2215,9 +2287,12 @@ void loop() {
       cfg.oledEna = false;
     } else {
       oledInitDone = true;               //switched on from the page: fill the screen straight away
-      oled.speak(false);
-      oled.writeSet(1);
-      if(currentAnim.endsWith(".json")) oled.writeAnim(currentAnim.substring(0, currentAnim.length() - 5));
+      screenPrevValid = false;
+      if(!screenHasLayout()) {
+        oled.speak(false);
+        oled.writeSet(1);
+        if(currentAnim.endsWith(".json")) oled.writeAnim(currentAnim.substring(0, currentAnim.length() - 5));
+      }
     }
   } else if (oledInitDone && !cfg.oledEna) { //switched off from the page
     oled.off();

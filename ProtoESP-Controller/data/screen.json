@@ -162,6 +162,14 @@
    "suffix": "",
    "size": 1,
    "align": "left"
+  },
+  {
+   "x": 4,
+   "y": 4,
+   "show": "always",
+   "type": "icon",
+   "icon": "heart",
+   "size": 1
   }
  ]
 }
