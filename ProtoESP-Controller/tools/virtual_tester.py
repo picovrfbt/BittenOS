@@ -409,27 +409,20 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/stats':   # system monitor: plausible numbers shaped like the firmware's reply
             return self.reply(200, json.dumps(stats_dict()), 'application/json')
 
-        # ---- screen designer (tester only) ----
-        if path == '/__screen':
-            return self.static(HERE, 'screen.html')
-        if path == '/__screen_render.js':
-            return self.static(HERE, 'screen_render.js')
-        if path == '/__screenlayout':   # the layout lives in data/screen.json, so it ships with the web files
-            layout_path = os.path.join(DATA, 'screen.json')
-            if method == 'POST':
-                try:
-                    layout = json.loads(form.get('layout', ''))
-                    if not isinstance(layout, dict) or not isinstance(layout.get('elements'), list):
-                        raise ValueError('no elements list')
-                except ValueError as e:
-                    return self.reply(400, 'Bad layout: %s' % e)
-                with open(layout_path, 'w', encoding='utf-8') as f:
-                    json.dump(layout, f, indent=1)
-                board.log('[I] Screen layout saved to data/screen.json (%d elements)' % len(layout['elements']))
-                return self.text('OK')
-            if os.path.isfile(layout_path):
-                return self.static(DATA, 'screen.json')
-            return self.reply(404, 'No layout saved yet')
+        # ---- status screen ----
+        # screen.html and screen_render.js are served from data/ like any other web file, the way
+        # the mask serves them; only the save endpoint needs answering.
+        if path == '/savescreen' and method == 'POST':
+            try:
+                layout = json.loads(form.get('layout', ''))
+                if not isinstance(layout, dict) or not isinstance(layout.get('elements'), list):
+                    raise ValueError('no elements list')
+            except ValueError as e:
+                return self.reply(400, 'Bad layout: %s' % e)
+            with open(os.path.join(DATA, 'screen.json'), 'w', encoding='utf-8') as f:
+                json.dump(layout, f, indent=1)
+            board.log('[I] Screen layout saved (%d elements)' % len(layout['elements']))
+            return self.text('ok')
         if path == '/__screendata':   # everything the screen can show, in one request, without logging
             s = stats_dict()
             return self.reply(200, json.dumps({

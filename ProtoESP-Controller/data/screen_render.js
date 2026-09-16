@@ -1,8 +1,9 @@
-// Draws a 128x64 status-screen layout (data/screen.json) the way the mask's SSD1306 will.
-// Shared by the screen designer (/__screen) and the tester dashboard's preview.
+// Draws a 128x64 status-screen layout (screen.json) the way the mask's SSD1306 does.
+// Shared by the screen designer (screen.html) and the tester dashboard's preview.
 //
 // Text uses the same 5x7 font as the scrolling text (MD_MAX72XX system font, LGPL-2.1), drawn
-// pixel for pixel at 1x, 2x or 3x, so the firmware can use the identical table and match exactly.
+// pixel for pixel at 1x, 2x or 3x. src/screen_font.h is generated from the tables below by
+// tools/make_screen_font.py, so the firmware draws exactly what the designer shows.
 (function () {
   const W = 128, H = 64;
 
@@ -30,6 +31,7 @@
   }
 
   // what a "value" element can show; d is the normalised data from normalise()
+  // The order here is the order src/screen.cpp expects, so keep them in step.
   const SOURCES = {
     face:        {label: 'Face name',        get: d => d.face},
     boops:       {label: 'Boop count',       get: d => String(d.boops)},
@@ -96,27 +98,30 @@
     return (cols - 1) * size;
   }
 
-  // turns /__screendata (or anything shaped like it) into the fields the sources read
+  // Turns the mask's /stats (plus a few /config.json fields) into what the sources read. The
+  // tester's /__screendata is the same shape, so either works.
   function normalise(raw) {
     raw = raw || {};
-    const face = String(raw.anim || 'default.json');
+    const pick = (...names) => { for (const n of names) if (raw[n] !== undefined) return raw[n]; };
+    const face = String(pick('anim') || 'default.json');
+    const num = v => (typeof v === 'number' ? v : 0);
     return {
       face: face === 'POSTAnimLoad' ? 'text' : face.replace(/\.json$/, ''),
-      boops: raw.boopCount | 0,
-      wifiClients: raw.wifiClients | 0,
-      wifiName: raw.wifi || 'ProtoWiFi',
-      brightness: raw.brightness | 0,
-      uptime: raw.uptime || 0,
-      tempC: typeof raw.tempC === 'number' ? raw.tempC : 0,
-      closeness: raw.boopSig | 0,
-      boopThresh: raw.boopThresh || 15,
-      shade: raw.shade | 0,
-      shadeNeed: raw.boopShade || 30,
-      booping: !!raw.booping,
-      sleeping: !!raw.sleeping,
-      displayOn: raw.displayOn !== false,
-      tilt: !!raw.tilt,
-      boopSensor: !!raw.boop,
+      boops: num(pick('boops', 'boopCount')),
+      wifiClients: num(pick('wifiClients')),
+      wifiName: pick('wifiName', 'wifi') || 'ProtoWiFi',
+      brightness: num(pick('bright', 'brightness')),
+      uptime: num(pick('uptime')),
+      tempC: num(pick('tempC')),
+      closeness: num(pick('boopSig')),
+      boopThresh: num(pick('boopThresh')) || 15,
+      shade: num(pick('shade')),
+      shadeNeed: num(pick('boopShade')) || 30,
+      booping: !!pick('booping'),
+      sleeping: !!pick('sleeping'),
+      displayOn: pick('displayOn', 'display') !== false,
+      tilt: !!pick('tilt'),
+      boopSensor: !!pick('boop'),
     };
   }
 

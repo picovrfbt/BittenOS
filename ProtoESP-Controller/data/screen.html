@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Screen designer</title>
+<meta name="theme-color" content="#0b0f17">
+<link rel="icon" href="/icon-192.png" sizes="192x192">
+<style>
+  :root { --bg:#0b0f17; --surface:#131a26; --surface2:#1a2333; --line:#253047; --text:#e8edf6; --dim:#8c97ad;
+          --faint:#5f6b82; --accent:#4da3ff; --accent-soft:rgba(77,163,255,.14); --bad:#ff6b6b; --radius:16px; color-scheme: dark; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--text); }
+  body { font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  [hidden] { display:none !important; }
+  .topbar { position:sticky; top:0; z-index:10; background:rgba(11,15,23,.9); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
+  .topbar-in { max-width:900px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:12px; }
+  .brand { font-weight:700; font-size:17px; }
+  .brand small { display:block; font-weight:400; font-size:12px; color:var(--dim); }
+  .topbar a { margin-left:auto; color:var(--accent); font-size:13px; font-weight:600; text-decoration:none; }
+  #status { font-size:12px; color:var(--dim); }
+  #status.dirty { color:#ffd84a; }
+  main { max-width:900px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px; }
+  h2 { margin:0 0 10px; font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; }
+  button, select, input { font:inherit; }
+  .btn { -webkit-appearance:none; appearance:none; border:1px solid var(--line); background:var(--surface2); color:var(--text);
+         border-radius:10px; padding:9px 12px; min-height:42px; font-size:14px; font-weight:600; cursor:pointer; }
+  .btn:active { transform:scale(.98); }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#04101f; }
+  .btn.danger { color:var(--bad); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .row + .row { margin-top:10px; }
+  #screenWrap { background:#0a0c12; border-radius:12px; padding:12px; }
+  #screen { display:block; width:100%; max-width:768px; margin:0 auto; aspect-ratio:2 / 1; touch-action:none; image-rendering:pixelated; }
+  .hint { font-size:13px; color:var(--dim); margin:10px 0 0; line-height:1.5; }
+  label.chk { display:inline-flex; gap:6px; align-items:center; color:var(--dim); font-size:13px; }
+  select, input[type=text], input[type=number] { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:8px 10px; min-height:40px; width:100%; }
+  #list { display:flex; flex-direction:column; gap:5px; max-height:300px; overflow:auto; }
+  .item { display:flex; gap:8px; align-items:center; background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:8px 10px; cursor:pointer; font-size:13px; }
+  .item.on { border-color:var(--accent); }
+  .item .kind { color:var(--dim); font-size:11px; min-width:62px; }
+  .item .what { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .item .hid { color:var(--faint); font-size:11px; }
+  .props { display:grid; grid-template-columns:auto 1fr; gap:8px 10px; align-items:center; }
+  .props > label { color:var(--dim); font-size:13px; }
+  .xy { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .warn { color:#ffd84a; font-size:12px; grid-column:1 / -1; }
+  .empty { color:var(--dim); font-size:13px; margin:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chip { background:var(--surface2); border:1px solid var(--line); border-radius:999px; padding:3px 10px; font-size:12px; color:var(--dim); }
+  .chip b { color:var(--text); font-weight:600; }
+  .cols { display:grid; gap:16px; }
+  @media (min-width:860px) { .cols { grid-template-columns:1fr 340px; align-items:start; } }
+  .toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:20; max-width:calc(100% - 32px);
+    transform:translate(-50%,16px); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+    background:#1f2a3d; border:1px solid var(--line); border-radius:12px; padding:12px 18px; font-weight:600; }
+  .toast.show { opacity:1; transform:translate(-50%,0); }
+  .toast.err { border-color:var(--bad); color:#ffd2d2; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">Screen designer<small><span id="status">loading…</span></small></div>
+    <a href="/">← Mask</a>
+  </div>
+</header>
+
+<main>
+  <div class="cols">
+    <div style="display:grid;gap:16px">
+      <section class="card">
+        <h2>Status screen</h2>
+        <div id="screenWrap"><canvas id="screen"></canvas></div>
+        <div class="row" style="margin-top:12px">
+          <span style="color:var(--dim);font-size:13px">Add:</span>
+          <button class="btn" onclick="addEl('text')">Text</button>
+          <button class="btn" onclick="addEl('value')">Value</button>
+          <button class="btn" onclick="addEl('bar')">Bar</button>
+          <button class="btn" onclick="addEl('icon')">Icon</button>
+          <button class="btn" onclick="addEl('rect')">Box</button>
+          <button class="btn" onclick="addEl('line')">Line</button>
+        </div>
+        <div class="row">
+          <label class="chk">Colour
+            <select id="colour" style="width:auto">
+              <option value="white">White</option>
+              <option value="blue">Blue</option>
+              <option value="yellowBlue">Yellow / blue</option>
+            </select></label>
+          <label class="chk"><input type="checkbox" id="showBoxes" checked> Outlines</label>
+          <label class="chk"><input type="checkbox" id="showHidden" checked> Ghost hidden</label>
+        </div>
+        <p class="hint">Drag to move. Arrow keys nudge the selected element a pixel (Shift for 5), Delete removes it.
+          The mask draws this with the same font, so what you see is what the screen shows.</p>
+        <div class="chips" id="chips"></div>
+      </section>
+    </div>
+
+    <div style="display:grid;gap:16px">
+      <section class="card">
+        <h2>Layout</h2>
+        <div class="row">
+          <button class="btn primary" onclick="save()">Save to mask</button>
+          <button class="btn" onclick="revert()">Revert</button>
+        </div>
+        <div class="row">
+          <button class="btn" onclick="download()">Download</button>
+          <button class="btn" onclick="document.getElementById('fileIn').click()">Load file</button>
+          <button class="btn" onclick="startFrom(ScreenSim.EXAMPLE)">Example</button>
+          <button class="btn danger" onclick="startFrom({version:1, elements:[]})">Clear</button>
+        </div>
+        <input type="file" id="fileIn" hidden accept=".json">
+        <p class="hint">Save writes screen.json on the mask and the screen updates straight away. Needs Status screen switched on in Settings to see it.</p>
+      </section>
+
+      <section class="card">
+        <h2>Elements</h2>
+        <div id="list"></div>
+      </section>
+
+      <section class="card">
+        <h2>Selected</h2>
+        <div id="props"><p class="empty">Tap an element on the screen, or add one.</p></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="/screen_render.js"></script>
+<script>
+  const S = ScreenSim;
+  const $ = id => document.getElementById(id);
+  const NO_CACHE = {cache: 'no-store'};
+  const canvas = $('screen');
+  let layout = {version: 1, elements: []}, saved = '', sel = -1, data = S.normalise({}), boxes = [], drag = null;
+  let cfgBits = {};   // boopThresh and boopShade, which the bars' markers need
+
+  function toast(msg, isError) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' err' : '');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => { t.className = 'toast'; }, 2400);
+  }
+
+  /* ---------- drawing ---------- */
+  function redraw() {
+    const r = S.renderBuffer(layout, data);
+    boxes = r.boxes;
+    const sc = 6;
+    const ctx = S.paint(canvas, r.buf, sc, $('colour').value);
+    const outline = $('showBoxes').checked, ghost = $('showHidden').checked;
+    boxes.forEach(b => {
+      const isSel = b.i === sel;
+      if (!b.visible && ghost) {
+        ctx.fillStyle = 'rgba(77,163,255,.10)';
+        ctx.fillRect(b.x * sc, b.y * sc, b.w * sc, b.h * sc);
+      }
+      if (isSel || outline) {
+        ctx.strokeStyle = isSel ? '#4da3ff' : 'rgba(255,255,255,.16)';
+        ctx.lineWidth = isSel ? 2 : 1;
+        ctx.setLineDash(b.visible ? [] : [6, 4]);
+        ctx.strokeRect(b.x * sc - 1, b.y * sc - 1, b.w * sc + 2, b.h * sc + 2);
+        ctx.setLineDash([]);
+      }
+    });
+    const dirty = JSON.stringify(layout) !== saved;
+    $('status').textContent = dirty ? 'unsaved changes' : 'saved on the mask';
+    $('status').className = dirty ? 'dirty' : '';
+  }
+
+  /* ---------- list and properties ---------- */
+  function describe(el) {
+    if (el.type === 'text') return '"' + (el.text || '') + '"';
+    if (el.type === 'value') return (S.SOURCES[el.source] || {label: '?'}).label;
+    if (el.type === 'bar') return (S.BARS[el.source] || {label: '?'}).label + ' bar';
+    if (el.type === 'icon') return el.icon + ' icon';
+    if (el.type === 'rect') return (el.h === 1 || el.w === 1 ? 'line' : el.fill ? 'filled box' : 'box') + ' ' + el.w + '×' + el.h;
+    return el.type;
+  }
+
+  function renderList() {
+    const list = $('list');
+    list.innerHTML = '';
+    if (!layout.elements.length) { list.innerHTML = '<p class="empty">Nothing on the screen yet.</p>'; return; }
+    layout.elements.forEach((el, i) => {
+      const row = document.createElement('div');
+      row.className = 'item' + (i === sel ? ' on' : '');
+      row.innerHTML = '<span class="kind"></span><span class="what"></span><span class="hid"></span>';
+      row.children[0].textContent = S.TYPES[el.type] || el.type;
+      row.children[1].textContent = describe(el);
+      row.children[2].textContent = el.show && el.show !== 'always' ? S.SHOW[el.show].label.toLowerCase() : '';
+      row.onclick = () => select(i);
+      list.appendChild(row);
+    });
+  }
+
+  function field(label, html) { return '<label>' + label + '</label><div>' + html + '</div>'; }
+  function opts(map, cur, labelOf) {
+    return Object.keys(map).map(k => '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + labelOf(k) + '</option>').join('');
+  }
+  function esc(s) { return String(s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+  function renderProps() {
+    const box = $('props'), el = layout.elements[sel];
+    if (!el) { box.innerHTML = '<p class="empty">Tap an element on the screen, or add one.</p>'; return; }
+    let h = '<div class="props">';
+    h += field('Type', '<b>' + S.TYPES[el.type] + '</b>');
+    h += field('Position', '<div class="xy"><input type="number" data-k="x" value="' + el.x + '" aria-label="x"><input type="number" data-k="y" value="' + el.y + '" aria-label="y"></div>');
+    if (el.type === 'text') h += field('Text', '<input type="text" data-k="text" maxlength="40" value="' + esc(el.text) + '">');
+    if (el.type === 'value') {
+      h += field('Shows', '<select data-k="source">' + opts(S.SOURCES, el.source, k => S.SOURCES[k].label) + '</select>');
+      h += field('Before', '<input type="text" data-k="prefix" maxlength="12" value="' + esc(el.prefix) + '">');
+      h += field('After', '<input type="text" data-k="suffix" maxlength="12" value="' + esc(el.suffix) + '">');
+    }
+    if (el.type === 'text' || el.type === 'value') {
+      h += field('Size', '<select data-k="size" data-num>' + [1, 2, 3].map(n => '<option' + (n === el.size ? ' selected' : '') + ' value="' + n + '">' + n + '× (' + 8 * n + ' px tall)</option>').join('') + '</select>');
+      h += field('Anchor', '<select data-k="align">' + opts({left: 1, center: 1, right: 1}, el.align || 'left', k => ({left: 'Left edge at x', center: 'Centred on x', right: 'Right edge at x'})[k]) + '</select>');
+    }
+    if (el.type === 'icon') {
+      h += field('Icon', '<select data-k="icon">' + opts(S.ICONS, el.icon, k => k) + '</select>');
+      h += field('Size', '<select data-k="size" data-num>' + [1, 2, 3].map(n => '<option' + (n === el.size ? ' selected' : '') + ' value="' + n + '">' + n + '× (' + 8 * n + ' px)</option>').join('') + '</select>');
+    }
+    if (el.type === 'bar') {
+      h += field('Fills with', '<select data-k="source">' + opts(S.BARS, el.source, k => S.BARS[k].label) + '</select>');
+      h += field('Marker', '<input type="checkbox" data-k="marker"' + (el.marker ? ' checked' : '') + '>');
+    }
+    if (el.type === 'bar' || el.type === 'rect')
+      h += field('Size', '<div class="xy"><input type="number" data-k="w" min="1" max="128" value="' + el.w + '" aria-label="width"><input type="number" data-k="h" min="1" max="64" value="' + el.h + '" aria-label="height"></div>');
+    if (el.type === 'rect') h += field('Filled', '<input type="checkbox" data-k="fill"' + (el.fill ? ' checked' : '') + '>');
+    h += field('Show', '<select data-k="show">' + opts(S.SHOW, el.show || 'always', k => S.SHOW[k].label) + '</select>');
+    const b = boxes[sel];
+    if (b && (b.x < 0 || b.y < 0 || b.x + b.w > S.W || b.y + b.h > S.H)) h += '<div class="warn">Part of this is off the screen.</div>';
+    h += '</div><div class="row" style="margin-top:12px">'
+      + '<button class="btn" onclick="move(-1)">Up</button><button class="btn" onclick="move(1)">Down</button>'
+      + '<button class="btn" onclick="dup()">Duplicate</button><button class="btn danger" onclick="del()">Delete</button></div>'
+      + '<p class="hint">Later elements draw on top of earlier ones.</p>';
+    box.innerHTML = h;
+    box.querySelectorAll('[data-k]').forEach(inp => {
+      const ev = inp.type === 'checkbox' || inp.tagName === 'SELECT' ? 'change' : 'input';
+      inp.addEventListener(ev, () => {
+        let v = inp.type === 'checkbox' ? inp.checked : inp.value;
+        if (inp.type === 'number' || inp.hasAttribute('data-num')) v = parseInt(v, 10) || 0;
+        el[inp.dataset.k] = v;
+        redraw(); renderList();
+        if (inp.tagName === 'SELECT' || inp.type === 'checkbox') renderProps();
+      });
+    });
+  }
+
+  function select(i) { sel = i; renderList(); renderProps(); redraw(); }
+
+  function addEl(kind) {
+    const base = {x: 4, y: 4, show: 'always'};
+    const el = {
+      text: {type: 'text', text: 'Hello', size: 1, align: 'left'},
+      value: {type: 'value', source: 'face', prefix: '', suffix: '', size: 1, align: 'left'},
+      bar: {type: 'bar', source: 'closeness', w: 60, h: 7, marker: true},
+      icon: {type: 'icon', icon: 'heart', size: 1},
+      rect: {type: 'rect', w: 30, h: 16, fill: false},
+      line: {type: 'rect', w: 128, h: 1, fill: true, x: 0},
+    }[kind];
+    layout.elements.push(Object.assign(base, el));
+    select(layout.elements.length - 1);
+  }
+  function move(dir) {
+    const j = sel + dir;
+    if (sel < 0 || j < 0 || j >= layout.elements.length) return;
+    const els = layout.elements;
+    [els[sel], els[j]] = [els[j], els[sel]];
+    select(j);
+  }
+  function dup() {
+    if (sel < 0) return;
+    const copy = JSON.parse(JSON.stringify(layout.elements[sel]));
+    copy.x += 4; copy.y += 4;
+    layout.elements.splice(sel + 1, 0, copy);
+    select(sel + 1);
+  }
+  function del() {
+    if (sel < 0) return;
+    layout.elements.splice(sel, 1);
+    select(Math.min(sel, layout.elements.length - 1));
+  }
+
+  /* ---------- dragging ---------- */
+  function toPixel(e) {
+    const r = canvas.getBoundingClientRect();
+    return [Math.floor((e.clientX - r.left) / r.width * S.W), Math.floor((e.clientY - r.top) / r.height * S.H)];
+  }
+  function hit(px, py) {
+    for (let k = boxes.length - 1; k >= 0; k--) {
+      const b = boxes[k];
+      if (px >= b.x - 1 && px <= b.x + b.w && py >= b.y - 1 && py <= b.y + b.h) return b.i;
+    }
+    return -1;
+  }
+  canvas.addEventListener('pointerdown', e => {
+    const [px, py] = toPixel(e), i = hit(px, py);
+    select(i);
+    if (i >= 0) { drag = {dx: px - layout.elements[i].x, dy: py - layout.elements[i].y}; canvas.setPointerCapture(e.pointerId); }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag || sel < 0) return;
+    const [px, py] = toPixel(e), el = layout.elements[sel];
+    const nx = px - drag.dx, ny = py - drag.dy;
+    if (nx !== el.x || ny !== el.y) { el.x = nx; el.y = ny; redraw(); }
+  });
+  canvas.addEventListener('pointerup', () => { if (drag) { drag = null; renderProps(); } });
+
+  document.addEventListener('keydown', e => {
+    if (sel < 0 || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    const step = e.shiftKey ? 5 : 1, el = layout.elements[sel];
+    const moves = {ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step]};
+    if (moves[e.key]) { el.x += moves[e.key][0]; el.y += moves[e.key][1]; e.preventDefault(); renderList(); renderProps(); redraw(); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); del(); }
+    else if (e.key === 'Escape') select(-1);
+  });
+
+  /* ---------- saving and loading ---------- */
+  // The mask writes screen.json itself and picks the new layout up straight away
+  async function save() {
+    try {
+      const form = new FormData();
+      form.append('layout', JSON.stringify(layout));
+      const r = await fetch('/savescreen', {method: 'POST', body: form, cache: 'no-store'});
+      const text = (await r.text()).trim();
+      if (!r.ok || text !== 'ok') throw new Error(text || 'save failed');
+      saved = JSON.stringify(layout);
+      toast('Saved to the mask');
+      redraw();
+    } catch (e) {
+      toast(e instanceof TypeError ? 'Could not reach the mask' : e.message, true);
+    }
+  }
+  async function revert() {
+    try {
+      const r = await fetch('/screen.json', NO_CACHE);
+      if (r.ok) { layout = await r.json(); saved = JSON.stringify(layout); }
+      else { layout = JSON.parse(JSON.stringify(S.EXAMPLE)); saved = ''; }
+    } catch (e) { layout = JSON.parse(JSON.stringify(S.EXAMPLE)); saved = ''; }
+    if (!Array.isArray(layout.elements)) layout = {version: 1, elements: []};
+    select(-1);
+  }
+  function startFrom(l) {
+    if (layout.elements.length && !confirm('Replace the current layout? Nothing is lost until you save.')) return;
+    layout = JSON.parse(JSON.stringify(l));
+    select(-1);
+  }
+  function download() {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(layout, null, 1)], {type: 'application/json'}));
+    a.download = 'screen.json';
+    a.click();
+  }
+  $('fileIn').addEventListener('change', async function () {
+    const f = this.files[0]; this.value = '';
+    if (!f) return;
+    try {
+      const l = JSON.parse(await f.text());
+      if (!Array.isArray(l.elements)) throw new Error('no elements');
+      layout = l; select(-1);
+    } catch (e) { toast("That doesn't look like a screen layout", true); }
+  });
+  window.addEventListener('beforeunload', e => { if (JSON.stringify(layout) !== saved) { e.preventDefault(); e.returnValue = ''; } });
+  ['colour', 'showBoxes', 'showHidden'].forEach(id => $(id).addEventListener('change', redraw));
+
+  /* ---------- live data from the mask ---------- */
+  function chip(label, value) { return '<span class="chip">' + label + ' <b>' + value + '</b></span>'; }
+  async function poll() {
+    if (document.hidden) return;
+    try {
+      const s = await (await fetch('/stats', NO_CACHE)).json();
+      data = S.normalise(Object.assign({}, cfgBits, s));
+      $('chips').innerHTML =
+        chip('Face', data.face) + chip('Booped', data.booping ? 'yes' : 'no') + chip('Sleeping', data.sleeping ? 'yes' : 'no') +
+        chip('Boops', data.boops) + chip('Closeness', data.closeness) + chip('Shadow', data.shade + '%') +
+        chip('Brightness', data.brightness);
+      if (!drag) redraw();
+    } catch (e) { /* out of reach: keep the last values */ }
+  }
+  async function loadCfg() {
+    try {
+      const o = await (await fetch('/config.json', NO_CACHE)).json();
+      cfgBits = {wifiName: o.wifiName, boopThresh: o.boopThresh, boopShade: o.boopShade};
+    } catch (e) { /* defaults are fine */ }
+  }
+
+  (async () => {
+    await loadCfg();
+    await revert();
+    poll();
+    setInterval(poll, 700);
+    setInterval(loadCfg, 15000);
+  })();
+</script>
+</body>
+</html>
