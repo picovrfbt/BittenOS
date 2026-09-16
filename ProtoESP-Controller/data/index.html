@@ -474,15 +474,18 @@
             <div class="gauge" id="micGauge"><i></i><em></em></div>
           </div>
         </div>
-        <div class="row dep"><span class="row-text"><b>Quiet level</b><small>What silence reads as. Measured by itself when Speech is switched on.</small></span>
-          <div class="stepper" data-key="spMin" data-label="Quiet level" data-min="100" data-max="2500" data-step="50"><button type="button" aria-label="Less">−</button><output>850</output><button type="button" aria-label="More">+</button></div></div>
-        <div class="row dep"><span class="row-text"><b>Measure silence</b><small>Keep quiet for a second after pressing</small></span>
+        <div class="row dep"><span class="row-text"><b>Mic test</b><small>Two seconds quiet, then talk. Tells you plainly whether it hears you.</small></span>
+          <button class="btn small" type="button" onclick="micTest()">Test</button></div>
+        <div class="row dep" id="micTestRow" hidden><span class="row-text"><b>Test result</b><small id="micTestText"></small></span></div>
+        <div class="row dep"><span class="row-text"><b>Noise floor</b><small>The swing of a quiet room, subtracted from what it hears</small></span>
+          <div class="stepper" data-key="spMin" data-label="Noise floor" data-min="0" data-max="2000" data-step="5"><button type="button" aria-label="Less">−</button><output>40</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row dep"><span class="row-text"><b>Measure silence</b><small>Keep quiet for a second and a half after pressing</small></span>
           <button class="btn small" type="button" onclick="micCal()">Measure</button></div>
         <div class="row dep"><span class="row-text"><b>Measure loud</b><small>Talk normally for three seconds. Sets Range and checks the gain.</small></span>
           <button class="btn small" type="button" onclick="micLoud()">Measure</button></div>
         <div class="row dep" id="micGainRow" hidden><span class="row-text"><b>Gain</b><small id="micGainText"></small></span></div>
         <div class="row dep"><span class="row-text"><b>Range</b><small>How loud counts as full volume. Default 500.</small></span>
-          <div class="stepper" data-key="spMax" data-label="Speech range" data-min="200" data-max="800" data-step="25"><button type="button" aria-label="Less">−</button><output>500</output><button type="button" aria-label="More">+</button></div></div>
+          <div class="stepper" data-key="spMax" data-label="Speech range" data-min="20" data-max="4000" data-step="10"><button type="button" aria-label="Less">−</button><output>500</output><button type="button" aria-label="More">+</button></div></div>
         <div class="row dep"><span class="row-text"><b>Trigger point</b><small>Level that counts as talking. The line on the meter. Default 10.</small></span>
           <div class="stepper" data-key="spTrig" data-label="Trigger point" data-min="2" data-max="100" data-step="1"><button type="button" aria-label="Less">−</button><output>10</output><button type="button" aria-label="More">+</button></div></div>
         <div class="row dep"><span class="row-text"><b>Mouth movement</b><small id="mouthModeHint"></small></span>
@@ -1315,8 +1318,18 @@
     } catch (e) { toast('Could not reach the mask', true); }
   }
 
-  // Mic: different mic boards rest at different voltages, so the mask listens to the silence for a
-  // second and takes that as its zero, rather than you guessing the number.
+  // Two seconds of quiet then three of talking, reported as two plain numbers
+  async function micTest() {
+    try {
+      const t = (await (await fetch('/mictest', NO_CACHE)).text()).trim();
+      if (t !== 'ok') { toast(t, true); return; }
+      toast('Keep quiet for two seconds…');
+      $('micTestRow').hidden = false;
+      $('micTestText').textContent = 'Listening…';
+    } catch (e) { toast('Could not reach the mask', true); }
+  }
+
+  // Mic: the room has a noise floor of its own, which gets subtracted from what it hears.
   async function micCal() {
     try {
       await fetch('/miccal', NO_CACHE);
@@ -1392,7 +1405,16 @@
     g.classList.toggle('over', level > trig);
     g.classList.toggle('idle', !on);
     $('micLevelText').textContent = on ? level + ' of 100' : 'off';
-    $('micNumbers').textContent = on ? 'raw ' + s.micRaw + ', silence ' + s.micQuiet : '';
+    // swing is the number that matters: peak to peak over 25 ms, with the room's floor beside it
+    $('micNumbers').textContent = on && s.micSwing !== undefined
+      ? 'swing ' + s.micSwing + ', floor ' + s.micQuiet + ', raw ' + s.micRaw : '';
+    // the two-part test: keep quiet, then talk, then a verdict
+    if (s.micTest) {
+      $('micTestRow').hidden = false;
+      $('micTestText').textContent = s.micTest === 1 ? 'Keep quiet…' : s.micTest === 2 ? 'Now talk…'
+        : 'Quiet ' + s.micTestQuiet + ', talking ' + s.micTestLoud + (s.micTestLoud > s.micTestQuiet * 3 + 20
+            ? ' — it hears you' : ' — barely any difference, so it is not hearing your voice');
+    }
     if (!on) { text.textContent = 'Speech is off'; return; }
     micRawSeen.push(s.micRaw);
     if (micRawSeen.length > 8) micRawSeen.shift();

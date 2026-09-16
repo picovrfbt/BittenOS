@@ -366,74 +366,86 @@ String currentAnim = "", animToLoad = "", availAnims[50], getfilesCache;
 String postAnimToLoad = "";
 SemaphoreHandle_t animQueueMutex = NULL;
 String visorThen = ""; //optional "then" of the current animation: the face to load after one pass (loop task only)
-//Mic zero level. A microphone board's output sits at some resting voltage and the sound swings
-//either side of it, so that resting level has to be subtracted. It differs by board - a MAX9814
-//rests at 1.25V, a MAX4466 at half its supply - and guessing it wrong leaves the mouth stuck open,
-//because the code only re-learns it while it thinks things are quiet. So: listen to the silence for
-//a second when Speech is switched on (or when the page asks), and take that as the zero.
-float micDC = 800;
-unsigned long micCalUntil = 0;           //listening to the silence until this time
-float micCalSum = 0;
-int micCalN = 0;
+//How loud it is, measured peak to peak.
+//The original code took 32 ADC samples as fast as it could - about a millisecond - kept the single
+//highest, and subtracted a stored resting level. A millisecond is a fraction of one cycle of a human
+//voice, so speech was caught at a random point in its waveform and mostly under-reported, while a
+//snap or a knock landed hard whatever the timing. Worse, the stored resting level could drift out of
+//step and there was no way back.
+//Instead: watch the highest and lowest reading over a 25 ms window and take the difference. That
+//spans several cycles of any voice, and the resting level cancels out of a difference entirely, so
+//there is nothing left to drift. Loudness is that swing above the room's own noise floor.
+#define MIC_WINDOW_MS 25
+int micWinMin = 4095, micWinMax = 0;     //extremes within the window being collected
+unsigned long micWinStart = 0;
+float micSwing = 0;                      //latest peak-to-peak, lightly smoothed
+float micNoise = 40;                     //the swing of a quiet room, from Measure silence
+int micRawMid = 0;                       //middle of the swing: should sit near half the supply if wired right
 bool prevSpeechEna = false;
-volatile bool micCalReq = false;         //from /miccal
 
-//Measuring a normal speaking voice, to set Range from it: the level is the gap from silence divided
-//by Range, so Range decides where ordinary speech lands on the 0-100 scale, and that decides which
-//mouth shapes you ever see. The raw extremes are watched at the same time, because an amplifier
-//turned up too far pins against the ends of the ADC's range and no setting can fix that.
-unsigned long micLoudUntil = 0;
+unsigned long micCalUntil = 0;           //Measure silence: the quietest swing in this window is the floor
+float micCalFloor = 0;
+volatile bool micCalReq = false;
+
+unsigned long micLoudUntil = 0;          //Measure loud: the biggest swing while you talk sets Range
 float micLoudPeak = 0;
-int micLoudRawMin = 4095, micLoudRawMax = 0;
+bool micLoudClipped = false;
 volatile bool micLoudReq = false;
-uint8_t micGainHint = 0;         //0 not measured, 1 about right, 2 turn the pot up, 3 turn it down
-unsigned long micPinnedSince = 0; //level stuck at full: the stored silence must be wrong
-uint8_t micAutoFixes = 0;
+uint8_t micGainHint = 0;                 //0 not measured, 1 about right, 2 turn the pot up, 3 turn it down
+
+//Mic test: two seconds of quiet, then three of talking, reported as two plain numbers so "is this
+//thing working at all" stops being a matter of interpretation.
+uint8_t micTestPhase = 0;                //0 idle, 1 keep quiet, 2 talk, 3 done
+unsigned long micTestQuietUntil = 0, micTestTalkUntil = 0;
+float micTestQuiet = 0, micTestLoud = 0;
+volatile bool micTestReq = false;
 
 void startMicCal() {
-  micCalUntil = millis() + 1200;
-  micCalSum = 0;
-  micCalN = 0;
-  logPrint(F("[I] Listening to the silence to find the mic's zero"));
+  micCalUntil = millis() + 1500;
+  micCalFloor = 99999;
+  logPrint(F("[I] Listening to the room to find the noise floor"));
 }
 
 void startMicLoud() {
   micLoudUntil = millis() + 3000;
   micLoudPeak = 0;
-  micLoudRawMin = 4095;
-  micLoudRawMax = 0;
+  micLoudClipped = false;
   logPrint(F("[I] Listening to a normal speaking voice to set Range"));
 }
 
-void finishMicLoud() {
-  micLoudUntil = 0;
-  //Clipping first: if the signal is hitting the ends of the ADC's range, the mic board is turned up
-  //too far and the loudest parts of speech are being flattened off before the mask ever sees them.
-  bool clipping = micLoudRawMax >= 4000 || micLoudRawMin <= 60;
-  if(micLoudPeak < 5) {
-    micGainHint = 2;               //heard next to nothing
-    logPrint("[E] Heard almost nothing (peak " + String((int)micLoudPeak) + "): turn the mic's gain up");
-    return;
-  }
-  //Aim for normal speech to land about 80 of 100, leaving room above for a raised voice
-  int want = (int)(micLoudPeak * 100.0f / 80.0f + 0.5f);
-  cfg.spMax = constrain(want, 200, 800);
-  micGainHint = clipping ? 3 : (want < 200 ? 2 : 1);
-  cfg.save();
-  logPrint("[I] Range set to " + String(cfg.spMax) + " from a peak of " + String((int)micLoudPeak) +
-           (clipping ? " (clipping: turn the gain down)" : ""));
+void startMicTest() {
+  micTestPhase = 1;
+  micTestQuietUntil = millis() + 2000;
+  micTestTalkUntil = millis() + 5000;
+  micTestQuiet = 99999;
+  micTestLoud = 0;
+  logPrint(F("[I] Mic test: keep quiet"));
 }
 
 void finishMicCal() {
   micCalUntil = 0;
-  if(micCalN <= 0) return;
-  micDC = micCalSum / (float)micCalN;
-  int measured = (int)(micDC + 0.5f);
-  logPrint("[I] Quiet level measured: " + String(measured));
-  if(abs(measured - cfg.spMin) > 20) {    //keep the page's Quiet level in step, without writing flash over nothing
-    cfg.spMin = measured;
-    cfg.save();
+  if(micCalFloor > 90000) return;
+  micNoise = micCalFloor;
+  cfg.spMin = (int)(micNoise + 0.5f);
+  cfg.save();
+  logPrint("[I] Noise floor measured: " + String(cfg.spMin));
+}
+
+void finishMicLoud() {
+  micLoudUntil = 0;
+  float above = micLoudPeak - micNoise;
+  if(above < 10) {                       //heard next to nothing over the room itself
+    micGainHint = 2;
+    logPrint("[E] Heard almost nothing (swing " + String((int)micLoudPeak) + " against a floor of " +
+             String((int)micNoise) + "): turn the mic's gain up");
+    return;
   }
+  //Aim for normal speech to land about 80 of 100, leaving room above for a raised voice
+  cfg.spMax = constrain((int)(above * 100.0f / 80.0f + 0.5f), 20, 4000);
+  micGainHint = micLoudClipped ? 3 : 1;
+  cfg.save();
+  logPrint("[I] Range set to " + String(cfg.spMax) + " from a swing of " + String((int)micLoudPeak) +
+           (micLoudClipped ? " (clipping: turn the gain down)" : ""));
 }
 
 //--------------------------------//getting stored anims names and count
@@ -1116,6 +1128,15 @@ void startWiFiWeb() {
     request->send(200, "text/plain", "ok");
   });
 
+  server.on("/mictest", HTTP_GET, [](AsyncWebServerRequest *request){ //two seconds quiet, three talking, two numbers back
+    if(!cfg.speechEna) {
+      request->send(200, "text/plain", F("Turn Speech on first"));
+      return;
+    }
+    micTestReq = true;
+    request->send(200, "text/plain", "ok");
+  });
+
   server.on("/autobri", HTTP_GET, [](AsyncWebServerRequest *request){ //measure=1: look at the light now
     if(request->hasParam("measure")) autoBriMeasureReq = true; //the loop task does it; the web task never touches I2C
     request->send(200, "text/plain", "ok");
@@ -1178,11 +1199,15 @@ void startWiFiWeb() {
     st["booping"] = booping;
     st["oled"] = oledInitDone;
     st["mic"] = cfg.speechEna ? micVolume : -1;                       //0-100; -1 when Speech is off
-    st["micRaw"] = (int)(finalMicAvg + 0.5f);                         //raw reading, to tell "no mic" from "quiet"
-    st["micQuiet"] = (int)(micDC + 0.5f);                             //what it thinks silence is
+    st["micRaw"] = micRawMid;                                         //middle of the swing: near half the supply if wired right
+    st["micSwing"] = (int)(micSwing + 0.5f);                          //how loud it is, peak to peak over 25 ms
+    st["micQuiet"] = (int)(micNoise + 0.5f);                          //the room's own noise floor
     st["micCal"] = micCalUntil != 0;
     st["micLoud"] = micLoudUntil != 0;                                //measuring a speaking voice
     st["micGain"] = micGainHint;                                      //0 unmeasured, 1 ok, 2 turn up, 3 turn down
+    st["micTest"] = micTestPhase;                                     //1 keep quiet, 2 talk, 3 done
+    st["micTestQuiet"] = micTestQuiet > 90000 ? -1 : (int)(micTestQuiet + 0.5f);
+    st["micTestLoud"] = (int)(micTestLoud + 0.5f);
     st["speaking"] = speaking;
     st["bright"] = visorBright();                                     //what the panels are actually set to
     st["autoLevel"] = autoLevel;                                      //-1 until auto-brightness has a reading
@@ -1369,7 +1394,7 @@ void setup() {
     cfg.setDefault();
   }
 
-  micDC = (float)cfg.spMin;
+  micNoise = (float)cfg.spMin;   //the noise floor measured last time
 
   adc_oneshot_unit_init_cfg_t init_config = {
     .unit_id = ADC_UNIT_1,
@@ -1480,8 +1505,8 @@ void setup() {
 //--------------------------------//Loop vars
 String oldanim, boopoldanim;
 bool FdisplayVisor = false, FdisplayBlush = false, FdisplayEar = false, booping = false, wasTilt = false, boopRea = false, remoteSign = false, speaking = true;
-float zAx,yAx,finalMicAvg,avgMicArr[10], micAttack = 0.35f, micRelease = 0.2f, env = 0.0f;
-int boopRead, startIndex = 1, micVolume, currentMicAvg = 0, btnNum = 0, currFade = 1;
+float zAx,yAx,finalMicAvg; //the envelope follower and its averaging array went with peak-to-peak sampling
+int boopRead, startIndex = 1, micVolume, btnNum = 0, currFade = 1;
 unsigned long lastMillsEars = 0, lastMillsVisor = 0, lastMillsTilt = 0, laskSpeakCheck = 0, lastMillsBoop = 0, lastFLED = 0, vaStatLast = 0, btnPressTime = 0, tiltChange = 0, check0button = 0, looptime = 0, fadeTime = 0, laskSpeakAnim = 0, lastBoopCheck = 0;
 bool btnHeld = false, btnLongDone = false; //button: held down now / hold action already fired
 unsigned long lastImuRetry = 0, lastApdsRetry = 0; //sensor not found yet: when it was last looked for
@@ -2095,78 +2120,52 @@ void loop() {
     micLoudReq = false;
     if(cfg.speechEna) startMicLoud();
   }
-  if(cfg.speechEna) { //1.045uS
-    int nvol = 0, micline = 0, rawInput = 0;
-    for (int i = 0; i<32; i++){
-      adc_oneshot_read(adc_handle, MICpin, &rawInput);
-      if(micLoudUntil) {                   //watch the real extremes, to spot an amplifier that is railing
-        if(rawInput < micLoudRawMin) micLoudRawMin = rawInput;
-        if(rawInput > micLoudRawMax) micLoudRawMax = rawInput;
-      }
-      micline = abs(rawInput - 512);
-      nvol = max(micline, nvol);
-    }
-    if(currentMicAvg == 9) {
-      currentMicAvg = 0;
-    } else {
-      avgMicArr[currentMicAvg++] = nvol;
+  if(micTestReq) {
+    micTestReq = false;
+    if(cfg.speechEna) startMicTest();
+  }
+  if(cfg.speechEna) {
+    int rawInput = 0;
+    for (int i = 0; i < 16; i++) {         //loop() comes back here thousands of times a second, so the
+      adc_oneshot_read(adc_handle, MICpin, &rawInput);  //window ends up with hundreds of samples in it
+      if(rawInput < micWinMin) micWinMin = rawInput;
+      if(rawInput > micWinMax) micWinMax = rawInput;
     }
 
-    if(laskSpeakCheck+10<=millis()) {
-      finalMicAvg = 0;
-      for (int i = 0; i<10; i++){
-        finalMicAvg+=avgMicArr[i];
-      }
-      finalMicAvg = finalMicAvg/10;
-      //Serial.print(String(finalMicAvg));
-      //Serial.print(",");
-      float centered = finalMicAvg - micDC; //DC removal
-      float mag = fabsf(centered);
-      if(micCalUntil) { //still listening to the silence: average it, and keep the mouth still meanwhile
-        micCalSum += finalMicAvg;
-        micCalN++;
-        mag = 0.0f;
-        env = 0.0f;
+    if(millis() - micWinStart >= MIC_WINDOW_MS) {
+      micWinStart = millis();
+      int swing = micWinMax - micWinMin;   //peak to peak: the resting level cancels out of a difference
+      micRawMid = (micWinMax + micWinMin) / 2;
+      finalMicAvg = micRawMid;             //shown on the page as raw, for checking the wiring
+      bool clipping = micWinMax >= 4000 || micWinMin <= 60;
+      micWinMin = 4095;
+      micWinMax = 0;
+      if(swing > micSwing) micSwing += (swing - micSwing) * 0.6f;   //rise with the voice
+      else micSwing += (swing - micSwing) * 0.25f;                  //fall back a little slower
+
+      if(micCalUntil) {                    //Measure silence: the quietest window is the room's floor
+        if(micSwing < micCalFloor) micCalFloor = micSwing;
         if(millis() >= micCalUntil) finishMicCal();
       }
-      if (mag > env) { // Envelope follower
-        env += (mag - env) * micAttack;
-      } else {
-        env += (mag - env) * micRelease;
-      }
-      if (env < 25.0f) { // Noise gate
-        env = 0.0f;
-      }
-      if (env < 25.0f) { // Update DC only when quiet
-          micDC = micDC * (1.0f - 0.0005f) + finalMicAvg * 0.0005f;
-      }
-      if(micLoudUntil) {                   //measuring a speaking voice for Range
-        if(mag > micLoudPeak) micLoudPeak = mag;
+      if(micLoudUntil) {                   //Measure loud: the biggest window while you talk
+        if(micSwing > micLoudPeak) micLoudPeak = micSwing;
+        if(clipping) micLoudClipped = true;
         if(millis() >= micLoudUntil) finishMicLoud();
       }
-      micVolume = (int)(env * 100.0f / (float)cfg.spMax + 0.5f); // Normalize 0-100
-      micVolume = constrain(micVolume, 0, 100);
-      //Stuck at full means the stored silence no longer matches what the mic rests at - and the
-      //level can never come back down on its own, because silence is only re-learned while things
-      //look quiet. Re-measure rather than sit there useless. If that keeps happening the mic board
-      //is turned up too far, so say so instead of measuring forever.
-      if(micVolume >= 100 && !micCalUntil && !micLoudUntil) {
-        if(!micPinnedSince) micPinnedSince = millis();
-        else if(millis() - micPinnedSince > 4000) {
-          micPinnedSince = 0;
-          if(++micAutoFixes <= 3) {
-            logPrint(F("[E] Mic level stuck at full: measuring silence again"));
-            startMicCal();
-          } else if(micGainHint != 3) {
-            micGainHint = 3;
-            logPrint(F("[E] Mic level still stuck at full: turn the mic's gain down"));
-          }
+      if(micTestPhase == 1) {
+        if(micSwing < micTestQuiet) micTestQuiet = micSwing;
+        if(millis() >= micTestQuietUntil) { micTestPhase = 2; logPrint(F("[I] Mic test: now talk")); }
+      } else if(micTestPhase == 2) {
+        if(micSwing > micTestLoud) micTestLoud = micSwing;
+        if(millis() >= micTestTalkUntil) {
+          micTestPhase = 3;
+          logPrint("[I] Mic test: quiet " + String((int)micTestQuiet) + ", talking " + String((int)micTestLoud));
         }
-      } else if(micVolume < 90) {
-        micPinnedSince = 0;
-        micAutoFixes = 0;
       }
-      //Serial.println(String(micVolume));
+
+      float above = micSwing - micNoise;
+      if(above < 0) above = 0;
+      micVolume = constrain((int)(above * 100.0f / (float)max(20, cfg.spMax) + 0.5f), 0, 100);
 
       if(micVolume > cfg.spTrig) {
         if(!speaking) {

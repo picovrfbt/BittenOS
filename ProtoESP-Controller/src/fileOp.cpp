@@ -31,7 +31,7 @@ void Config::setDefault() {
   bOled = 2;
   rbSpeed = 15;
   rbWidth = 8;
-  spMin = 850;
+  spMin = 40;      //the room's noise floor, peak to peak - measured, not guessed
   spMax = 500;
   spTrig = 10;
   aTilt = "confused.json";

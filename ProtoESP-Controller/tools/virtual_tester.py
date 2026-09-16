@@ -105,6 +105,7 @@ class VirtualBoard:
         self.measure_at = 0.0
         self.measure_now = False
         self.mic_gain = 0              # 0 not measured, 1 about right, 2 turn up, 3 turn down
+        self.mic_test_at = 0.0         # when the two-part mic test was started
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -213,9 +214,18 @@ def stats_dict():
         mic_raw = 1540 + mic * 3
     else:
         mic, mic_raw = -1, 0
+    # the two-part mic test: two seconds quiet, three talking, then the result stays on screen
+    if board.mic_test_at:
+        elapsed = time.time() - board.mic_test_at
+        mic_test_phase = 1 if elapsed < 2 else 2 if elapsed < 5 else 3
+    else:
+        mic_test_phase = 0
     return {
-        'mic': mic, 'micRaw': mic_raw, 'micQuiet': 1540, 'micCal': False, 'micLoud': False,
+        'mic': mic, 'micRaw': 1860, 'micQuiet': 40, 'micCal': False, 'micLoud': False,
+        'micSwing': 40 + mic * 4 if mic > 0 else 40,
         'micGain': board.mic_gain,
+        'micTest': mic_test_phase, 'micTestQuiet': 38 if mic_test_phase == 3 else -1,
+        'micTestLoud': 420 if mic_test_phase == 3 else 0,
         'speaking': mic > int(board.config.get('spTrig') or 10),
         'bright': auto['bright'], 'autoLevel': auto['level'], 'ambient': auto['ambient'],
         'ambientLive': board.ambient + 12, 'measuredAgo': auto['ago'], 'oled': bool(board.config.get('oledEna')),
@@ -491,6 +501,11 @@ class Handler(BaseHTTPRequestHandler):
             board.version += 1
             return self.text('Set brightness to: %d' % value)
 
+        if path == '/mictest':   # two seconds quiet, three talking
+            board.mic_test_at = time.time()
+            board.log('[I] Mic test: keep quiet')
+            return self.text('ok')
+
         if path == '/micloud':   # listen to a speaking voice and set Range from it
             cfg['spMax'] = 420
             board.mic_gain = 1   # the pretend mic is always about right
@@ -499,9 +514,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.text('ok')
 
         if path == '/miccal':   # listen to the silence and store it as the quiet level
-            cfg['spMin'] = 1540   # what a MAX4466 resting at half of 3.3V would read
+            cfg['spMin'] = 38     # the swing of a quiet room, peak to peak
             board.save_config()
-            board.log('[I] Quiet level measured: 1540')
+            board.log('[I] Noise floor measured: 38')
             return self.text('ok')
 
         if path == '/autobri':   # measure=1: take a reading now
