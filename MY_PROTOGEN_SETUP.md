@@ -63,7 +63,7 @@ pin 13 -> 5V, pin 12 -> GND     0.1uF capacitor between pins 14 and 7
 | 21 + 47 | Momentary button across these two neighbouring pins on the right header (47 is directly above 21). The firmware holds 47 low as the button's ground, so no GND wire or resistor is needed. Short press: next face. Hold 1.5 s: displays off/on. |
 | 8 / 9 | I2C SDA / SCL, shared by all I2C parts: BMI270 tilt sensor (address 0x68 or 0x69), APDS-9930 boop sensor (0x39), and later an OLED. Power the sensors from **3V3**, not 5V — the APDS-9930 is not 5V tolerant. |
 | 5 | Cheek/blush WS2812 LEDs (not fitted) |
-| 1 | Microphone, MAX9814 (not fitted) |
+| 4 | Microphone analog out (not fitted). Any analog mic board works — MAX9814 or MAX4466 — powered from **3V3**, not 5V. Must stay on GPIO 1–10: those are the analog inputs WiFi doesn't use, and the mask's WiFi is always on. |
 | 2 / 42 | KY-032 boop sensor in / enable (not used) |
 | 13 | 4-pin fan PWM (not fitted) |
 

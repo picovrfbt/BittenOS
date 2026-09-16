@@ -1,6 +1,6 @@
 //Make sure you have everything connected by the schematic in the repository and set these defines correctly!
 
-#define MICpin ADC_CHANNEL_0 //Microphone, pin 1
+#define MICpin ADC_CHANNEL_3 //Microphone, GPIO 4 (ADC1, the set WiFi doesn't use)
 #define T_in 2 //Output from Touch Sensor (for KY-032, Capac)
 #define T_en 42 //Enable pin to Touch Sensor (for KY-032)
 #define DATA_PIN_EARS 5  //Ears(Blush) (from outer to inner, POV-right cheek, (if blush: from top to bottom, right cheek nearest to ear first))
