@@ -42,6 +42,7 @@ SAVECONFIG_KEYS = {
     'boopCount': int, 'boopBase': int, 'boopShade': int, 'transMs': int, 'sleepTol': float,
     'autoBriEna': bool, 'autoBriMode': str, 'autoBriSecs': int, 'autoBriMin': int, 'autoBriMax': int,
     'autoBriDark': int, 'autoBriBright': int, 'oledFlip': bool,
+    'mouthMode': str, 'boopMilestone': int, 'aMilestone': str,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
