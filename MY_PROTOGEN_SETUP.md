@@ -375,7 +375,7 @@ Some features are switched on in the web page, but some need a firmware change f
 | BMI270 tilt sensor | already set up | calibrate, then flip Tilt on (section 6, step 8) |
 | Cheek LEDs (WS2812) | `blushPresent = true`, set `blushLedsNum`, and add the `blush0`–`blush3` cells back to `data/visType.txt` | none |
 | INA219 power meter | `INApresent = true` | none |
-| Microphone | none | wire its analog out to GPIO 4 and 3V3/GND, then flip Speech on (Settings > Microphone). Switching Speech on listens to the silence for a second and sets **Quiet level** itself, so any mic board works; **Measure silence** does it again on demand. |
+| Microphone | none | wire its analog out to GPIO 4 and 3V3/GND, then flip Speech on (Settings > Microphone). Switching Speech on listens to the silence for a second and sets **Quiet level** itself, so any mic board works; **Measure silence** does it again on demand. **Measure loud** listens to three seconds of normal speech, sets **Range** so that lands about 80 of 100, and says whether the gain pot on the mic board needs turning up or is clipping. If the level ever sticks at full — which means the stored silence no longer matches the mic and can never recover on its own — the mask re-measures silence by itself, and says to turn the gain down if that doesn't help. |
 | OLED | none | the OLED switch was taken off the page since none is fitted: set `"oledEna": true` in `data/config.json` and upload the filesystem, or add the switch back to `data/index.html` |
 | Wireless remote | none | flip Remote (BLE) on (Settings > Remote), then restart the mask |
 

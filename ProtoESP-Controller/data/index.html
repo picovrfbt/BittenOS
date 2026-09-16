@@ -478,6 +478,9 @@
           <div class="stepper" data-key="spMin" data-label="Quiet level" data-min="100" data-max="2500" data-step="50"><button type="button" aria-label="Less">−</button><output>850</output><button type="button" aria-label="More">+</button></div></div>
         <div class="row dep"><span class="row-text"><b>Measure silence</b><small>Keep quiet for a second after pressing</small></span>
           <button class="btn small" type="button" onclick="micCal()">Measure</button></div>
+        <div class="row dep"><span class="row-text"><b>Measure loud</b><small>Talk normally for three seconds. Sets Range and checks the gain.</small></span>
+          <button class="btn small" type="button" onclick="micLoud()">Measure</button></div>
+        <div class="row dep" id="micGainRow" hidden><span class="row-text"><b>Gain</b><small id="micGainText"></small></span></div>
         <div class="row dep"><span class="row-text"><b>Range</b><small>How loud counts as full volume. Default 500.</small></span>
           <div class="stepper" data-key="spMax" data-label="Speech range" data-min="200" data-max="800" data-step="25"><button type="button" aria-label="Less">−</button><output>500</output><button type="button" aria-label="More">+</button></div></div>
         <div class="row dep"><span class="row-text"><b>Trigger point</b><small>Level that counts as talking. The line on the meter. Default 10.</small></span>
@@ -1331,6 +1334,26 @@
   }
 
   // Use now takes the light reading showing right now; the stepper next to it types one by hand.
+  // Talk normally for three seconds: the mask sets Range from the peak it hears, and says whether
+  // the pot on the mic board wants turning.
+  async function micLoud() {
+    try {
+      const t = (await (await fetch('/micloud', NO_CACHE)).text()).trim();
+      if (t !== 'ok') { toast(t, true); return; }
+      toast('Talk normally for three seconds…');
+      setTimeout(async () => {
+        try {
+          const o = await (await fetch('/config.json', NO_CACHE)).json();
+          if (o.spMax !== undefined) {
+            setControl(document.querySelector('.stepper[data-key=spMax]'), o.spMax);
+            toast('Range set to ' + o.spMax);
+          }
+          refreshStats();
+        } catch (e) { /* keep what is on screen */ }
+      }, 3600);
+    } catch (e) { toast('Could not reach the mask', true); }
+  }
+
   async function setLightPoint(key) {
     const s = lastStats || {};
     const v = s.ambient >= 0 ? s.ambient : s.ambientLive >= 0 ? s.ambientLive : -1;
@@ -1374,7 +1397,12 @@
     micRawSeen.push(s.micRaw);
     if (micRawSeen.length > 8) micRawSeen.shift();
     const dead = micRawSeen.length >= 6 && micRawSeen.every(v => v === micRawSeen[0]);
-    if (s.micCal) { text.textContent = 'Measuring silence — keep quiet'; status.classList.add('near'); }
+    const GAIN_HINTS = {1: 'About right', 2: 'Too quiet — turn the pot on the mic board up',
+                        3: 'Clipping — turn the pot on the mic board down, then measure again'};
+    $('micGainRow').hidden = !(on && s.micGain);
+    if (on && s.micGain) $('micGainText').textContent = GAIN_HINTS[s.micGain] || '';
+    if (s.micLoud) { text.textContent = 'Listening — talk normally'; status.classList.add('near'); }
+    else if (s.micCal) { text.textContent = 'Measuring silence — keep quiet'; status.classList.add('near'); }
     else if (dead) { text.textContent = 'No signal — check the mic on GPIO 4'; status.classList.add('bad'); }
     else if (s.speaking) { text.textContent = 'Hearing you'; status.classList.add('boop'); }
     else if (level > 0) { text.textContent = 'Picking up sound'; status.classList.add('near'); }

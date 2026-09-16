@@ -378,11 +378,50 @@ int micCalN = 0;
 bool prevSpeechEna = false;
 volatile bool micCalReq = false;         //from /miccal
 
+//Measuring a normal speaking voice, to set Range from it: the level is the gap from silence divided
+//by Range, so Range decides where ordinary speech lands on the 0-100 scale, and that decides which
+//mouth shapes you ever see. The raw extremes are watched at the same time, because an amplifier
+//turned up too far pins against the ends of the ADC's range and no setting can fix that.
+unsigned long micLoudUntil = 0;
+float micLoudPeak = 0;
+int micLoudRawMin = 4095, micLoudRawMax = 0;
+volatile bool micLoudReq = false;
+uint8_t micGainHint = 0;         //0 not measured, 1 about right, 2 turn the pot up, 3 turn it down
+unsigned long micPinnedSince = 0; //level stuck at full: the stored silence must be wrong
+uint8_t micAutoFixes = 0;
+
 void startMicCal() {
   micCalUntil = millis() + 1200;
   micCalSum = 0;
   micCalN = 0;
   logPrint(F("[I] Listening to the silence to find the mic's zero"));
+}
+
+void startMicLoud() {
+  micLoudUntil = millis() + 3000;
+  micLoudPeak = 0;
+  micLoudRawMin = 4095;
+  micLoudRawMax = 0;
+  logPrint(F("[I] Listening to a normal speaking voice to set Range"));
+}
+
+void finishMicLoud() {
+  micLoudUntil = 0;
+  //Clipping first: if the signal is hitting the ends of the ADC's range, the mic board is turned up
+  //too far and the loudest parts of speech are being flattened off before the mask ever sees them.
+  bool clipping = micLoudRawMax >= 4000 || micLoudRawMin <= 60;
+  if(micLoudPeak < 5) {
+    micGainHint = 2;               //heard next to nothing
+    logPrint("[E] Heard almost nothing (peak " + String((int)micLoudPeak) + "): turn the mic's gain up");
+    return;
+  }
+  //Aim for normal speech to land about 80 of 100, leaving room above for a raised voice
+  int want = (int)(micLoudPeak * 100.0f / 80.0f + 0.5f);
+  cfg.spMax = constrain(want, 200, 800);
+  micGainHint = clipping ? 3 : (want < 200 ? 2 : 1);
+  cfg.save();
+  logPrint("[I] Range set to " + String(cfg.spMax) + " from a peak of " + String((int)micLoudPeak) +
+           (clipping ? " (clipping: turn the gain down)" : ""));
 }
 
 void finishMicCal() {
@@ -1068,6 +1107,15 @@ void startWiFiWeb() {
     request->send(200, "text/plain", "ok");
   });
 
+  server.on("/micloud", HTTP_GET, [](AsyncWebServerRequest *request){ //talk normally: sets Range from what it hears
+    if(!cfg.speechEna) {
+      request->send(200, "text/plain", F("Turn Speech on first"));
+      return;
+    }
+    micLoudReq = true;
+    request->send(200, "text/plain", "ok");
+  });
+
   server.on("/autobri", HTTP_GET, [](AsyncWebServerRequest *request){ //measure=1: look at the light now
     if(request->hasParam("measure")) autoBriMeasureReq = true; //the loop task does it; the web task never touches I2C
     request->send(200, "text/plain", "ok");
@@ -1133,6 +1181,8 @@ void startWiFiWeb() {
     st["micRaw"] = (int)(finalMicAvg + 0.5f);                         //raw reading, to tell "no mic" from "quiet"
     st["micQuiet"] = (int)(micDC + 0.5f);                             //what it thinks silence is
     st["micCal"] = micCalUntil != 0;
+    st["micLoud"] = micLoudUntil != 0;                                //measuring a speaking voice
+    st["micGain"] = micGainHint;                                      //0 unmeasured, 1 ok, 2 turn up, 3 turn down
     st["speaking"] = speaking;
     st["bright"] = visorBright();                                     //what the panels are actually set to
     st["autoLevel"] = autoLevel;                                      //-1 until auto-brightness has a reading
@@ -2041,10 +2091,18 @@ void loop() {
     micCalReq = false;
     if(cfg.speechEna) startMicCal();
   }
+  if(micLoudReq) {
+    micLoudReq = false;
+    if(cfg.speechEna) startMicLoud();
+  }
   if(cfg.speechEna) { //1.045uS
     int nvol = 0, micline = 0, rawInput = 0;
     for (int i = 0; i<32; i++){
       adc_oneshot_read(adc_handle, MICpin, &rawInput);
+      if(micLoudUntil) {                   //watch the real extremes, to spot an amplifier that is railing
+        if(rawInput < micLoudRawMin) micLoudRawMin = rawInput;
+        if(rawInput > micLoudRawMax) micLoudRawMax = rawInput;
+      }
       micline = abs(rawInput - 512);
       nvol = max(micline, nvol);
     }
@@ -2082,8 +2140,32 @@ void loop() {
       if (env < 25.0f) { // Update DC only when quiet
           micDC = micDC * (1.0f - 0.0005f) + finalMicAvg * 0.0005f;
       }
+      if(micLoudUntil) {                   //measuring a speaking voice for Range
+        if(mag > micLoudPeak) micLoudPeak = mag;
+        if(millis() >= micLoudUntil) finishMicLoud();
+      }
       micVolume = (int)(env * 100.0f / (float)cfg.spMax + 0.5f); // Normalize 0-100
       micVolume = constrain(micVolume, 0, 100);
+      //Stuck at full means the stored silence no longer matches what the mic rests at - and the
+      //level can never come back down on its own, because silence is only re-learned while things
+      //look quiet. Re-measure rather than sit there useless. If that keeps happening the mic board
+      //is turned up too far, so say so instead of measuring forever.
+      if(micVolume >= 100 && !micCalUntil && !micLoudUntil) {
+        if(!micPinnedSince) micPinnedSince = millis();
+        else if(millis() - micPinnedSince > 4000) {
+          micPinnedSince = 0;
+          if(++micAutoFixes <= 3) {
+            logPrint(F("[E] Mic level stuck at full: measuring silence again"));
+            startMicCal();
+          } else if(micGainHint != 3) {
+            micGainHint = 3;
+            logPrint(F("[E] Mic level still stuck at full: turn the mic's gain down"));
+          }
+        }
+      } else if(micVolume < 90) {
+        micPinnedSince = 0;
+        micAutoFixes = 0;
+      }
       //Serial.println(String(micVolume));
 
       if(micVolume > cfg.spTrig) {
