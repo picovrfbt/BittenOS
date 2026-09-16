@@ -64,6 +64,7 @@ void Config::setDefault() {
   boopLightEna = true; //a boop also has to shade the light sensor, when there's light to shade
   boopShade = 30;  //percent darker than normal that counts as a shadow
   mouthMode = "shapes";  //how the mouth moves with your voice: flap (the old way) or shapes
+  blinkMode = "face";    //blinks: face (the face's own), blink (the mask blinks it), still (neither)
   boopMilestone = 100;   //every this many boops plays a special face; 0 turns it off
   aMilestone = "heart.json";
   oledFlip = false;      //the screen mounted upside down
@@ -123,6 +124,7 @@ bool Config::save() {
   doc["boopLightEna"] = boopLightEna;
   doc["boopShade"] = boopShade;
   doc["mouthMode"] = mouthMode;
+  doc["blinkMode"] = blinkMode;
   doc["boopMilestone"] = boopMilestone;
   doc["aMilestone"] = aMilestone;
   doc["oledFlip"] = oledFlip;
@@ -249,6 +251,7 @@ bool Config::load() {
   boopLightEna = doc["boopLightEna"] | true;
   boopShade = doc["boopShade"] | 30;
   mouthMode = doc["mouthMode"] | "shapes";
+  blinkMode = doc["blinkMode"] | "face";
   boopMilestone = doc["boopMilestone"] | 100;
   aMilestone = doc["aMilestone"] | "heart.json";
   oledFlip = doc["oledFlip"] | false;

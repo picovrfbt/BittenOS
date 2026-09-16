@@ -518,6 +518,20 @@
       <div class="group" style="margin-top:10px">
         <label class="row"><span class="row-text"><b>Mouth bob</b><small>The mouth lifts a pixel every second or so</small></span>
           <input type="checkbox" class="toggle" data-key="bobEna" data-label="Mouth bob"></label>
+        <div class="row"><span class="row-text"><b>Blinks</b><small id="blinkModeHint"></small></span>
+          <select id="blinkMode" data-key="blinkMode" data-label="Blinks" aria-label="Blinks" style="text-transform:none">
+            <option value="face">Face's own</option>
+            <option value="blink">Mask blinks</option>
+            <option value="still">None</option>
+          </select></div>
+        <details class="sub">
+          <summary><span>Which faces this changes</span></summary>
+          <div class="sub-body">
+            <p class="hint">Most of your faces are animations that already blink themselves, and the mask can only take over on a face that is <b>one long look plus a short blink</b> — default is one, and so is anything you draw as a single frame.</p>
+            <p class="hint">A face whose frames all run the same length is a real animation (confused, heart, angry, sad, surprise), and freezing it would throw the animation away — so those keep playing themselves whatever this is set to.</p>
+            <p class="hint"><b>Mask blinks</b> holds an eligible face on its open-eyed frame and blinks it at random gaps of 2.5 to 7 seconds, so it never lands on a metronome. <b>None</b> holds that frame and never blinks.</p>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -1211,6 +1225,7 @@
     }
     if (el.id === 'autoBriMode') showModeHint();
     if (el.id === 'mouthMode') showMouthHint();
+    if (el.id === 'blinkMode') showBlinkHint();
   }
 
   // Greys out the rows that belong to a switch that's off. Each row answers only to its nearest
@@ -1267,7 +1282,7 @@
   const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol'];
   const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, transMs: 80, sleepTol: 0.2, sleepMins: 5,
                     autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
-                    autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json'};
+                    autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face'};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');
@@ -1387,6 +1402,12 @@
       : 'Opens by one pixel, spreading along the mouth';
   }
   $('mouthMode').addEventListener('change', showMouthHint);
+
+  function showBlinkHint() {
+    $('blinkModeHint').textContent = {face: 'Let each face blink the way it was drawn',
+      blink: 'The mask blinks, at random gaps', still: 'No blinking at all'}[$('blinkMode').value] || '';
+  }
+  $('blinkMode').addEventListener('change', showBlinkHint);
 
   /* ---------- mic level ---------- */
   // Tells "no mic wired" from "mic wired but quiet": with nothing on the pin the raw reading sits
