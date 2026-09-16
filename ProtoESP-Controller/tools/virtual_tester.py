@@ -104,6 +104,7 @@ class VirtualBoard:
         self.measured = 180            # the reading auto-brightness last took
         self.measure_at = 0.0
         self.measure_now = False
+        self.mic_gain = 0              # 0 not measured, 1 about right, 2 turn up, 3 turn down
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -213,7 +214,8 @@ def stats_dict():
     else:
         mic, mic_raw = -1, 0
     return {
-        'mic': mic, 'micRaw': mic_raw, 'micQuiet': 1540, 'micCal': False,
+        'mic': mic, 'micRaw': mic_raw, 'micQuiet': 1540, 'micCal': False, 'micLoud': False,
+        'micGain': board.mic_gain,
         'speaking': mic > int(board.config.get('spTrig') or 10),
         'bright': auto['bright'], 'autoLevel': auto['level'], 'ambient': auto['ambient'],
         'ambientLive': board.ambient + 12, 'measuredAgo': auto['ago'], 'oled': bool(board.config.get('oledEna')),
@@ -488,6 +490,13 @@ class Handler(BaseHTTPRequestHandler):
                 board.save_config()
             board.version += 1
             return self.text('Set brightness to: %d' % value)
+
+        if path == '/micloud':   # listen to a speaking voice and set Range from it
+            cfg['spMax'] = 420
+            board.mic_gain = 1   # the pretend mic is always about right
+            board.save_config()
+            board.log('[I] Range set to 420 from a peak of 336')
+            return self.text('ok')
 
         if path == '/miccal':   # listen to the silence and store it as the quiet level
             cfg['spMin'] = 1540   # what a MAX4466 resting at half of 3.3V would read
