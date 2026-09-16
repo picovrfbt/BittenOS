@@ -21,7 +21,7 @@ private:
 //--------------------------------//Config variables store/save/load/default
 class Config {
 public:
-  bool boopEna, speechEna, tiltEna, bleEna, oledEna, sleepEna, transEna, bobEna, boopCountEna, boopLightEna, autoBriEna;
+  bool boopEna, speechEna, tiltEna, bleEna, oledEna, sleepEna, transEna, bobEna, boopCountEna, boopLightEna, autoBriEna, oledFlip;
   int bEar,bVisor,bOled,rbSpeed,rbWidth,spMin,spMax,spTrig,fanDuty,boopThresh,sleepMins,transMs,boopCount,boopBase,boopShade;
   int autoBriSecs,autoBriMin,autoBriMax,autoBriDark,autoBriBright;
   String autoBriMode;

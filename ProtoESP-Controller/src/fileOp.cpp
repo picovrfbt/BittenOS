@@ -63,6 +63,7 @@ void Config::setDefault() {
   boopBase = 0;    //resting proximity, i.e. the visor's own reflection
   boopLightEna = true; //a boop also has to shade the light sensor, when there's light to shade
   boopShade = 30;  //percent darker than normal that counts as a shadow
+  oledFlip = false;      //the screen mounted upside down
   autoBriEna = false;
   autoBriMode = "blank"; //blank, live or hybrid
   autoBriSecs = 60;      //how often it looks at the light
@@ -118,6 +119,7 @@ bool Config::save() {
   doc["boopBase"] = boopBase;
   doc["boopLightEna"] = boopLightEna;
   doc["boopShade"] = boopShade;
+  doc["oledFlip"] = oledFlip;
   doc["autoBriEna"] = autoBriEna;
   doc["autoBriMode"] = autoBriMode;
   doc["autoBriSecs"] = autoBriSecs;
@@ -240,6 +242,7 @@ bool Config::load() {
   boopBase = doc["boopBase"] | 0;
   boopLightEna = doc["boopLightEna"] | true;
   boopShade = doc["boopShade"] | 30;
+  oledFlip = doc["oledFlip"] | false;
   autoBriEna = doc["autoBriEna"] | false;
   autoBriMode = doc["autoBriMode"] | "blank";
   autoBriSecs = doc["autoBriSecs"] | 60;

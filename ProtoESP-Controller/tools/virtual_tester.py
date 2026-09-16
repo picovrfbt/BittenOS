@@ -41,7 +41,7 @@ SAVECONFIG_KEYS = {
     'sleepEna': bool, 'transEna': bool, 'bobEna': bool, 'boopCountEna': bool, 'boopLightEna': bool,
     'boopCount': int, 'boopBase': int, 'boopShade': int, 'transMs': int, 'sleepTol': float,
     'autoBriEna': bool, 'autoBriMode': str, 'autoBriSecs': int, 'autoBriMin': int, 'autoBriMax': int,
-    'autoBriDark': int, 'autoBriBright': int,
+    'autoBriDark': int, 'autoBriBright': int, 'oledFlip': bool,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
@@ -203,7 +203,17 @@ def stats_dict():
     sig = 60 + noise if paw else noise
     shade = 70 + noise if paw else noise
     auto = auto_brightness()
+    # A pretend microphone: a level that breathes up and down so the meter has something to show.
+    import math
+    if board.config.get('speechEna'):
+        mic = int(35 + 30 * math.sin(time.time() * 1.7))
+        mic = max(0, min(100, mic))
+        mic_raw = 1540 + mic * 3
+    else:
+        mic, mic_raw = -1, 0
     return {
+        'mic': mic, 'micRaw': mic_raw, 'micQuiet': 1540, 'micCal': False,
+        'speaking': mic > int(board.config.get('spTrig') or 10),
         'bright': auto['bright'], 'autoLevel': auto['level'], 'ambient': auto['ambient'],
         'ambientLive': board.ambient + 12, 'measuredAgo': auto['ago'], 'oled': bool(board.config.get('oledEna')),
         'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,

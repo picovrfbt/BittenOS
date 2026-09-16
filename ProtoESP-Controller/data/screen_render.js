@@ -185,14 +185,17 @@
     return {buf, boxes};
   }
 
+  // The common two-colour panels have a 16-row yellow strip. Which edge it ends up on depends on
+  // how the screen is mounted and whether the mask is drawing upside down, so it's a setting.
+  const YELLOW_ROWS = 16;
   const COLOURS = {
     white: () => '#eef6ff',
     blue: () => '#55c6ff',
-    yellowBlue: y => (y < 16 ? '#ffd84a' : '#55c6ff'),   // the common two-colour panels: top 16 rows yellow
+    yellowBlue: (y, at) => ((at === 'bottom' ? y >= H - YELLOW_ROWS : y < YELLOW_ROWS) ? '#ffd84a' : '#55c6ff'),
   };
 
   // Paints a buffer onto a canvas at `scale` screen pixels per OLED pixel
-  function paint(canvas, buf, scale, colour) {
+  function paint(canvas, buf, scale, colour, yellowAt) {
     const dpr = window.devicePixelRatio || 1;
     const cw = W * scale, ch = H * scale;
     if (canvas.width !== cw * dpr) { canvas.width = cw * dpr; canvas.height = ch * dpr; }
@@ -203,11 +206,11 @@
     const colourAt = COLOURS[colour] || COLOURS.white;
     const gap = scale >= 4 ? 1 : 0;
     for (let y = 0; y < H; y++) {
-      ctx.fillStyle = colourAt(y);
+      ctx.fillStyle = colourAt(y, yellowAt || 'top');
       for (let x = 0; x < W; x++) if (buf[y * W + x]) ctx.fillRect(x * scale, y * scale, scale - gap, scale - gap);
     }
     return ctx;
   }
 
-  window.ScreenSim = {W, H, FONT, ICONS, SOURCES, BARS, SHOW, TYPES, EXAMPLE, normalise, renderBuffer, paint, textWidth};
+  window.ScreenSim = {W, H, YELLOW_ROWS, FONT, ICONS, SOURCES, BARS, SHOW, TYPES, EXAMPLE, normalise, renderBuffer, paint, textWidth};
 })();

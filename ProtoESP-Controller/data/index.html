@@ -41,7 +41,7 @@
   /* bottom tabs: where a thumb already is */
   .tabs { position:fixed; left:0; right:0; bottom:0; z-index:15; background:rgba(11,15,23,.94); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
           border-top:1px solid var(--line); padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-  .tabs-in { max-width:520px; margin:0 auto; display:grid; grid-template-columns:repeat(3, 1fr); }
+  .tabs-in { max-width:620px; margin:0 auto; display:grid; grid-template-columns:repeat(4, 1fr); }
   .tab { appearance:none; -webkit-appearance:none; background:none; border:0; color:var(--faint); font:inherit; font-size:12px; font-weight:600;
          min-height:60px; padding:8px 4px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; }
   .tab svg { width:24px; height:24px; }
@@ -283,6 +283,33 @@
     </section>
   </div>
 
+  <!-- ================= DESIGN ================= -->
+  <div class="view" id="view-design" hidden>
+    <section class="section">
+      <h2 class="section-title">Make things</h2>
+      <div class="group">
+        <a class="row" href="/animator.html" style="text-decoration:none;color:inherit">
+          <span class="row-text"><b>Face maker</b><small>Draw faces pixel by pixel and try them on the mask</small></span>
+          <span style="color:var(--accent);font-size:22px;line-height:1">›</span></a>
+        <a class="row" href="/screen.html" style="text-decoration:none;color:inherit">
+          <span class="row-text"><b>Screen designer</b><small>Lay out the little status screen inside the helmet</small></span>
+          <span style="color:var(--accent);font-size:22px;line-height:1">›</span></a>
+      </div>
+    </section>
+    <section class="section">
+      <h2 class="section-title">Faces on the mask</h2>
+      <div class="group">
+        <button class="row" type="button" onclick="document.getElementById('zipInput').click()" style="background:none;border:0;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer">
+          <span class="row-text"><b>Upload faces</b><small>A single .json face, or a .zip of them</small></span>
+          <span style="color:var(--accent);font-size:22px;line-height:1">›</span></button>
+        <button class="row" type="button" onclick="downloadZip()" style="background:none;border:0;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer">
+          <span class="row-text"><b>Download faces</b><small>Save every face on the mask as a zip</small></span>
+          <span style="color:var(--accent);font-size:22px;line-height:1">›</span></button>
+      </div>
+      <p class="hint" style="margin-left:4px">Faces with the same name are replaced. Rename and delete are on the Mask tab, under Manage.</p>
+    </section>
+  </div>
+
   <!-- ================= SETTINGS ================= -->
   <div class="view" id="view-settings" hidden>
     <p class="hint" style="margin:0 4px">Every setting here saves the moment you change it.</p>
@@ -385,9 +412,11 @@
 
         <div class="row dep"><span class="row-text"><b>Look now</b><small id="ambientText">Light reading —</small></span>
           <button class="btn small" type="button" onclick="measureLight()">Measure</button></div>
-        <div class="row dep"><span class="row-text"><b>Dark point</b><small id="darkText">Reading 5 gives Lowest</small></span>
+        <div class="row dep"><span class="row-text"><b>Dark point</b><small>This reading and below give Lowest</small></span>
+          <div class="stepper" data-key="autoBriDark" data-label="Dark point" data-min="0" data-max="5000" data-step="5"><button type="button" aria-label="Less">−</button><output>5</output><button type="button" aria-label="More">+</button></div>
           <button class="btn small" type="button" onclick="setLightPoint('autoBriDark')">Use now</button></div>
-        <div class="row dep"><span class="row-text"><b>Bright point</b><small id="brightText">Reading 400 gives Highest</small></span>
+        <div class="row dep"><span class="row-text"><b>Bright point</b><small>This reading and above give Highest</small></span>
+          <div class="stepper" data-key="autoBriBright" data-label="Bright point" data-min="1" data-max="20000" data-step="25"><button type="button" aria-label="Less">−</button><output>400</output><button type="button" aria-label="More">+</button></div>
           <button class="btn small" type="button" onclick="setLightPoint('autoBriBright')">Use now</button></div>
 
         <details class="sub dep">
@@ -415,6 +444,10 @@
             <option value="1">Medium</option>
             <option value="2">Normal</option>
           </select></div>
+        <label class="row dep"><span class="row-text"><b>Upside down</b><small>Turn the picture round for how the screen is mounted</small></span>
+          <input type="checkbox" class="toggle" data-key="oledFlip" data-label="Upside down"></label>
+        <div class="row dep"><span class="row-text"><b>Screen designer</b><small>Choose what the screen shows</small></span>
+          <a class="btn small" href="/screen.html">Open</a></div>
       </div>
     </section>
 
@@ -508,8 +541,15 @@
           <summary><span>Microphone, fan and remote<small>For when those parts go in</small></span></summary>
           <div>
             <div data-group="speechEna">
-              <label class="row"><span class="row-text"><b>Speech</b><small>Mouth moves with your voice. Needs a MAX9814 mic; with none fitted the mouth flaps randomly.</small></span>
+              <label class="row"><span class="row-text"><b>Speech</b><small>Mouth moves with your voice. Needs a mic on GPIO 4; with none fitted the mouth flaps randomly.</small></span>
                 <input type="checkbox" class="toggle" data-key="speechEna" data-label="Speech"></label>
+              <div class="meter dep">
+                <div class="meter-status" id="micStatus"><i></i><b id="micStatusText">Speech is off</b><span id="micNumbers"></span></div>
+                <div>
+                  <div class="gauge-head"><span>Mic level</span><b id="micLevelText">—</b></div>
+                  <div class="gauge" id="micGauge"><i></i><em></em></div>
+                </div>
+              </div>
               <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Quiet level</b><small>What silence reads as. Measured by itself when Speech is switched on.</small></span>
                 <div class="stepper" data-key="spMin" data-label="Quiet level" data-min="100" data-max="2500" data-step="50"><button type="button" aria-label="Less">−</button><output>850</output><button type="button" aria-label="More">+</button></div></div>
               <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Measure silence</b><small>Keep quiet for a second after pressing</small></span>
@@ -556,17 +596,13 @@
     <section class="card">
       <h2>Tools</h2>
       <div class="tools">
-        <a class="btn" href="/animator.html">Animator</a>
-        <a class="btn" href="/screen.html">Screen designer</a>
-        <button class="btn" type="button" onclick="document.getElementById('zipInput').click()">Upload faces</button>
-        <button class="btn" type="button" onclick="downloadZip()">Download faces</button>
         <button class="btn" type="button" onclick="document.getElementById('cfgFile').click()">Load config</button>
         <a class="btn" href="/config.json" download>Download config</a>
         <a class="btn" href="/update.html">Update firmware</a>
       </div>
       <input type="file" id="cfgFile" hidden accept=".json">
       <input type="file" id="zipInput" hidden accept=".zip,.json">
-      <p class="hint">Upload faces takes a single .json face or a .zip of them. Faces with the same name are replaced.</p>
+      <p class="hint">Face maker, the screen designer and uploading faces are on the Design tab.</p>
     </section>
 
     <footer>Coded by <a target="_blank" href="https://github.com/ncplyn" class="rainbow-text">@NCPlyn</a></footer>
@@ -577,6 +613,8 @@
   <div class="tabs-in" role="tablist">
     <button class="tab on" type="button" role="tab" data-view="mask" aria-selected="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M7.5 10.5h2M14.5 10.5h2M8 14.5l2 1.5 2-1.5 2 1.5 2-1.5"/></svg>Mask</button>
+    <button class="tab" type="button" role="tab" data-view="design" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17.5 16 4.5a2.1 2.1 0 0 1 3 3L6 20.5 2.5 21.5z"/><path d="M14 6.5l3.5 3.5"/></svg>Design</button>
     <button class="tab" type="button" role="tab" data-view="settings" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Settings</button>
     <button class="tab" type="button" role="tab" data-view="system" aria-selected="false">
@@ -616,6 +654,8 @@
     }
     for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + name;
     try { localStorage.setItem('tab', name); } catch (e) {}
+    // so other pages can link straight to a tab, e.g. the screen designer's Back
+    if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
     window.scrollTo(0, 0);
     scheduleStats(true);
   }
@@ -1029,6 +1069,7 @@
       const s = await (await fetch('/stats', NO_CACHE)).json();
       lastStats = s;
       updateAutoBri(s);
+      if (currentView === 'settings') updateMic(s);
       if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
       $('boopTotal').textContent = s.boops === undefined ? '—' : s.boops;
       if (currentView === 'settings') updateBoopMeter(s);
@@ -1186,10 +1227,11 @@
 
   const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol'];
   const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, transMs: 80, sleepTol: 0.2, sleepMins: 5,
-                    autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2};
+                    autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
+                    autoBriDark: 5, autoBriBright: 400, oledFlip: false};
 
   /* ---------- auto-brightness ---------- */
-  const lightPoints = {autoBriDark: 5, autoBriBright: 400};
+  const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');
   let lastStats = null;
   const autoOn = () => document.querySelector('[data-key=autoBriEna]').checked;
 
@@ -1197,11 +1239,6 @@
     $('autoModeHint').textContent = {blank: 'Blinks for a moment at each check', hybrid: 'Blinks only when the light changes',
                                      live: 'Never blinks; the panels’ glow skews it a little'}[$('autoBriMode').value] || '';
   }
-  function showLightPoints() {
-    $('darkText').textContent = 'Reading ' + lightPoints.autoBriDark + ' gives Lowest';
-    $('brightText').textContent = 'Reading ' + lightPoints.autoBriBright + ' gives Highest';
-  }
-
   function updateAutoBri(s) {
     const on = autoOn();
     const auto = on && typeof s.autoLevel === 'number' && s.autoLevel >= 0;
@@ -1260,26 +1297,53 @@
     } catch (e) { toast('Could not reach the mask', true); }
   }
 
+  // Use now takes the light reading showing right now; the stepper next to it types one by hand.
   async function setLightPoint(key) {
     const s = lastStats || {};
-    // prefer the last proper reading; the live one is there if nothing has been measured yet
     const v = s.ambient >= 0 ? s.ambient : s.ambientLive >= 0 ? s.ambientLive : -1;
     if (v < 0) { toast('No light reading yet — press Measure first', true); return; }
-    const other = key === 'autoBriDark' ? lightPoints.autoBriBright : lightPoints.autoBriDark;
+    const otherKey = key === 'autoBriDark' ? 'autoBriBright' : 'autoBriDark';
+    const other = stepperValue(pointStepper(otherKey));
     if (key === 'autoBriDark' ? v >= other : v <= other) {
       if (!confirm('That reading (' + v + ') isn’t ' + (key === 'autoBriDark' ? 'darker' : 'brighter') + ' than the other point (' + other + '). Use it anyway?')) return;
     }
     if (await saveParams(key + '=' + v, (key === 'autoBriDark' ? 'Dark' : 'Bright') + ' point set to ' + v)) {
-      lightPoints[key] = v;
-      showLightPoints();
+      setStepper(pointStepper(key), v);
     }
+  }
+
+  /* ---------- mic level ---------- */
+  // Tells "no mic wired" from "mic wired but quiet": with nothing on the pin the raw reading sits
+  // at a dead number, while a real mic's reading always wanders a little.
+  let micRawSeen = [];
+  function updateMic(s) {
+    const status = $('micStatus'), text = $('micStatusText');
+    status.classList.remove('near', 'boop', 'bad');
+    if (s.mic === undefined) { text.textContent = 'This firmware has no mic meter'; status.classList.add('bad'); $('micNumbers').textContent = ''; return; }
+    const on = s.mic >= 0;
+    const level = on ? s.mic : 0;
+    const trig = stepperValue(document.querySelector('.stepper[data-key=spTrig]')) || 10;
+    const g = $('micGauge');
+    g.querySelector('i').style.width = Math.min(100, level) + '%';
+    g.querySelector('em').style.left = Math.min(100, trig) + '%';
+    g.classList.toggle('over', level > trig);
+    g.classList.toggle('idle', !on);
+    $('micLevelText').textContent = on ? level + ' of 100' : 'off';
+    $('micNumbers').textContent = on ? 'raw ' + s.micRaw + ', silence ' + s.micQuiet : '';
+    if (!on) { text.textContent = 'Speech is off'; return; }
+    micRawSeen.push(s.micRaw);
+    if (micRawSeen.length > 8) micRawSeen.shift();
+    const dead = micRawSeen.length >= 6 && micRawSeen.every(v => v === micRawSeen[0]);
+    if (s.micCal) { text.textContent = 'Measuring silence — keep quiet'; status.classList.add('near'); }
+    else if (dead) { text.textContent = 'No signal — check the mic on GPIO 4'; status.classList.add('bad'); }
+    else if (s.speaking) { text.textContent = 'Hearing you'; status.classList.add('boop'); }
+    else if (level > 0) { text.textContent = 'Picking up sound'; status.classList.add('near'); }
+    else text.textContent = 'Quiet';
   }
   $('autoBriMode').addEventListener('change', showModeHint);
   document.querySelector('[data-key=autoBriEna]').addEventListener('change', () => setTimeout(refreshStats, 800));
 
   function loadIntoInputs(o) {
-    for (const k of Object.keys(lightPoints)) if (o[k] !== undefined) lightPoints[k] = o[k];
-    showLightPoints();
     for (const el of document.querySelectorAll('[data-key]')) {
       const key = el.dataset.key;
       const v = o[key] !== undefined ? o[key] : DEFAULTS[key];
@@ -1487,7 +1551,8 @@
   document.querySelectorAll('input[type=range][data-key]').forEach(showRange);
   let savedTab = 'mask';
   try { savedTab = localStorage.getItem('tab') || 'mask'; } catch (e) {}
-  showView(savedTab);
+  showView(location.hash.replace('#', '') || savedTab);   // a link's #tab wins over the last one used
+  window.addEventListener('hashchange', () => showView(location.hash.replace('#', '') || 'mask'));
   (async () => {
     try {
       await loadFiles();   // fills the face pickers before the config selects a value in them
