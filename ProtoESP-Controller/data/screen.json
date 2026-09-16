@@ -43,7 +43,7 @@
    "source": "boops",
    "prefix": "",
    "suffix": "",
-   "x": 13,
+   "x": 12,
    "y": 30,
    "size": 1,
    "align": "left",
@@ -52,8 +52,8 @@
   {
    "type": "icon",
    "icon": "wifi",
-   "x": 52,
-   "y": 30,
+   "x": 1,
+   "y": 1,
    "size": 1,
    "show": "always"
   },
@@ -62,8 +62,8 @@
    "source": "wifiClients",
    "prefix": "",
    "suffix": "",
-   "x": 63,
-   "y": 30,
+   "x": 10,
+   "y": 1,
    "size": 1,
    "align": "left",
    "show": "always"
@@ -113,6 +113,55 @@
    "h": 6,
    "marker": true,
    "show": "always"
+  },
+  {
+   "x": 21,
+   "y": 30,
+   "show": "always",
+   "type": "icon",
+   "icon": "eye",
+   "size": 1
+  },
+  {
+   "x": 31,
+   "y": 30,
+   "show": "always",
+   "type": "value",
+   "source": "brightness",
+   "prefix": "",
+   "suffix": "",
+   "size": 1,
+   "align": "left"
+  },
+  {
+   "x": 49,
+   "y": 30,
+   "show": "always",
+   "type": "value",
+   "source": "temp",
+   "prefix": "",
+   "suffix": "",
+   "size": 1,
+   "align": "left"
+  },
+  {
+   "x": 39,
+   "y": 30,
+   "show": "always",
+   "type": "icon",
+   "icon": "temp",
+   "size": 1
+  },
+  {
+   "x": 86,
+   "y": 30,
+   "show": "always",
+   "type": "value",
+   "source": "uptime",
+   "prefix": "",
+   "suffix": "",
+   "size": 1,
+   "align": "left"
   }
  ]
 }
