@@ -1,6 +1,19 @@
 //Make sure you have everything connected by the schematic in the repository and set these defines correctly!
 
-#define MICpin ADC_CHANNEL_3 //Microphone, GPIO 4 (ADC1, the set WiFi doesn't use)
+#define micMode "I2S" //"I2S" for a digital mic (SPH0645, INMP441), "ANALOG" for one on the ADC (MAX4466, MAX9814)
+//Digital mic on I2S. An analog mic shares the 3V3 rail with fourteen MAX7219s pulsing current, and
+//amplifies whatever noise that puts on it; a digital mic converts sound inside its own package and
+//sends numbers, so none of that reaches the signal. Pins are in the order the GY-SPH0645 board
+//prints them (BCLK, DOUT, LRCL), so the wires run straight across without crossing.
+#define MIC_BCLK 4    //board pad BCLK
+#define MIC_DOUT 5    //board pad DOUT, data into the ESP
+#define MIC_LRCL 6    //board pad LRCL (word select)
+#define MIC_I2S_RATE 16000
+//The SPH0645 puts 18 bits of real data at the top of a 32-bit slot. This shift only sets the scale
+//the numbers come out at; Noise floor and Range are measured, so they absorb whatever it is. Raise
+//it if swings read in the tens of thousands, lower it if they read in single digits.
+#define MIC_I2S_SHIFT 20
+#define MICpin ADC_CHANNEL_3 //Analog microphone, GPIO 4 (ADC1, the set WiFi doesn't use)
 #define T_in 2 //Output from Touch Sensor (for KY-032, Capac)
 #define T_en 42 //Enable pin to Touch Sensor (for KY-032)
 #define DATA_PIN_EARS 5  //Ears(Blush) (from outer to inner, POV-right cheek, (if blush: from top to bottom, right cheek nearest to ear first))
@@ -75,6 +88,7 @@ Config cfg;
 
 #include "oled.h"
 #include "screen.h"
+#include "driver/i2s_std.h"
 SSDOLED oled;
 
 #include "SparkFun_BMI270_Arduino_Library.h"
@@ -376,7 +390,9 @@ String visorThen = ""; //optional "then" of the current animation: the face to l
 //spans several cycles of any voice, and the resting level cancels out of a difference entirely, so
 //there is nothing left to drift. Loudness is that swing above the room's own noise floor.
 #define MIC_WINDOW_MS 25
-int micWinMin = 4095, micWinMax = 0;     //extremes within the window being collected
+#define MIC_WIN_LOW  (1 << 30)           //sentinels: I2S samples are signed either side of zero
+#define MIC_WIN_HIGH (-(1 << 30))
+int micWinMin = MIC_WIN_LOW, micWinMax = MIC_WIN_HIGH; //extremes within the window being collected
 unsigned long micWinStart = 0;
 float micSwing = 0;                      //latest peak-to-peak, lightly smoothed
 float micNoise = 40;                     //the swing of a quiet room, from Measure silence
@@ -399,6 +415,71 @@ uint8_t micTestPhase = 0;                //0 idle, 1 keep quiet, 2 talk, 3 done
 unsigned long micTestQuietUntil = 0, micTestTalkUntil = 0;
 float micTestQuiet = 0, micTestLoud = 0;
 volatile bool micTestReq = false;
+
+inline bool micIs(const char *m) { return strcmp(micMode, m) == 0; }
+
+//--------------------------------//Digital mic (I2S)
+i2s_chan_handle_t micRxChan = NULL;
+bool micI2SReady = false;
+bool micLeftChannel = true;              //SEL unconnected on the board selects the left channel
+
+bool micI2SBegin() {
+  if(micRxChan) {                        //starting again: let go of the old channel first
+    i2s_channel_disable(micRxChan);
+    i2s_del_channel(micRxChan);
+    micRxChan = NULL;
+  }
+  i2s_chan_config_t chanCfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+  if(i2s_new_channel(&chanCfg, NULL, &micRxChan) != ESP_OK) return false;
+  i2s_std_config_t stdCfg = {
+    .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(MIC_I2S_RATE),
+    //The SPH0645 sends its data left-justified rather than in standard Philips timing, which is why
+    //it reads as nonsense with the usual settings. MSB format is that left-justified layout.
+    .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_MONO),
+    .gpio_cfg = {
+      .mclk = I2S_GPIO_UNUSED,
+      .bclk = (gpio_num_t)MIC_BCLK,
+      .ws = (gpio_num_t)MIC_LRCL,
+      .dout = I2S_GPIO_UNUSED,
+      .din = (gpio_num_t)MIC_DOUT,
+      .invert_flags = {
+        .mclk_inv = false,
+        .bclk_inv = false,
+        .ws_inv = false,
+      },
+    },
+  };
+  stdCfg.slot_cfg.slot_mask = micLeftChannel ? I2S_STD_SLOT_LEFT : I2S_STD_SLOT_RIGHT;
+  if(i2s_channel_init_std_mode(micRxChan, &stdCfg) != ESP_OK) return false;
+  if(i2s_channel_enable(micRxChan) != ESP_OK) return false;
+  logPrint("[I] Digital mic started on BCLK " + String(MIC_BCLK) + ", DOUT " + String(MIC_DOUT) +
+           ", LRCL " + String(MIC_LRCL));
+  return true;
+}
+
+//Pulls whatever samples are waiting into the window. Never waits: the animation must not stall for
+//the mic, so a pass with nothing ready simply adds nothing.
+void micCollect() {
+  if(micIs("I2S")) {
+    if(!micI2SReady) return;
+    int32_t buf[64];
+    size_t got = 0;
+    if(i2s_channel_read(micRxChan, buf, sizeof(buf), &got, 0) != ESP_OK) return;
+    int n = got / sizeof(int32_t);
+    for(int i = 0; i < n; i++) {
+      int v = (int)(buf[i] >> MIC_I2S_SHIFT);
+      if(v < micWinMin) micWinMin = v;
+      if(v > micWinMax) micWinMax = v;
+    }
+    return;
+  }
+  int rawInput = 0;
+  for(int i = 0; i < 16; i++) {           //analog: loop() comes back thousands of times a second
+    adc_oneshot_read(adc_handle, MICpin, &rawInput);
+    if(rawInput < micWinMin) micWinMin = rawInput;
+    if(rawInput > micWinMax) micWinMax = rawInput;
+  }
+}
 
 void startMicCal() {
   micCalUntil = millis() + 1500;
@@ -1217,6 +1298,8 @@ void startWiFiWeb() {
     st["micTest"] = micTestPhase;                                     //1 keep quiet, 2 talk, 3 done
     st["micTestQuiet"] = micTestQuiet > 90000 ? -1 : (int)(micTestQuiet + 0.5f);
     st["micTestLoud"] = (int)(micTestLoud + 0.5f);
+    st["micType"] = micMode;                                          //I2S or ANALOG: a digital mic has no gain pot
+    st["micReady"] = micIs("I2S") ? micI2SReady : true;
     st["speaking"] = speaking;
     st["bright"] = visorBright();                                     //what the panels are actually set to
     st["autoLevel"] = autoLevel;                                      //-1 until auto-brightness has a reading
@@ -1415,6 +1498,12 @@ void setup() {
       .bitwidth = ADC_BITWIDTH_12,
   };
   ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, MICpin, &channel_config));
+
+  //After the ADC, so the bit clock takes GPIO 4 back from it rather than the other way round
+  if(micIs("I2S")) {
+    micI2SReady = micI2SBegin();
+    if(!micI2SReady) logPrint(F("[E] Digital mic did not start; check BCLK, DOUT and LRCL"));
+  }
 
   ledcAttach(fanPWM, 25000, 8); //suport Arduino 3.x
   ledcWrite(fanPWM, cfg.fanDuty); //Arduino 3.x core
@@ -2119,7 +2208,13 @@ void loop() {
 
   //looptime = micros();
   //--------------------------------//SPEECH Detection
-  if(cfg.speechEna && !prevSpeechEna) startMicCal(); //just switched on, or booted with it on
+  if(cfg.speechEna && !prevSpeechEna) {     //just switched on, or booted with it on
+    if(micIs("I2S") && !micI2SReady) {       //wired up since the last try?
+      micI2SReady = micI2SBegin();
+      if(!micI2SReady) logPrint(F("[E] Digital mic did not start; check BCLK, DOUT and LRCL"));
+    }
+    startMicCal();
+  }
   prevSpeechEna = cfg.speechEna;
   if(micCalReq) {
     micCalReq = false;
@@ -2134,21 +2229,18 @@ void loop() {
     if(cfg.speechEna) startMicTest();
   }
   if(cfg.speechEna) {
-    int rawInput = 0;
-    for (int i = 0; i < 16; i++) {         //loop() comes back here thousands of times a second, so the
-      adc_oneshot_read(adc_handle, MICpin, &rawInput);  //window ends up with hundreds of samples in it
-      if(rawInput < micWinMin) micWinMin = rawInput;
-      if(rawInput > micWinMax) micWinMax = rawInput;
-    }
+    micCollect();
 
-    if(millis() - micWinStart >= MIC_WINDOW_MS) {
+    if(millis() - micWinStart >= MIC_WINDOW_MS && micWinMax > MIC_WIN_HIGH) {
       micWinStart = millis();
       int swing = micWinMax - micWinMin;   //peak to peak: the resting level cancels out of a difference
       micRawMid = (micWinMax + micWinMin) / 2;
-      finalMicAvg = micRawMid;             //shown on the page as raw, for checking the wiring
-      bool clipping = micWinMax >= 4000 || micWinMin <= 60;
-      micWinMin = 4095;
-      micWinMax = 0;
+      finalMicAvg = micRawMid;             //shown on the page as raw; near zero on a digital mic
+      //Analog clipping is the signal hitting the ends of the ADC's range. A digital mic has no gain
+      //to misjudge, so there is nothing to clip and nothing to warn about.
+      bool clipping = micIs("ANALOG") && (micWinMax >= 4000 || micWinMin <= 60);
+      micWinMin = MIC_WIN_LOW;
+      micWinMax = MIC_WIN_HIGH;
       if(swing > micSwing) micSwing += (swing - micSwing) * 0.6f;   //rise with the voice
       else micSwing += (swing - micSwing) * 0.25f;                  //fall back a little slower
 
