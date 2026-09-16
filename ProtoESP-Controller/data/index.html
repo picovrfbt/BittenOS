@@ -510,8 +510,10 @@
             <div data-group="speechEna">
               <label class="row"><span class="row-text"><b>Speech</b><small>Mouth moves with your voice. Needs a MAX9814 mic; with none fitted the mouth flaps randomly.</small></span>
                 <input type="checkbox" class="toggle" data-key="speechEna" data-label="Speech"></label>
-              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Quiet level</b><small>Default 850</small></span>
-                <div class="stepper" data-key="spMin" data-label="Quiet level" data-min="100" data-max="2000" data-step="50"><button type="button" aria-label="Less">−</button><output>850</output><button type="button" aria-label="More">+</button></div></div>
+              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Quiet level</b><small>What silence reads as. Measured by itself when Speech is switched on.</small></span>
+                <div class="stepper" data-key="spMin" data-label="Quiet level" data-min="100" data-max="2500" data-step="50"><button type="button" aria-label="Less">−</button><output>850</output><button type="button" aria-label="More">+</button></div></div>
+              <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Measure silence</b><small>Keep quiet for a second after pressing</small></span>
+                <button class="btn small" type="button" onclick="micCal()">Measure</button></div>
               <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Range</b><small>Default 500</small></span>
                 <div class="stepper" data-key="spMax" data-label="Speech range" data-min="200" data-max="800" data-step="25"><button type="button" aria-label="Less">−</button><output>500</output><button type="button" aria-label="More">+</button></div></div>
               <div class="row dep" style="border-top:1px solid var(--line)"><span class="row-text"><b>Trigger point</b><small>Default 10</small></span>
@@ -1236,6 +1238,24 @@
       await fetch('/autobri?measure=1', NO_CACHE);
       toast(autoOn() && $('autoBriMode').value === 'live' ? 'Reading the light' : 'Measuring — the panels may blink');
       setTimeout(refreshStats, 900);
+    } catch (e) { toast('Could not reach the mask', true); }
+  }
+
+  // Mic: different mic boards rest at different voltages, so the mask listens to the silence for a
+  // second and takes that as its zero, rather than you guessing the number.
+  async function micCal() {
+    try {
+      await fetch('/miccal', NO_CACHE);
+      toast('Listening — keep quiet for a second');
+      setTimeout(async () => {
+        try {
+          const o = await (await fetch('/config.json', NO_CACHE)).json();
+          if (o.spMin !== undefined) {
+            setControl(document.querySelector('.stepper[data-key=spMin]'), o.spMin);
+            toast('Quiet level measured: ' + o.spMin);
+          }
+        } catch (e) { /* keep whatever is on screen */ }
+      }, 1800);
     } catch (e) { toast('Could not reach the mask', true); }
   }
 
