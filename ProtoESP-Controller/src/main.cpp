@@ -352,6 +352,7 @@ bool screenPrevValid = false;
 unsigned long lastScreenDraw = 0;
 volatile bool screenReloadReq = false;   //set by /savescreen
 volatile bool oledFlipReq = false;       //set when Upside down is changed
+volatile bool oledBrightReq = false;     //set when Screen brightness is changed
 void screenTick();
 inline bool oledLegacy(); //the old screen writes, only when no layout is loaded
 uint32_t loopCount = 0, loopsPerSec = 0; unsigned long loopRateStart = 0; //loop() runs per second, for the system monitor
@@ -930,8 +931,8 @@ void startWiFiWeb() {
     cfg.getInt(request, "bEar", cfg.bEar);
     cfg.getInt(request, "bVisor", cfg.bVisor);
     if(cfg.getInt(request, "bOled", cfg.bOled)) {
-        if(cfg.oledEna && oledInitDone)
-            oled.oledBright(cfg.bOled);
+        cfg.bOled = constrain(cfg.bOled, 0, 4);
+        oledBrightReq = true;              //the loop task talks to the screen, not the web task
     }
     //animation settings
     cfg.getInt(request, "rbSpeed", cfg.rbSpeed);
@@ -1653,6 +1654,10 @@ void screenTick() {
     screenLoadLayout();
     screenPrevValid = false;
     logPrint("[I] Screen layout reloaded, " + String(screenElementCount()) + " elements");
+  }
+  if(oledBrightReq && oledInitDone) {
+    oledBrightReq = false;
+    oled.oledBright(cfg.bOled);
   }
   if(oledFlipReq && oledInitDone) {        //screen turned the other way up
     oledFlipReq = false;

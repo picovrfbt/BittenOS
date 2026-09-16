@@ -3,17 +3,19 @@
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0,/* reset=*/ U8X8_PIN_NONE);
 
 //--------------------------------//OLED Brightness
+//Five levels, 0 dimmest to 4 brightest. What actually sets an SSD1306's brightness is its contrast
+//register; the original code only changed the precharge and VCOMH, which barely moves it. VCOMH is
+//raised alongside for the brighter steps, and the precharge is lengthened at the top so the pixels
+//have time to reach full brightness.
 void SSDOLED::oledBright(int level) const {
-    if(level == 0) { //dim
-      u8g2.sendF("ca", 0x0d9, (15 << 4) | 0 );
-      u8g2.sendF("ca", 0x0db, 0 << 4);
-    } else if (level == 1) { //mid
-      u8g2.sendF("ca", 0x0d9, (15 << 4) | 15 );
-      u8g2.sendF("ca", 0x0db, 0 << 4);
-    } else if (level == 2) { //normal
-      u8g2.sendF("ca", 0x0d9, (15 << 4) | 15 );
-      u8g2.sendF("ca", 0x0db, 7 << 4);
-    }
+    if(level < 0) level = 0;
+    if(level > 4) level = 4;
+    static const uint8_t contrast[5] = {0x01, 0x28, 0x64, 0xB4, 0xFF};
+    static const uint8_t vcomh[5]    = {0x00, 0x20, 0x20, 0x30, 0x40};
+    static const uint8_t precharge[5] = {0xF1, 0xF1, 0xF1, 0xF1, 0x22};
+    u8g2.sendF("ca", 0x0D9, precharge[level]);
+    u8g2.sendF("ca", 0x0DB, vcomh[level]);
+    u8g2.setContrast(contrast[level]);
 }
 
 //--------------------------------//Screen the other way up (whoever calls this redraws after)
