@@ -374,6 +374,10 @@
           <input type="checkbox" class="toggle" data-key="boopCountEna" data-label="Boop counter"></label>
         <div class="row"><span class="row-text"><b id="boopTotal">—</b><small>boops so far</small></span>
           <button class="btn small danger" type="button" onclick="resetBoops()">Reset</button></div>
+        <div class="row"><span class="row-text"><b>Milestone every</b><small id="milestoneHint">A special face on every this many boops. 0 turns it off.</small></span>
+          <div class="stepper" data-key="boopMilestone" data-label="Milestone every" data-min="0" data-max="1000" data-step="10"><button type="button" aria-label="Less">−</button><output>100</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row"><span class="row-text"><b>Milestone face</b></span>
+          <select id="aMilestone" data-key="aMilestone" data-label="Milestone face" aria-label="Milestone face"></select></div>
       </div>
     </section>
 
@@ -478,6 +482,11 @@
           <div class="stepper" data-key="spMax" data-label="Speech range" data-min="200" data-max="800" data-step="25"><button type="button" aria-label="Less">−</button><output>500</output><button type="button" aria-label="More">+</button></div></div>
         <div class="row dep"><span class="row-text"><b>Trigger point</b><small>Level that counts as talking. The line on the meter. Default 10.</small></span>
           <div class="stepper" data-key="spTrig" data-label="Trigger point" data-min="2" data-max="100" data-step="1"><button type="button" aria-label="Less">−</button><output>10</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row dep"><span class="row-text"><b>Mouth movement</b><small id="mouthModeHint"></small></span>
+          <select id="mouthMode" data-key="mouthMode" data-label="Mouth movement" aria-label="Mouth movement" style="text-transform:none">
+            <option value="shapes">Shapes</option>
+            <option value="flap">Flap</option>
+          </select></div>
         <details class="sub dep">
           <summary><span>If the mouth doesn't move</span></summary>
           <div class="sub-body">
@@ -691,7 +700,7 @@
     document.querySelectorAll('.face').forEach(b => b.classList.toggle('on', b.dataset.anim === name));
   }
 
-  const FACE_PICKERS = ['aTilt', 'aUp', 'aBoop', 'aSleep'];
+  const FACE_PICKERS = ['aTilt', 'aUp', 'aBoop', 'aSleep', 'aMilestone'];
 
   async function loadFiles() {
     const parts = (await (await fetch('/getfiles', NO_CACHE)).text()).split(';');
@@ -1195,6 +1204,7 @@
       if (el.type === 'range') showRange(el);
     }
     if (el.id === 'autoBriMode') showModeHint();
+    if (el.id === 'mouthMode') showMouthHint();
   }
 
   // Greys out the rows that belong to a switch that's off. Each row answers only to its nearest
@@ -1251,7 +1261,7 @@
   const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol'];
   const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, transMs: 80, sleepTol: 0.2, sleepMins: 5,
                     autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
-                    autoBriDark: 5, autoBriBright: 400, oledFlip: false};
+                    autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');
@@ -1334,6 +1344,13 @@
       setStepper(pointStepper(key), v);
     }
   }
+
+  function showMouthHint() {
+    $('mouthModeHint').textContent = $('mouthMode').value === 'shapes'
+      ? 'Opens wider the louder you are, in four steps'
+      : 'Opens by one pixel, spreading along the mouth';
+  }
+  $('mouthMode').addEventListener('change', showMouthHint);
 
   /* ---------- mic level ---------- */
   // Tells "no mic wired" from "mic wired but quiet": with nothing on the pin the raw reading sits

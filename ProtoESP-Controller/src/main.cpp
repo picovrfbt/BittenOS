@@ -313,6 +313,7 @@ bool bobUp = false;
 unsigned long boopShownAt = 0;
 int lastBoopPhase = -2;
 bool boopCountDirty = false;
+bool milestoneBoop = false;     //this boop hit the milestone, so it played the special face
 unsigned long boopCountSaved = 0;
 volatile int8_t sleepRequest = 0; //from /sleep: 1 = sleep now, -1 = wake, 0 = nothing
 unsigned long stillSince = 0; //when the mask last moved
@@ -945,6 +946,11 @@ void startWiFiWeb() {
     cfg.getString(request, "aUp", cfg.aUp);
     cfg.getString(request, "aBoop", cfg.aBoop);
     cfg.getString(request, "aSleep", cfg.aSleep);
+    cfg.getString(request, "aMilestone", cfg.aMilestone);
+    if(cfg.getInt(request, "boopMilestone", cfg.boopMilestone)) cfg.boopMilestone = constrain(cfg.boopMilestone, 0, 10000);
+    if(cfg.getString(request, "mouthMode", cfg.mouthMode)) {
+      if(cfg.mouthMode != "flap" && cfg.mouthMode != "shapes") cfg.mouthMode = "shapes";
+    }
     //tilt neutral
     cfg.getFloat(request, "neutralX", cfg.neutralX);
     cfg.getFloat(request, "neutralY", cfg.neutralY);
@@ -1430,6 +1436,14 @@ unsigned long lastMillsEars = 0, lastMillsVisor = 0, lastMillsTilt = 0, laskSpea
 bool btnHeld = false, btnLongDone = false; //button: held down now / hold action already fired
 unsigned long lastImuRetry = 0, lastApdsRetry = 0; //sensor not found yet: when it was last looked for
 
+//How the mouth moves with your voice, chosen by Mouth movement in Settings:
+//  flap   - upstream's. The mouth opens by one pixel and volume only decides how far along the
+//           mouth that opening spreads, so every volume ends up looking much the same.
+//  shapes - the mouth opens further the louder you are, in four steps, and each step reaches a
+//           different way along the mouth. A mumble barely parts it; a shout opens it wide.
+uint8_t mouthBand = 0;              //0 closed, 3 widest
+unsigned long mouthBandAt = 0;
+
 void dynamicSpeak(uint64_t *leds, bool isMouth[MATRIXESNUM], int volume) {
   int mouthIndexes[MATRIXESNUM];
   int mouthCount = 0;
@@ -1439,6 +1453,30 @@ void dynamicSpeak(uint64_t *leds, bool isMouth[MATRIXESNUM], int volume) {
     }
   }
   int half = mouthCount / 2;
+  if (half <= 0) return;
+
+  if (cfg.mouthMode == "shapes") {
+    uint8_t want = volume >= 70 ? 3 : volume >= 40 ? 2 : volume >= 15 ? 1 : 0;
+    //Open straight away, close after a moment: speech dips between syllables, and snapping shut on
+    //every dip is what makes a mouth look like it is chattering rather than talking.
+    if (want > mouthBand) { mouthBand = want; mouthBandAt = millis(); }
+    else if (want < mouthBand && millis() - mouthBandAt >= 90) { mouthBand = want; mouthBandAt = millis(); }
+    if (mouthBand == 0) return;
+    static const uint8_t openBy[4] = {0, 1, 2, 3};      //pixels the mouth opens
+    static const uint8_t reachPct[4] = {0, 55, 80, 100}; //how far along the mouth it reaches
+    int reach = (half * 8 * reachPct[mouthBand]) / 100;
+    for (int i = 0; i < half; i++) {
+      int x = reach - (i * 8);
+      if (x <= 0) continue;
+      x = constrain(x, 0, 8);
+      int leftIndex  = mouthIndexes[half - 1 - i];
+      int rightIndex = mouthIndexes[half + i];
+      leds[leftIndex]  = speakMatrixGrow(leds[leftIndex],  x, true,  openBy[mouthBand]);
+      leds[rightIndex] = speakMatrixGrow(leds[rightIndex], x, false, openBy[mouthBand]);
+    }
+    return;
+  }
+
   for (int i = 0; i < half; i++) {
     int x = map(volume, 0, 100, 0, half * 8) - (i * 8);
     int leftIndex  = mouthIndexes[half - 1 - i];
@@ -1510,6 +1548,18 @@ void countBoop() { //the boop landed: count it, but don't show anything yet
   cfg.boopCount++;
   boopCountDirty = true;      //saved from loop() a while later, not on every boop
   logPrint("[I] Boop #" + String(cfg.boopCount));
+}
+
+//Every so many boops, a special face instead of the usual one. countBoop() has already counted this
+//boop by the time this is asked, so the hundredth boop is the one that celebrates.
+String boopFaceNow() {
+  if(cfg.boopMilestone > 0 && cfg.aMilestone != "" && (cfg.boopCount % cfg.boopMilestone) == 0) {
+    logPrint("[I] Boop #" + String(cfg.boopCount) + " is a milestone: " + cfg.aMilestone);
+    milestoneBoop = true;
+    return cfg.aMilestone;
+  }
+  milestoneBoop = false;
+  return cfg.aBoop;
 }
 
 void endBoop() { //the paw has gone: now pop the total up, over the face the boop face left behind
@@ -2158,7 +2208,7 @@ void loop() {
           booping = true;
           countBoop();
           boopoldanim = currentAnim;
-          loadAnim(cfg.aBoop,"");
+          loadAnim(boopFaceNow(),"");
           lastMillsBoop = millis();
         }
         digitalWrite(T_en, LOW);
@@ -2179,7 +2229,7 @@ void loop() {
           booping = true;
           countBoop();
           boopoldanim = currentAnim;
-          loadAnim(cfg.aBoop,"");
+          loadAnim(boopFaceNow(),"");
           lastMillsBoop = millis();
         }
       } else if(booping == true && lastMillsBoop+1000<millis() && !digitalRead(T_in)) {
@@ -2215,7 +2265,7 @@ void loop() {
             booping = true;
             countBoop();
             boopoldanim = currentAnim;
-            loadAnim(cfg.aBoop,"");
+            loadAnim(boopFaceNow(),"");
             lastMillsBoop = millis();
           }
         } else if(lastMillsBoop+1000<millis()) {
@@ -2251,7 +2301,7 @@ void loop() {
           booping = true;
           countBoop();
           boopoldanim = currentAnim;
-          loadAnim(cfg.aBoop,"");
+          loadAnim(boopFaceNow(),"");
           lastMillsBoop = millis();
         } else if(booping == true && lastMillsBoop+1000<millis() && distance > cfg.boopThresh && distance != -1) {
           logPrint(F("[I] ToF unBOOP"));

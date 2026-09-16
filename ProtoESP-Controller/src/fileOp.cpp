@@ -63,6 +63,9 @@ void Config::setDefault() {
   boopBase = 0;    //resting proximity, i.e. the visor's own reflection
   boopLightEna = true; //a boop also has to shade the light sensor, when there's light to shade
   boopShade = 30;  //percent darker than normal that counts as a shadow
+  mouthMode = "shapes";  //how the mouth moves with your voice: flap (the old way) or shapes
+  boopMilestone = 100;   //every this many boops plays a special face; 0 turns it off
+  aMilestone = "heart.json";
   oledFlip = false;      //the screen mounted upside down
   autoBriEna = false;
   autoBriMode = "blank"; //blank, live or hybrid
@@ -119,6 +122,9 @@ bool Config::save() {
   doc["boopBase"] = boopBase;
   doc["boopLightEna"] = boopLightEna;
   doc["boopShade"] = boopShade;
+  doc["mouthMode"] = mouthMode;
+  doc["boopMilestone"] = boopMilestone;
+  doc["aMilestone"] = aMilestone;
   doc["oledFlip"] = oledFlip;
   doc["autoBriEna"] = autoBriEna;
   doc["autoBriMode"] = autoBriMode;
@@ -242,6 +248,9 @@ bool Config::load() {
   boopBase = doc["boopBase"] | 0;
   boopLightEna = doc["boopLightEna"] | true;
   boopShade = doc["boopShade"] | 30;
+  mouthMode = doc["mouthMode"] | "shapes";
+  boopMilestone = doc["boopMilestone"] | 100;
+  aMilestone = doc["aMilestone"] | "heart.json";
   oledFlip = doc["oledFlip"] | false;
   autoBriEna = doc["autoBriEna"] | false;
   autoBriMode = doc["autoBriMode"] | "blank";
