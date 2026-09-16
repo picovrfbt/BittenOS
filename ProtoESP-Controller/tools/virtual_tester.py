@@ -485,6 +485,12 @@ class Handler(BaseHTTPRequestHandler):
             board.version += 1
             return self.text('Set brightness to: %d' % value)
 
+        if path == '/miccal':   # listen to the silence and store it as the quiet level
+            cfg['spMin'] = 1540   # what a MAX4466 resting at half of 3.3V would read
+            board.save_config()
+            board.log('[I] Quiet level measured: 1540')
+            return self.text('ok')
+
         if path == '/autobri':   # measure=1: take a reading now
             if 'measure' in q:
                 board.measure_now = True

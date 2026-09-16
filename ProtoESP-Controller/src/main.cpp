@@ -351,7 +351,36 @@ String currentAnim = "", animToLoad = "", availAnims[50], getfilesCache;
 String postAnimToLoad = "";
 SemaphoreHandle_t animQueueMutex = NULL;
 String visorThen = ""; //optional "then" of the current animation: the face to load after one pass (loop task only)
+//Mic zero level. A microphone board's output sits at some resting voltage and the sound swings
+//either side of it, so that resting level has to be subtracted. It differs by board - a MAX9814
+//rests at 1.25V, a MAX4466 at half its supply - and guessing it wrong leaves the mouth stuck open,
+//because the code only re-learns it while it thinks things are quiet. So: listen to the silence for
+//a second when Speech is switched on (or when the page asks), and take that as the zero.
 float micDC = 800;
+unsigned long micCalUntil = 0;           //listening to the silence until this time
+float micCalSum = 0;
+int micCalN = 0;
+bool prevSpeechEna = false;
+volatile bool micCalReq = false;         //from /miccal
+
+void startMicCal() {
+  micCalUntil = millis() + 1200;
+  micCalSum = 0;
+  micCalN = 0;
+  logPrint(F("[I] Listening to the silence to find the mic's zero"));
+}
+
+void finishMicCal() {
+  micCalUntil = 0;
+  if(micCalN <= 0) return;
+  micDC = micCalSum / (float)micCalN;
+  int measured = (int)(micDC + 0.5f);
+  logPrint("[I] Quiet level measured: " + String(measured));
+  if(abs(measured - cfg.spMin) > 20) {    //keep the page's Quiet level in step, without writing flash over nothing
+    cfg.spMin = measured;
+    cfg.save();
+  }
+}
 
 //--------------------------------//getting stored anims names and count
 void getFilesFunc() {
@@ -985,6 +1014,15 @@ void startWiFiWeb() {
     } else {
       request->send(200, "text/plain", F("No valid parameters detected!"));
     }
+  });
+
+  server.on("/miccal", HTTP_GET, [](AsyncWebServerRequest *request){ //listen to the silence, store it as the quiet level
+    if(!cfg.speechEna) {
+      request->send(200, "text/plain", F("Turn Speech on first"));
+      return;
+    }
+    micCalReq = true;                      //the loop task reads the mic; the web task never does
+    request->send(200, "text/plain", "ok");
   });
 
   server.on("/autobri", HTTP_GET, [](AsyncWebServerRequest *request){ //measure=1: look at the light now
@@ -1849,6 +1887,12 @@ void loop() {
 
   //looptime = micros();
   //--------------------------------//SPEECH Detection
+  if(cfg.speechEna && !prevSpeechEna) startMicCal(); //just switched on, or booted with it on
+  prevSpeechEna = cfg.speechEna;
+  if(micCalReq) {
+    micCalReq = false;
+    if(cfg.speechEna) startMicCal();
+  }
   if(cfg.speechEna) { //1.045uS
     int nvol = 0, micline = 0, rawInput = 0;
     for (int i = 0; i<32; i++){
@@ -1872,6 +1916,13 @@ void loop() {
       //Serial.print(",");
       float centered = finalMicAvg - micDC; //DC removal
       float mag = fabsf(centered);
+      if(micCalUntil) { //still listening to the silence: average it, and keep the mouth still meanwhile
+        micCalSum += finalMicAvg;
+        micCalN++;
+        mag = 0.0f;
+        env = 0.0f;
+        if(millis() >= micCalUntil) finishMicCal();
+      }
       if (mag > env) { // Envelope follower
         env += (mag - env) * micAttack;
       } else {
