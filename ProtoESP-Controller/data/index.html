@@ -729,6 +729,8 @@
     const a = animCache[name];
     const frames = a && a.visor && a.visor.frames;
     if (!frames || !frames.length) return false;
+    // A face drawn in the designer can say for itself; older faces are judged by their timings
+    if (a.visor.canBlink !== undefined) return a.visor.canBlink === true;
     const spans = frames.map(f => f.timespan || 0).sort((x, y) => y - x);
     return spans.length === 1 || spans[0] >= spans[1] * 3;
   }

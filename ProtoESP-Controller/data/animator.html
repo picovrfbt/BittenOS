@@ -116,6 +116,10 @@
     </div> <!-- END OF VISOR PART -->
     <div>
       <h2>Generate</h2>
+      <label for="canBlink" style="display:inline-block;margin-bottom:8px">
+        <input type="checkbox" id="canBlink"> The mask may blink this face
+        <sup onclick="alert('Tick this for a face that is a still look: the mask can then close and open its eyes for you, at random gaps, instead of you drawing blink frames.\n\nLeave it unticked for a face that animates itself, or the two blinks fight each other and stutter.\n\nThe eyes are the panels that are neither mouth nor nose.')">&#9432;</sup>
+      </label><br>
       1. <button onclick="completeGen()">Generate final JSON</button><br>
       <form action="./savefile" method="post" id="footerForm">
         <label for="output">File content (paste here to load):</label><br>
@@ -1373,7 +1377,10 @@
   /*-----------------------------------VISOR ANIM CODE GEN-----------------------------------*/
   function visorGen() {
     var output = "";
-    output += '"visor":{"type":"' + $("#typeVisor").val() + '","isMouth":'+visTypeMouth+',"frames":[';
+    //canBlink: the mask closes and opens the eyes itself on this face, so a still face needs no
+    //blink frames drawn in. Left out entirely when unticked, so faces made before this stay as they were.
+    var blinkFlag = $("#canBlink").is(":checked") ? ',"canBlink":true' : '';
+    output += '"visor":{"type":"' + $("#typeVisor").val() + '","isMouth":'+visTypeMouth+blinkFlag+',"frames":[';
     for (var x = 0; x < framesVisor.length; x++) {
       output += framesVisor[x];
       if (x !== framesVisor.length - 1) {
@@ -1707,6 +1714,7 @@
     framesVisor.length = 0;
     $("#visorFramesP").html("");
     $('#typeVisor option[value="'+obj.visor.type+'"]').prop('selected', true);
+    $("#canBlink").prop('checked', obj.visor.canBlink === true); //editing a face keeps its setting
     for (var x = 0; x < obj.visor.frames.length; x++) {
       framesVisor.push(JSON.stringify(obj.visor.frames[x]));
       $("#visorFramesP").append("<a id=\"" + (framesVisor.length - 1) + "\">" + (framesVisor.length - 1) + "</a>");
