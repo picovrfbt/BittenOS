@@ -134,6 +134,7 @@ extern bool booping;
 extern bool speaking;
 extern int micVolume;          //0-100, how loud it is against the Speech range
 extern float finalMicAvg;      //the raw smoothed mic reading, for the level meter
+extern String blinkCachedAnim; //which face the blink rule was last worked out for
 
 //--------------------------------//APDS-9930: proximity only, straight at the registers
 #define apds9930Addr 0x39
@@ -1088,6 +1089,11 @@ void startWiFiWeb() {
     cfg.getString(request, "aBoop", cfg.aBoop);
     cfg.getString(request, "aSleep", cfg.aSleep);
     cfg.getString(request, "aMilestone", cfg.aMilestone);
+    if(cfg.getString(request, "blinkMode", cfg.blinkMode)) {
+      if(cfg.blinkMode != "face" && cfg.blinkMode != "blink" && cfg.blinkMode != "still") cfg.blinkMode = "face";
+      blinkCachedAnim = "";                //look at the face again under the new setting
+      instantReload = true;
+    }
     if(cfg.getInt(request, "boopMilestone", cfg.boopMilestone)) cfg.boopMilestone = constrain(cfg.boopMilestone, 0, 10000);
     if(cfg.getString(request, "mouthMode", cfg.mouthMode)) {
       if(cfg.mouthMode != "flap" && cfg.mouthMode != "shapes") cfg.mouthMode = "shapes";
@@ -1617,6 +1623,44 @@ unsigned long lastImuRetry = 0, lastApdsRetry = 0; //sensor not found yet: when 
 uint8_t mouthBand = 0;              //0 closed, 3 widest
 unsigned long mouthBandAt = 0;
 
+//Blinks, chosen by Blinks in Settings:
+//  face  - leave the face alone: most of these faces are animations that blink themselves
+//  blink - the mask does the blinking, at random intervals, and holds the face on its resting frame
+//          so its own blink cannot fire as well and stutter against this one
+//  still - hold the resting frame and never blink
+//Only faces that are "a long look plus a short blink" can be held: one frame far longer than the
+//rest. A face whose frames all run the same length is a real animation (confused, heart, angry),
+//and freezing that would throw away the whole thing, so those are always left to play themselves.
+uint8_t blinkStep = 0;              //0 open, 3 nearly shut
+unsigned long blinkStepAt = 0, nextBlinkAt = 0;
+int blinkRestFrame = 0;             //the long "eyes open" frame
+bool blinkFaceEligible = false;
+String blinkCachedAnim = "";
+#define BLINK_STEP_MS 18            //per step of the close and open
+
+//Works out, once per face, whether it is a long look plus a short blink, and which frame the look is
+void blinkCheckFace() {
+  blinkCachedAnim = currentAnim;
+  blinkFaceEligible = false;
+  blinkRestFrame = 0;
+  if(!visorNow || visorNow->numOfFrames < 1) return;
+  int longest = 0, second = 0, longestIdx = 0;
+  for(int i = 0; i < visorNow->numOfFrames; i++) {
+    int t = visorNow->frames[i].timespan;
+    if(t > longest) { second = longest; longest = t; longestIdx = i; }
+    else if(t > second) second = t;
+  }
+  blinkRestFrame = longestIdx;
+  //One frame at least three times any other: a still face with a blink tacked on the end
+  blinkFaceEligible = (visorNow->numOfFrames == 1) || (second > 0 && longest >= second * 3);
+}
+
+bool blinkHoldsFace() {
+  if(cfg.blinkMode == "face") return false;
+  if(currentAnim != blinkCachedAnim) blinkCheckFace();
+  return blinkFaceEligible;
+}
+
 void dynamicSpeak(uint64_t *leds, bool isMouth[MATRIXESNUM], int volume) {
   int mouthIndexes[MATRIXESNUM];
   int mouthCount = 0;
@@ -1748,6 +1792,18 @@ void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
   if(bobUp) { //mouth bob: shift the mouth panels up a row. Row i sits in byte i, so >>8 is up.
     for(int y = 0; y < numOfSegm; y++) {
       if(visorNow->isMouth[y]) tempLeds[y] >>= 8;
+    }
+  }
+  if(blinkStep > 0) {
+    //Close the eyes by squeezing their artwork toward the middle: keep the rows in a band that
+    //shrinks as the blink deepens. Eye panels are the ones that are neither mouth nor nose, which
+    //on this layout is the four at the ends. Row r sits in byte r of the panel's word.
+    for(int y = 0; y < numOfSegm; y++) {
+      if(visorNow->isMouth[y] || y == noseLeftPanel || y == noseRightPanel) continue;
+      for(int r = 0; r < 8; r++) {
+        if(r >= blinkStep && r <= 7 - blinkStep) continue;
+        tempLeds[y] &= ~(0xFFULL << (r * 8));
+      }
     }
   }
   int bphase = boopPhase();
@@ -2047,7 +2103,14 @@ void loop() {
 
   //--------------------------------//VISOR+BLUSH Leds render
   if(visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX")) { //custom
-    if(lastMillsVisor+visorNow->frames[currentVisorFrame].timespan <= millis() || instantReload) {
+    if(blinkHoldsFace()) {                 //the mask is doing the blinking: sit on the resting frame
+      if(currentVisorFrame != blinkRestFrame || instantReload) {
+        currentVisorFrame = blinkRestFrame;
+        lastMillsVisor = millis();
+        setAllVisor(visorLedsNEW,0,currentVisorFrame);
+        instantReload = false;
+      }
+    } else if(lastMillsVisor+visorNow->frames[currentVisorFrame].timespan <= millis() || instantReload) {
       currentVisorFrame++;
       lastMillsVisor = millis();
       if(currentVisorFrame == visorNow->numOfFrames) {
@@ -2086,11 +2149,32 @@ void loop() {
   //here rather than waiting for the next frame.
   if(visorNow && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) {
     bool wantUp = cfg.bobEna && (millis() % bobPeriod) < bobLift;
+    //Blink, when the mask is the one doing it. Random gaps: a blink on a metronome reads as
+    //mechanical. Never while asleep (the eyes are already shut) or mid-dip between faces.
+    uint8_t wantBlink = blinkStep;
+    if(cfg.blinkMode == "blink" && blinkHoldsFace() && !sleeping && transPhase == 0) {
+      if(blinkStep == 0) {
+        if(nextBlinkAt == 0) nextBlinkAt = millis() + random(2500, 7000);
+        else if(millis() >= nextBlinkAt) { wantBlink = 1; blinkStepAt = millis(); }
+      } else if(millis() - blinkStepAt >= BLINK_STEP_MS) {
+        blinkStepAt = millis();
+        //1,2,3 shut then 3,2,1 open again, held one step at the bottom
+        wantBlink = (blinkStep < 4) ? blinkStep + 1 : blinkStep - 1;
+        if(wantBlink > 6) { wantBlink = 0; nextBlinkAt = millis() + random(2500, 7000); }
+      }
+    } else if(blinkStep != 0) {
+      wantBlink = 0;                       //mode changed or the face took over: open the eyes again
+    }
+    uint8_t drawStep = wantBlink <= 3 ? wantBlink : (uint8_t)(7 - wantBlink); //4,5,6 reopen as 3,2,1
+    uint8_t lastDraw = blinkStep <= 3 ? blinkStep : (uint8_t)(7 - blinkStep);
     int bphase = boopPhase();
-    if(wantUp != bobUp || bphase != lastBoopPhase) {
+    if(wantUp != bobUp || bphase != lastBoopPhase || drawStep != lastDraw) {
       bobUp = wantUp;
       lastBoopPhase = bphase;
+      blinkStep = wantBlink;
       setAllVisor(visorLedsNEW,0,currentVisorFrame);
+    } else {
+      blinkStep = wantBlink;
     }
   }
 
