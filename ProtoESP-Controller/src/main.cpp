@@ -429,6 +429,15 @@ void finishMicCal() {
   cfg.spMin = (int)(micNoise + 0.5f);
   cfg.save();
   logPrint("[I] Noise floor measured: " + String(cfg.spMin));
+  //A quiet room should swing a few tens of counts out of 4095. Hundreds means the mic board is
+  //amplifying its own supply noise, and since loudness is measured above this floor, a voice
+  //quieter than the noise can never register. Say so rather than quietly accepting it.
+  if(cfg.spMin > 800) {
+    micGainHint = 3;
+    logPrint("[E] Noise floor is huge (" + String(cfg.spMin) + " of 4095): turn the mic's gain right down");
+  } else if(micGainHint == 3) {
+    micGainHint = 0;                     //a sane floor: drop the old complaint
+  }
 }
 
 void finishMicLoud() {
