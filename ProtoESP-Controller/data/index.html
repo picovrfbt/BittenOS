@@ -258,6 +258,20 @@
       <div class="faces" id="faces"><p class="empty">Loading faces…</p></div>
     </section>
 
+    <!-- Only shown while a face the mask can blink is running: one long look plus a short blink -->
+    <section class="card" id="blinkCard" hidden>
+      <h2>Blinks</h2>
+      <div class="row" style="padding:0">
+        <span class="row-text"><b><span id="blinkFaceName">default</span> can be blinked by the mask</b><small id="blinkModeHint"></small></span>
+        <select id="blinkMode" data-key="blinkMode" data-label="Blinks" aria-label="Blinks" style="text-transform:none">
+          <option value="face">Face's own</option>
+          <option value="blink">Mask blinks</option>
+          <option value="still">None</option>
+        </select>
+      </div>
+      <p class="hint">Faces that animate themselves keep their own blinking, so this only appears for faces the mask can take over — this one, and anything you draw as a single frame. <b>Mask blinks</b> blinks at random gaps of 2.5 to 7 seconds instead of on a fixed cycle.</p>
+    </section>
+
     <section class="card">
       <h2>Brightness</h2>
       <div class="control" id="briControl">
@@ -518,20 +532,6 @@
       <div class="group" style="margin-top:10px">
         <label class="row"><span class="row-text"><b>Mouth bob</b><small>The mouth lifts a pixel every second or so</small></span>
           <input type="checkbox" class="toggle" data-key="bobEna" data-label="Mouth bob"></label>
-        <div class="row"><span class="row-text"><b>Blinks</b><small id="blinkModeHint"></small></span>
-          <select id="blinkMode" data-key="blinkMode" data-label="Blinks" aria-label="Blinks" style="text-transform:none">
-            <option value="face">Face's own</option>
-            <option value="blink">Mask blinks</option>
-            <option value="still">None</option>
-          </select></div>
-        <details class="sub">
-          <summary><span>Which faces this changes</span></summary>
-          <div class="sub-body">
-            <p class="hint">Most of your faces are animations that already blink themselves, and the mask can only take over on a face that is <b>one long look plus a short blink</b> — default is one, and so is anything you draw as a single frame.</p>
-            <p class="hint">A face whose frames all run the same length is a real animation (confused, heart, angry, sad, surprise), and freezing it would throw the animation away — so those keep playing themselves whatever this is set to.</p>
-            <p class="hint"><b>Mask blinks</b> holds an eligible face on its open-eyed frame and blinks it at random gaps of 2.5 to 7 seconds, so it never lands on a metronome. <b>None</b> holds that frame and never blinks.</p>
-          </div>
-        </details>
       </div>
     </section>
 
@@ -718,6 +718,33 @@
     if (/\.json$/.test(name)) lastFace = name;
     $('activeAnim').textContent = name === 'POSTAnimLoad' ? 'Custom' : (name.replace(/\.json$/, '') || '—');
     document.querySelectorAll('.face').forEach(b => b.classList.toggle('on', b.dataset.anim === name));
+    updateBlinkCard();
+  }
+
+  // The mask can only blink a face that is one long look plus a short blink - one frame at least
+  // three times longer than any other, or a single frame. Same rule the firmware uses, worked out
+  // here from the face data already fetched for the previews, so the card only appears when it
+  // actually does something.
+  function faceBlinkEligible(name) {
+    const a = animCache[name];
+    const frames = a && a.visor && a.visor.frames;
+    if (!frames || !frames.length) return false;
+    const spans = frames.map(f => f.timespan || 0).sort((x, y) => y - x);
+    return spans.length === 1 || spans[0] >= spans[1] * 3;
+  }
+
+  async function updateBlinkCard() {
+    const name = (document.querySelector('.face.on') || {dataset: {}}).dataset.anim || lastFace;
+    let ok = false;
+    if (name) {
+      if (!animCache[name]) {
+        try { animCache[name] = await (await fetch('/anims/' + encodeURIComponent(name), NO_CACHE)).json(); }
+        catch (e) { /* out of reach: leave the card hidden */ }
+      }
+      ok = faceBlinkEligible(name);
+    }
+    $('blinkCard').hidden = !ok;
+    if (ok) $('blinkFaceName').textContent = name.replace(/\.json$/, '');
   }
 
   const FACE_PICKERS = ['aTilt', 'aUp', 'aBoop', 'aSleep', 'aMilestone'];
