@@ -463,13 +463,23 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/savescreen' and method == 'POST':
             try:
                 layout = json.loads(form.get('layout', ''))
-                if not isinstance(layout, dict) or not isinstance(layout.get('elements'), list):
-                    raise ValueError('no elements list')
+                # Either shape is valid: pages, or the flat element list saved before pages existed
+                if not isinstance(layout, dict):
+                    raise ValueError('not an object')
+                pages = layout.get('pages')
+                if isinstance(pages, list):
+                    count = sum(len(p.get('elements') or []) for p in pages if isinstance(p, dict))
+                    where = '%d page%s' % (len(pages), '' if len(pages) == 1 else 's')
+                elif isinstance(layout.get('elements'), list):
+                    count = len(layout['elements'])
+                    where = '1 page'
+                else:
+                    raise ValueError('no pages or elements')
             except ValueError as e:
                 return self.reply(400, 'Bad layout: %s' % e)
             with open(os.path.join(DATA, 'screen.json'), 'w', encoding='utf-8') as f:
                 json.dump(layout, f, indent=1)
-            board.log('[I] Screen layout saved (%d elements)' % len(layout['elements']))
+            board.log('[I] Screen layout saved (%d elements on %s)' % (count, where))
             return self.text('ok')
         if path == '/__screendata':   # everything the screen can show, in one request, without logging
             s = stats_dict()

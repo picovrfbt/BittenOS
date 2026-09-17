@@ -71,7 +71,7 @@
     rect:  'Box / line',
   };
 
-  const EXAMPLE = {version: 1, elements: [
+  const EXAMPLE_ELEMENTS = [
     {type: 'value', source: 'face', prefix: '', suffix: '', x: 64, y: 4, size: 2, align: 'center', show: 'notBooped'},
     {type: 'text', text: 'BOOP!', x: 64, y: 0, size: 3, align: 'center', show: 'booped'},
     {type: 'rect', x: 0, y: 25, w: 128, h: 1, fill: true, show: 'always'},
@@ -84,6 +84,16 @@
     {type: 'bar', source: 'closeness', x: 36, y: 44, w: 90, h: 6, marker: true, show: 'always'},
     {type: 'text', text: 'shade', x: 2, y: 54, size: 1, align: 'left', show: 'always'},
     {type: 'bar', source: 'shade', x: 36, y: 55, w: 90, h: 6, marker: true, show: 'always'},
+  ];
+
+  // The starting point: a status page, plus a boop page that takes over for a moment when booped
+  const EXAMPLE = {version: 2, panel: 'yellowBlue', yellowAt: 'top', cycle: 0, pages: [
+    {name: 'Status', show: 'always', hold: 0, elements: EXAMPLE_ELEMENTS},
+    {name: 'Boop', show: 'booped', hold: 1500, elements: [
+      {type: 'text', text: 'BOOP!', x: 64, y: 6, size: 3, align: 'center', show: 'always'},
+      {type: 'icon', icon: 'paw', x: 2, y: 40, size: 2, show: 'always'},
+      {type: 'value', source: 'boops', prefix: '#', suffix: '', x: 124, y: 44, size: 2, align: 'right', show: 'always'},
+    ]},
   ]};
 
   function glyph(ch) {
@@ -127,11 +137,26 @@
 
   // Draws the layout into a 128x64 buffer. Returns the buffer and every element's box (drawn or
   // not, before clipping), for hit-testing in the designer.
-  function renderBuffer(layout, d) {
+  // A layout saved before pages existed is a flat list of elements; one saved since has pages, each
+  // with its own list. Everything reading a layout goes through here so both shapes work.
+  function pagesOf(layout) {
+    if (!layout) return [];
+    if (Array.isArray(layout.pages)) return layout.pages;
+    if (Array.isArray(layout.elements)) return [{name: 'Page 1', show: 'always', hold: 0, elements: layout.elements}];
+    return [];
+  }
+
+  function elementsOf(layout, page) {
+    const pages = pagesOf(layout);
+    const p = pages[page || 0];
+    return (p && Array.isArray(p.elements)) ? p.elements : [];
+  }
+
+  function renderBuffer(layout, d, page) {
     const buf = new Uint8Array(W * H);
     const set = (x, y) => { if (x >= 0 && x < W && y >= 0 && y < H) buf[y * W + x] = 1; };
     const boxes = [];
-    const els = (layout && layout.elements) || [];
+    const els = elementsOf(layout, page || 0);
     els.forEach((el, i) => {
       const visible = (SHOW[el.show] || SHOW.always).test(d);
       const size = Math.max(1, Math.min(3, el.size | 0 || 1));
@@ -212,5 +237,21 @@
     return ctx;
   }
 
-  window.ScreenSim = {W, H, YELLOW_ROWS, FONT, ICONS, SOURCES, BARS, SHOW, TYPES, EXAMPLE, normalise, renderBuffer, paint, textWidth};
+  // Which page the mask would be showing, so the dashboard preview matches the real screen: a page
+  // with a condition takes over while it holds, otherwise the rotation's current page.
+  function pickPage(layout, d, rotation) {
+    const pages = pagesOf(layout);
+    for (let i = 0; i < pages.length; i++) {
+      const show = pages[i].show || 'always';
+      if (show === 'always') continue;
+      if ((SHOW[show] || SHOW.always).test(d)) return i;
+    }
+    const always = [];
+    pages.forEach((p, i) => { if ((p.show || 'always') === 'always') always.push(i); });
+    if (!always.length) return 0;
+    return always[(rotation || 0) % always.length];
+  }
+
+  window.ScreenSim = {W, H, YELLOW_ROWS, FONT, ICONS, SOURCES, BARS, SHOW, TYPES, EXAMPLE,
+                      normalise, renderBuffer, paint, textWidth, pagesOf, elementsOf, pickPage};
 })();

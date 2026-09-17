@@ -17,9 +17,10 @@ static const char *const BARS[] = {"closeness", "shade", "brightness"};
 static const char *const SHOWS[] = {"always", "booped", "notBooped", "sleeping", "awake", "displaysOff"};
 #define SHOW_COUNT (sizeof(SHOWS) / sizeof(SHOWS[0]))
 
-#define MAX_ELEMENTS 48            //a 128x64 screen can't usefully hold more, and this caps the memory
+#define MAX_ELEMENTS 64            //across every page; a 128x64 screen cannot usefully hold more
 
 struct Element {
+  uint8_t page = 0;
   uint8_t type = EL_TEXT;
   uint8_t source = 0;
   uint8_t show = 0;
@@ -33,6 +34,10 @@ struct Element {
 
 static Element elements[MAX_ELEMENTS];
 static int elementCount = 0;
+static int pageCount = 0;
+static uint8_t pageShow[SCREEN_MAX_PAGES];
+static int pageHold[SCREEN_MAX_PAGES];
+static int cycleSecs = 0;
 
 static int lookup(const char *const *names, size_t count, const char *want, int fallback) {
   if(!want) return fallback;
@@ -40,48 +45,77 @@ static int lookup(const char *const *names, size_t count, const char *want, int 
   return fallback;
 }
 
-bool screenHasLayout() { return elementCount > 0; }
+bool screenHasLayout() { return elementCount > 0 && pageCount > 0; }
+int screenPageCount() { return pageCount; }
 int screenElementCount() { return elementCount; }
+uint8_t screenPageShow(int page) { return (page >= 0 && page < pageCount) ? pageShow[page] : PAGE_ALWAYS; }
+int screenPageHold(int page) { return (page >= 0 && page < pageCount) ? pageHold[page] : 0; }
+int screenCycleSecs() { return cycleSecs; }
+
+//Reads one element out of the layout file into the flat list, tagged with the page it belongs to
+static void loadElement(JsonObject o, uint8_t page) {
+  if(elementCount >= MAX_ELEMENTS) return;
+  Element &e = elements[elementCount];
+  e = Element();
+  e.page = page;
+  const char *type = o["type"] | "text";
+  if(strcmp(type, "value") == 0) e.type = EL_VALUE;
+  else if(strcmp(type, "bar") == 0) e.type = EL_BAR;
+  else if(strcmp(type, "icon") == 0) e.type = EL_ICON;
+  else if(strcmp(type, "rect") == 0) e.type = EL_RECT;
+  else e.type = EL_TEXT;
+  e.x = o["x"] | 0;
+  e.y = o["y"] | 0;
+  e.w = o["w"] | 1;
+  e.h = o["h"] | 1;
+  e.size = constrain((int)(o["size"] | 1), 1, 3);
+  e.fill = o["fill"] | false;
+  e.marker = o["marker"] | false;
+  e.text = (const char *)(o["text"] | "");
+  e.prefix = (const char *)(o["prefix"] | "");
+  e.suffix = (const char *)(o["suffix"] | "");
+  e.show = (uint8_t)lookup(SHOWS, SHOW_COUNT, o["show"] | "always", 0);
+  const char *align = o["align"] | "left";
+  e.align = strcmp(align, "center") == 0 ? 1 : strcmp(align, "right") == 0 ? 2 : 0;
+  if(e.type == EL_VALUE) e.source = (uint8_t)lookup(SOURCES, SOURCE_COUNT, o["source"] | "face", 0);
+  if(e.type == EL_BAR) e.source = (uint8_t)lookup(BARS, BAR_COUNT, o["source"] | "closeness", 0);
+  if(e.type == EL_ICON) e.icon = (int8_t)lookup(screenIconNames, SCREEN_ICON_COUNT, o["icon"] | "", 0);
+  elementCount++;
+}
 
 bool screenLoadLayout() {
   elementCount = 0;
+  pageCount = 0;
+  cycleSecs = 0;
   File f = LittleFS.open("/screen.json", "r");
   if(!f) return false;
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, f);
   f.close();
   if(err) return false;
-  JsonArray els = doc["elements"].as<JsonArray>();
-  if(els.isNull()) return false;
-  for(JsonObject o : els) {
-    if(elementCount >= MAX_ELEMENTS) break;
-    Element &e = elements[elementCount];
-    e = Element();
-    const char *type = o["type"] | "text";
-    if(strcmp(type, "value") == 0) e.type = EL_VALUE;
-    else if(strcmp(type, "bar") == 0) e.type = EL_BAR;
-    else if(strcmp(type, "icon") == 0) e.type = EL_ICON;
-    else if(strcmp(type, "rect") == 0) e.type = EL_RECT;
-    else e.type = EL_TEXT;
-    e.x = o["x"] | 0;
-    e.y = o["y"] | 0;
-    e.w = o["w"] | 1;
-    e.h = o["h"] | 1;
-    e.size = constrain((int)(o["size"] | 1), 1, 3);
-    e.fill = o["fill"] | false;
-    e.marker = o["marker"] | false;
-    e.text = (const char *)(o["text"] | "");
-    e.prefix = (const char *)(o["prefix"] | "");
-    e.suffix = (const char *)(o["suffix"] | "");
-    e.show = (uint8_t)lookup(SHOWS, SHOW_COUNT, o["show"] | "always", 0);
-    const char *align = o["align"] | "left";
-    e.align = strcmp(align, "center") == 0 ? 1 : strcmp(align, "right") == 0 ? 2 : 0;
-    if(e.type == EL_VALUE) e.source = (uint8_t)lookup(SOURCES, SOURCE_COUNT, o["source"] | "face", 0);
-    if(e.type == EL_BAR) e.source = (uint8_t)lookup(BARS, BAR_COUNT, o["source"] | "closeness", 0);
-    if(e.type == EL_ICON) e.icon = (int8_t)lookup(screenIconNames, SCREEN_ICON_COUNT, o["icon"] | "", 0);
-    elementCount++;
+
+  cycleSecs = constrain((int)(doc["cycle"] | 0), 0, 600);
+
+  JsonArray pages = doc["pages"].as<JsonArray>();
+  if(!pages.isNull()) {
+    for(JsonObject p : pages) {
+      if(pageCount >= SCREEN_MAX_PAGES) break;
+      pageShow[pageCount] = (uint8_t)lookup(SHOWS, SHOW_COUNT, p["show"] | "always", PAGE_ALWAYS);
+      pageHold[pageCount] = constrain((int)(p["hold"] | 0), 0, 10000);
+      JsonArray els = p["elements"].as<JsonArray>();
+      if(!els.isNull()) for(JsonObject o : els) loadElement(o, (uint8_t)pageCount);
+      pageCount++;
+    }
+  } else {
+    //Saved before pages existed: the whole file is one page, and it keeps working untouched
+    JsonArray els = doc["elements"].as<JsonArray>();
+    if(els.isNull()) return false;
+    pageShow[0] = PAGE_ALWAYS;
+    pageHold[0] = 0;
+    pageCount = 1;
+    for(JsonObject o : els) loadElement(o, 0);
   }
-  return elementCount > 0;
+  return elementCount > 0 && pageCount > 0;
 }
 
 //--------------------------------//drawing helpers
@@ -168,19 +202,20 @@ static void barFractions(uint8_t source, const ScreenData &d, float &frac, float
 
 static bool visible(uint8_t show, const ScreenData &d) {
   switch(show) {
-    case 1: return d.booping;
-    case 2: return !d.booping;
-    case 3: return d.sleeping;
-    case 4: return !d.sleeping;
-    case 5: return !d.displayOn;
+    case PAGE_BOOPED: return d.booping;
+    case PAGE_NOTBOOPED: return !d.booping;
+    case PAGE_SLEEPING: return d.sleeping;
+    case PAGE_AWAKE: return !d.sleeping;
+    case PAGE_DISPLAYSOFF: return !d.displayOn;
   }
   return true;
 }
 
-void screenRender(uint8_t *buf, const ScreenData &d) {
+void screenRender(uint8_t *buf, const ScreenData &d, int page) {
   memset(buf, 0, 128 * 8);
   for(int i = 0; i < elementCount; i++) {
     const Element &e = elements[i];
+    if(e.page != page) continue;
     if(!visible(e.show, d)) continue;
     if(e.type == EL_TEXT || e.type == EL_VALUE) {
       String s = e.type == EL_TEXT ? e.text : e.prefix + sourceText(e.source, d) + e.suffix;

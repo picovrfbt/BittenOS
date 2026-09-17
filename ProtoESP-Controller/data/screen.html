@@ -73,6 +73,7 @@
     <div style="display:grid;gap:16px">
       <section class="card">
         <h2>Status screen</h2>
+        <div class="row" id="pageBar" style="padding:0 0 10px;gap:6px;flex-wrap:wrap"></div>
         <div id="screenWrap"><canvas id="screen"></canvas></div>
         <div class="row" style="margin-top:12px">
           <span style="color:var(--dim);font-size:13px">Add:</span>
@@ -125,6 +126,12 @@
       </section>
 
       <section class="card">
+        <h2>This page</h2>
+        <div id="pageProps"></div>
+        <p class="hint">A page set to <b>In the rotation</b> is one the button steps through. A page that <b>takes over</b> shows itself whenever its condition is true — a boop, say — and lingers for a moment after.</p>
+      </section>
+
+      <section class="card">
         <h2>Elements</h2>
         <div id="list"></div>
       </section>
@@ -145,8 +152,34 @@
   const $ = id => document.getElementById(id);
   const NO_CACHE = {cache: 'no-store'};
   const canvas = $('screen');
-  let layout = {version: 1, elements: []}, saved = '', sel = -1, data = S.normalise({}), boxes = [], drag = null;
+  let layout = {version: 2, panel: 'yellowBlue', yellowAt: 'top', cycle: 0,
+                pages: [{name: 'Page 1', show: 'always', hold: 0, elements: []}]};
+  let saved = '', sel = -1, page = 0, data = S.normalise({}), boxes = [], drag = null;
   let cfgBits = {};   // boopThresh and boopShade, which the bars' markers need
+
+  // Everything works on the page being edited. A layout saved before pages existed is a flat list,
+  // and is folded into page 1 on load, so an older file opens with nothing lost.
+  function els() { return layout.pages[page].elements; }
+
+  function migrate(l) {
+    if (!l || typeof l !== 'object') l = {};
+    if (!Array.isArray(l.pages)) {
+      const flat = Array.isArray(l.elements) ? l.elements : [];
+      l.pages = [{name: 'Page 1', show: 'always', hold: 0, elements: flat}];
+    }
+    delete l.elements;
+    l.pages = l.pages.filter(p => p && typeof p === 'object').slice(0, 8);
+    if (!l.pages.length) l.pages = [{name: 'Page 1', show: 'always', hold: 0, elements: []}];
+    l.pages.forEach((p, i) => {
+      if (!Array.isArray(p.elements)) p.elements = [];
+      if (!p.name) p.name = 'Page ' + (i + 1);
+      if (!p.show) p.show = 'always';
+      if (typeof p.hold !== 'number') p.hold = 0;
+    });
+    if (typeof l.cycle !== 'number') l.cycle = 0;
+    l.version = 2;
+    return l;
+  }
 
   function toast(msg, isError) {
     const t = $('toast');
@@ -158,7 +191,7 @@
 
   /* ---------- drawing ---------- */
   function redraw() {
-    const r = S.renderBuffer(layout, data);
+    const r = S.renderBuffer(layout, data, page);
     boxes = r.boxes;
     const sc = 6;
     const twoColour = $('colour').value === 'yellowBlue';
@@ -208,8 +241,8 @@
   function renderList() {
     const list = $('list');
     list.innerHTML = '';
-    if (!layout.elements.length) { list.innerHTML = '<p class="empty">Nothing on the screen yet.</p>'; return; }
-    layout.elements.forEach((el, i) => {
+    if (!els().length) { list.innerHTML = '<p class="empty">Nothing on this page yet.</p>'; return; }
+    els().forEach((el, i) => {
       const row = document.createElement('div');
       row.className = 'item' + (i === sel ? ' on' : '');
       row.innerHTML = '<span class="kind"></span><span class="what"></span><span class="hid"></span>';
@@ -228,7 +261,7 @@
   function esc(s) { return String(s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
   function renderProps() {
-    const box = $('props'), el = layout.elements[sel];
+    const box = $('props'), el = els()[sel];
     if (!el) { box.innerHTML = '<p class="empty">Tap an element on the screen, or add one.</p>'; return; }
     let h = '<div class="props">';
     h += field('Type', '<b>' + S.TYPES[el.type] + '</b>');
@@ -286,27 +319,104 @@
       rect: {type: 'rect', w: 30, h: 16, fill: false},
       line: {type: 'rect', w: 128, h: 1, fill: true, x: 0},
     }[kind];
-    layout.elements.push(Object.assign(base, el));
-    select(layout.elements.length - 1);
+    els().push(Object.assign(base, el));
+    select(els().length - 1);
   }
   function move(dir) {
     const j = sel + dir;
-    if (sel < 0 || j < 0 || j >= layout.elements.length) return;
-    const els = layout.elements;
-    [els[sel], els[j]] = [els[j], els[sel]];
+    if (sel < 0 || j < 0 || j >= els().length) return;
+    const list = els();
+    [list[sel], list[j]] = [list[j], list[sel]];
     select(j);
   }
   function dup() {
     if (sel < 0) return;
-    const copy = JSON.parse(JSON.stringify(layout.elements[sel]));
+    const copy = JSON.parse(JSON.stringify(els()[sel]));
     copy.x += 4; copy.y += 4;
-    layout.elements.splice(sel + 1, 0, copy);
+    els().splice(sel + 1, 0, copy);
     select(sel + 1);
   }
   function del() {
     if (sel < 0) return;
-    layout.elements.splice(sel, 1);
-    select(Math.min(sel, layout.elements.length - 1));
+    els().splice(sel, 1);
+    select(Math.min(sel, els().length - 1));
+  }
+
+  /* ---------- pages ---------- */
+  function renderPages() {
+    const bar = $('pageBar');
+    bar.innerHTML = '';
+    layout.pages.forEach((p, i) => {
+      const b = document.createElement('button');
+      b.className = 'btn small' + (i === page ? ' primary' : '');
+      b.type = 'button';
+      b.textContent = p.name + (p.show !== 'always' ? ' *' : '');
+      b.title = p.show !== 'always' ? 'Takes over ' + (S.SHOW[p.show] || {label: p.show}).label.toLowerCase() : '';
+      b.addEventListener('click', () => selectPage(i));
+      bar.appendChild(b);
+    });
+    const add = document.createElement('button');
+    add.className = 'btn small';
+    add.type = 'button';
+    add.textContent = '+';
+    add.title = 'Add a page';
+    add.addEventListener('click', addPage);
+    bar.appendChild(add);
+    renderPageProps();
+  }
+
+  function renderPageProps() {
+    const p = layout.pages[page];
+    $('pageProps').innerHTML =
+      '<div class="props">' +
+      field('Name', '<input type="text" id="pgName" maxlength="16" value="' + esc(p.name) + '">') +
+      field('Shown', '<select id="pgShow">' + opts(S.SHOW, p.show, k => k === 'always' ? 'In the rotation' : 'Takes over: ' + S.SHOW[k].label.toLowerCase()) + '</select>') +
+      (p.show === 'always' ? '' :
+        field('Lingers', '<input type="number" id="pgHold" min="0" max="10000" step="100" value="' + p.hold + '"> <small style="color:var(--dim)">ms after it ends</small>')) +
+      field('Rotation', '<input type="number" id="pgCycle" min="0" max="600" value="' + (layout.cycle || 0) + '"> <small style="color:var(--dim)">seconds per page, 0 = button only</small>') +
+      '</div>' +
+      '<div class="row" style="margin-top:12px">' +
+      '<button class="btn" onclick="dupPage()">Duplicate</button>' +
+      '<button class="btn" onclick="movePage(-1)">Left</button>' +
+      '<button class="btn" onclick="movePage(1)">Right</button>' +
+      '<button class="btn danger" onclick="delPage()">Delete page</button></div>';
+    $('pgName').addEventListener('input', e => { p.name = e.target.value || 'Page'; renderPages(); });
+    $('pgShow').addEventListener('change', e => { p.show = e.target.value; renderPages(); redraw(); });
+    if ($('pgHold')) $('pgHold').addEventListener('input', e => { p.hold = parseInt(e.target.value, 10) || 0; });
+    $('pgCycle').addEventListener('input', e => { layout.cycle = parseInt(e.target.value, 10) || 0; });
+  }
+
+  function selectPage(i) {
+    page = Math.max(0, Math.min(layout.pages.length - 1, i));
+    sel = -1;
+    renderPages();
+    renderList();
+    renderProps();
+    redraw();
+  }
+  function addPage() {
+    if (layout.pages.length >= 8) { toast('Eight pages is the limit', true); return; }
+    layout.pages.push({name: 'Page ' + (layout.pages.length + 1), show: 'always', hold: 0, elements: []});
+    selectPage(layout.pages.length - 1);
+  }
+  function dupPage() {
+    if (layout.pages.length >= 8) { toast('Eight pages is the limit', true); return; }
+    const copy = JSON.parse(JSON.stringify(layout.pages[page]));
+    copy.name = copy.name + ' copy';
+    layout.pages.splice(page + 1, 0, copy);
+    selectPage(page + 1);
+  }
+  function movePage(dir) {
+    const j = page + dir;
+    if (j < 0 || j >= layout.pages.length) return;
+    [layout.pages[page], layout.pages[j]] = [layout.pages[j], layout.pages[page]];
+    selectPage(j);
+  }
+  function delPage() {
+    if (layout.pages.length <= 1) { toast('There has to be at least one page', true); return; }
+    if (!confirm('Delete "' + layout.pages[page].name + '" and everything on it?')) return;
+    layout.pages.splice(page, 1);
+    selectPage(Math.min(page, layout.pages.length - 1));
   }
 
   /* ---------- dragging ---------- */
@@ -324,11 +434,11 @@
   canvas.addEventListener('pointerdown', e => {
     const [px, py] = toPixel(e), i = hit(px, py);
     select(i);
-    if (i >= 0) { drag = {dx: px - layout.elements[i].x, dy: py - layout.elements[i].y}; canvas.setPointerCapture(e.pointerId); }
+    if (i >= 0) { drag = {dx: px - els()[i].x, dy: py - els()[i].y}; canvas.setPointerCapture(e.pointerId); }
   });
   canvas.addEventListener('pointermove', e => {
     if (!drag || sel < 0) return;
-    const [px, py] = toPixel(e), el = layout.elements[sel];
+    const [px, py] = toPixel(e), el = els()[sel];
     const nx = px - drag.dx, ny = py - drag.dy;
     if (nx !== el.x || ny !== el.y) { el.x = nx; el.y = ny; redraw(); }
   });
@@ -336,7 +446,7 @@
 
   document.addEventListener('keydown', e => {
     if (sel < 0 || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-    const step = e.shiftKey ? 5 : 1, el = layout.elements[sel];
+    const step = e.shiftKey ? 5 : 1, el = els()[sel];
     const moves = {ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step]};
     if (moves[e.key]) { el.x += moves[e.key][0]; el.y += moves[e.key][1]; e.preventDefault(); renderList(); renderProps(); redraw(); }
     else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); del(); }
@@ -362,17 +472,21 @@
   async function revert() {
     try {
       const r = await fetch('/screen.json', NO_CACHE);
-      if (r.ok) { layout = await r.json(); saved = JSON.stringify(layout); }
-      else { layout = JSON.parse(JSON.stringify(S.EXAMPLE)); saved = ''; }
-    } catch (e) { layout = JSON.parse(JSON.stringify(S.EXAMPLE)); saved = ''; }
-    if (!Array.isArray(layout.elements)) layout = {version: 1, elements: []};
+      if (r.ok) { layout = migrate(await r.json()); saved = JSON.stringify(layout); }
+      else { layout = migrate(JSON.parse(JSON.stringify(S.EXAMPLE))); saved = ''; }
+    } catch (e) { layout = migrate(JSON.parse(JSON.stringify(S.EXAMPLE))); saved = ''; }
     $('colour').value = layout.panel || 'yellowBlue';
     $('yellowAt').value = layout.yellowAt || 'top';
+    page = 0;
+    renderPages();
     select(-1);
   }
   function startFrom(l) {
-    if (layout.elements.length && !confirm('Replace the current layout? Nothing is lost until you save.')) return;
-    layout = JSON.parse(JSON.stringify(l));
+    const anything = layout.pages.some(p => p.elements.length);
+    if (anything && !confirm('Replace the whole layout, every page? Nothing is lost until you save.')) return;
+    layout = migrate(JSON.parse(JSON.stringify(l)));
+    page = 0;
+    renderPages();
     select(-1);
   }
   function download() {

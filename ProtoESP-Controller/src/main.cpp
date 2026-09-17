@@ -374,6 +374,13 @@ void autoBrightnessStep();
 uint8_t screenBuf[128 * 8], screenPrev[128 * 8];
 bool screenPrevValid = false;
 unsigned long lastScreenDraw = 0;
+//Which page the screen is on. Pages marked "always" are the rotation, stepped by the button or the
+//cycle timer; a page with a condition takes over while that condition holds and can linger after.
+int screenManualPage = 0;           //where the rotation is, among the always pages
+int screenShownPage = -1;           //what is actually on the screen now
+unsigned long screenCycleAt = 0;    //when the rotation last stepped
+unsigned long screenTakeoverUntil = 0; //a takeover page lingers until here
+int screenTakeoverPage = -1;
 volatile bool screenReloadReq = false;   //set by /savescreen
 volatile bool oledFlipReq = false;       //set when Upside down is changed
 volatile bool oledBrightReq = false;     //set when Screen brightness is changed
@@ -1227,7 +1234,9 @@ void startWiFiWeb() {
       return;
     }
     String layout = request->getParam("layout", true)->value();
-    if(layout.indexOf("elements") < 0) {          //cheap sanity check before overwriting the file
+    //Either shape is valid: pages, or the flat element list saved before pages existed. Checking for
+    //one or the other before overwriting the file, so a truncated upload cannot wipe the layout.
+    if(layout.indexOf("\"pages\"") < 0 && layout.indexOf("\"elements\"") < 0) {
       request->send(200, "text/plain", F("That doesn't look like a screen layout"));
       return;
     }
@@ -1610,6 +1619,13 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
     showPhrase(phraseSlot);
     return;
   }
+  if(action == "screen") {                 //step the status screen to its next page
+    screenManualPage++;
+    screenCycleAt = millis();              //a manual step restarts the cycle timer
+    screenPrevValid = false;               //force a redraw even if the pixels happen to match
+    logPrint(F("[I] Button: next screen page"));
+    return;
+  }
   logPrint("[E] Button: unknown action " + action);
 }
 
@@ -1789,7 +1805,8 @@ void setup() {
   tiltInitDone = imuBegin(); //set up even with tilt off, so the calibration Read buttons work
   logPrint(tiltInitDone ? F("[I] BMI270 ready") : F("[E] BMI270 not found on I2C (0x68/0x69)"));
 
-  if(screenLoadLayout()) logPrint("[I] Screen layout loaded, " + String(screenElementCount()) + " elements");
+  if(screenLoadLayout()) logPrint("[I] Screen layout loaded, " + String(screenElementCount()) + " elements on " +
+                                  String(screenPageCount()) + " page" + (screenPageCount() == 1 ? "" : "s"));
   else logPrint(F("[I] No screen layout: using the original screen"));
 
   if(cfg.oledEna) {
@@ -2180,7 +2197,10 @@ void screenTick() {
     screenReloadReq = false;
     screenLoadLayout();
     screenPrevValid = false;
-    logPrint("[I] Screen layout reloaded, " + String(screenElementCount()) + " elements");
+    screenManualPage = 0;
+    screenTakeoverPage = -1;
+    logPrint("[I] Screen layout reloaded, " + String(screenElementCount()) + " elements on " +
+             String(screenPageCount()) + " page" + (screenPageCount() == 1 ? "" : "s"));
   }
   if(oledBrightReq && oledInitDone) {
     oledBrightReq = false;
@@ -2216,7 +2236,49 @@ void screenTick() {
   d.displayOn = displayOn;
   d.tilt = tiltInitDone;
   d.boopSensor = ToFInitDone;
-  screenRender(screenBuf, d);
+  //Pick the page. A page with a condition wins while that condition holds, and keeps the screen for
+  //its linger time afterwards, so a boop page does not vanish the instant the paw lifts.
+  int page = -1;
+  for(int i = 0; i < screenPageCount(); i++) {
+    uint8_t show = screenPageShow(i);
+    if(show == PAGE_ALWAYS) continue;
+    bool on = (show == PAGE_BOOPED && d.booping) || (show == PAGE_NOTBOOPED && !d.booping) ||
+              (show == PAGE_SLEEPING && d.sleeping) || (show == PAGE_AWAKE && !d.sleeping) ||
+              (show == PAGE_DISPLAYSOFF && !d.displayOn);
+    if(on) {
+      page = i;
+      screenTakeoverPage = i;
+      screenTakeoverUntil = millis() + screenPageHold(i);
+      break;
+    }
+  }
+  if(page < 0 && screenTakeoverPage >= 0 && millis() < screenTakeoverUntil) {
+    page = screenTakeoverPage;         //condition ended, but it lingers a moment
+  } else if(page < 0) {
+    screenTakeoverPage = -1;
+    //The rotation: step through the always pages on the timer, if one is set
+    int alwaysCount = 0;
+    for(int i = 0; i < screenPageCount(); i++) if(screenPageShow(i) == PAGE_ALWAYS) alwaysCount++;
+    if(alwaysCount > 1 && screenCycleSecs() > 0 &&
+       millis() - screenCycleAt >= (unsigned long)screenCycleSecs() * 1000UL) {
+      screenCycleAt = millis();
+      screenManualPage++;
+    }
+    if(alwaysCount <= 0) page = 0;     //every page is conditional: fall back to the first
+    else {
+      screenManualPage %= alwaysCount;
+      int seen = 0;
+      for(int i = 0; i < screenPageCount(); i++) {
+        if(screenPageShow(i) != PAGE_ALWAYS) continue;
+        if(seen == screenManualPage) { page = i; break; }
+        seen++;
+      }
+    }
+  }
+  if(page < 0) page = 0;
+  screenShownPage = page;
+
+  screenRender(screenBuf, d, page);
   if(screenPrevValid && memcmp(screenBuf, screenPrev, sizeof(screenBuf)) == 0) return; //nothing changed: don't push pixels
   memcpy(screenPrev, screenBuf, sizeof(screenBuf));
   screenPrevValid = true;
