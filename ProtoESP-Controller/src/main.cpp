@@ -788,9 +788,89 @@ BLEServer *pServer = NULL;
 BLECharacteristic * pCharacteristic;
 BLEAdvertising* pAdvertising;
 
+//Commands a phone can send, beyond the four the physical remote uses. Everything here runs on the
+//NimBLE stack task, not the loop task, so nothing touches the panels, the filesystem or the config
+//directly: it sets the same request flags the web endpoints set and lets loop() do the work.
+//Defined below this point in the file, so they need saying up front.
+void showPhrase(int slot);
+void doButtonAction(const String &action, const String &face, int phraseSlot);
+volatile bool bleSaveReq = false;     //config changed over BLE: save it from the loop task
+volatile int8_t bleDisplayReq = 0;    //1 = displays on, -1 = off
+volatile int8_t blePhraseReq = -1;    //quick phrase slot to play
+volatile int8_t bleScreenReq = 0;     //1 = step the status screen on a page
+
+//What the mask is doing now, as one short line a phone can parse: each field is key=value.
+//Deliberately small enough to fit a single BLE notification at the negotiated MTU.
+static String bleStatusLine() {
+  String s = "s";
+  s += " face=" + (currentAnim.endsWith(".json") ? currentAnim.substring(0, currentAnim.length() - 5) : currentAnim);
+  s += " bright=" + String(visorBright());
+  s += " boops=" + String(cfg.boopCount);
+  s += " sleep=" + String(sleeping ? 1 : 0);
+  s += " disp=" + String(displayOn ? 1 : 0);
+  s += " speech=" + String(cfg.speechEna ? 1 : 0);
+  return s;
+}
+
 class MyCallbacks: public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override {
       String temp = String(pCharacteristic->getValue().c_str());
+      //--- commands a phone app sends: one letter, a colon, then the value ---
+      if(temp.length() > 1 && temp.charAt(1) == ':') {
+        String val = temp.substring(2);
+        switch(temp.charAt(0)) {
+          case 's':                                  //s: ask what the mask is doing
+            pCharacteristic->setValue(bleStatusLine().c_str());
+            pCharacteristic->notify();
+            logPrint(F("[I] BT: status"));
+            return;
+          case 'b': {                                //b:0-15 panel brightness
+            int v = constrain(val.toInt(), 0, 15);
+            cfg.bVisor = v;
+            brightnessDirty = true;
+            bleSaveReq = true;
+            logPrint("[I] BT: brightness " + String(v));
+            return;
+          }
+          case 'd':                                  //d:0 / d:1 displays off or on
+            bleDisplayReq = val.toInt() ? 1 : -1;
+            logPrint("[I] BT: displays " + String(val.toInt() ? "on" : "off"));
+            return;
+          case 'z':                                  //z:0 / z:1 wake or sleep
+            sleepRequest = val.toInt() ? 1 : -1;
+            logPrint("[I] BT: " + String(val.toInt() ? "sleep" : "wake"));
+            return;
+          case 'p':                                  //p:0-5 play a quick phrase
+            blePhraseReq = (int8_t)constrain(val.toInt(), 0, 5);
+            logPrint("[I] BT: phrase " + String(blePhraseReq));
+            return;
+          case 'n':                                  //n:1 step the status screen on
+            bleScreenReq = 1;
+            logPrint(F("[I] BT: next screen page"));
+            return;
+          case 'w':                                  //w:1 play the wake-up warm-up
+            wakeFlickReq = true;
+            logPrint(F("[I] BT: warm-up"));
+            return;
+          case 'm':                                  //m:0 / m:1 speech on or off
+            cfg.speechEna = val.toInt() != 0;
+            bleSaveReq = true;
+            logPrint("[I] BT: speech " + String(cfg.speechEna ? "on" : "off"));
+            return;
+          case 'f': {                                //f:name pick a face by name
+            for(int i = 0; i < totalAnims; i++) {
+              if(val == availAnims[i].substring(0, availAnims[i].length() - 5)) {
+                xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+                animToLoad = availAnims[i];
+                xSemaphoreGive(animQueueMutex);
+                break;
+              }
+            }
+            logPrint("[I] BT: face " + val);
+            return;
+          }
+        }
+      }
       if(temp.charAt(0) == 'g') { //legacy remote reasons
         pCharacteristic->setValue("i"+String(totalAnims));
         pCharacteristic->notify();
@@ -841,6 +921,9 @@ bool startBLE() {
   std::string stdStr(cfg.wifiName.c_str(), cfg.wifiName.length());
   BLEDevice::init(stdStr);
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+  //The default 23-byte MTU leaves 20 usable bytes, which silently truncates the face list and the
+  //status line. Ask for the most a phone will give us; a device that refuses just keeps the default.
+  NimBLEDevice::setMTU(517);
 
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(&serverCallbacks);
@@ -3285,6 +3368,28 @@ void loop() {
   if(wakeFlickReq) { //from /wakeflick: the Play button in Settings
     wakeFlickReq = false;
     wakeFlickBegin();
+  }
+
+  //Requests from the BLE task, which must not touch the panels or the filesystem itself
+  if(bleDisplayReq != 0) {
+    displayOn = (bleDisplayReq > 0);
+    bleDisplayReq = 0;
+    displayDirty = true;
+  }
+  if(blePhraseReq >= 0) {
+    int slot = blePhraseReq;
+    blePhraseReq = -1;
+    showPhrase(slot);
+  }
+  if(bleScreenReq != 0) {
+    bleScreenReq = 0;
+    screenManualPage++;
+    screenCycleAt = millis();
+    screenPrevValid = false;
+  }
+  if(bleSaveReq) {
+    bleSaveReq = false;
+    cfg.save();
   }
 
   String queuedAnim, queuedPost;

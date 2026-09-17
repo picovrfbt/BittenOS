@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Protogen BLE control</title>
+<style>
+  :root {
+    --bg: #12131a; --card: #1c1e28; --line: #2c2f3d; --text: #e9eaf0;
+    --dim: #9aa0b4; --accent: #6ea8ff; --good: #54d18c; --bad: #ff7b7b;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 16px; padding-block: 16px;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 1.15rem; margin: 0 0 2px; }
+  .sub { color: var(--dim); font-size: .85rem; margin: 0 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .card h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 0 0 10px; font-weight: 600; }
+  button {
+    font: inherit; color: var(--text); background: #262937; border: 1px solid var(--line);
+    border-radius: 10px; padding: 11px 13px; cursor: pointer; min-height: 44px;
+  }
+  button:active { background: #2f3344; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0d1020; font-weight: 600; width: 100%; }
+  button.wide { width: 100%; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row b { font-weight: 600; }
+  .row span { color: var(--dim); }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 34px; }
+  #status { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); flex: none; }
+  .dot.on { background: var(--good); }
+  .note { color: var(--dim); font-size: .8rem; margin: 10px 0 0; }
+  .hide { display: none !important; }
+  code { background: #0e0f16; padding: 1px 5px; border-radius: 5px; font-size: .85em; }
+</style>
+</head>
+<body>
+
+<h1>Protogen BLE control</h1>
+<p class="sub">Talks to the mask over Bluetooth, so your phone keeps its own WiFi and mobile data.</p>
+
+<div class="card">
+  <div id="status"><i class="dot" id="dot"></i><span id="statusText">Not connected</span></div>
+  <p class="note" id="support"></p>
+  <div style="margin-top:12px"><button class="primary" id="connect">Connect to the mask</button></div>
+</div>
+
+<div id="panel" class="hide">
+  <div class="card">
+    <h2>Now</h2>
+    <div class="row"><span>Face</span><b id="vFace">—</b></div>
+    <div class="row"><span>Brightness</span><b id="vBright">—</b></div>
+    <div class="row"><span>Boops</span><b id="vBoops">—</b></div>
+    <div class="row"><span>Sleeping</span><b id="vSleep">—</b></div>
+    <div class="row"><span>Displays</span><b id="vDisp">—</b></div>
+    <div style="margin-top:10px"><button class="wide" id="refresh">Refresh</button></div>
+  </div>
+
+  <div class="card">
+    <h2>Faces</h2>
+    <div class="grid" id="faces"></div>
+    <p class="note" id="facesNote">Loading…</p>
+  </div>
+
+  <div class="card">
+    <h2>Brightness</h2>
+    <input type="range" id="bright" min="0" max="15" step="1" value="5">
+    <div class="row"><span>Panels</span><b id="brightVal">5</b></div>
+  </div>
+
+  <div class="card">
+    <h2>Controls</h2>
+    <div class="grid">
+      <button data-cmd="d:1">Displays on</button>
+      <button data-cmd="d:0">Displays off</button>
+      <button data-cmd="z:1">Sleep</button>
+      <button data-cmd="z:0">Wake</button>
+      <button data-cmd="w:1">Warm-up</button>
+      <button data-cmd="n:1">Next page</button>
+      <button data-cmd="m:1">Speech on</button>
+      <button data-cmd="m:0">Speech off</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Quick phrases</h2>
+    <div class="grid" id="phrases"></div>
+    <p class="note">Plays whatever is saved in that slot on the mask.</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+// The mask uses the HM-10 style serial profile: one characteristic you write commands to and
+// get notifications back on. Commands are a letter, a colon, then the value - see docs.html.
+const SERVICE = 0xffe0, CHAR = 0xffe1;
+const $ = id => document.getElementById(id);
+
+let chr = null, device = null;
+let pending = null;            // resolve() waiting for the next notification
+
+function setStatus(text, connected) {
+  $('statusText').textContent = text;
+  $('dot').classList.toggle('on', !!connected);
+  $('panel').classList.toggle('hide', !connected);
+  $('connect').textContent = connected ? 'Disconnect' : 'Connect to the mask';
+}
+
+// Web Bluetooth is Chrome-family only, and needs a secure context (https or localhost).
+// Say so plainly rather than letting the connect button fail with nothing explained.
+(function check() {
+  if (!navigator.bluetooth) {
+    $('support').innerHTML = !window.isSecureContext
+      ? 'This page must be opened over <code>https</code> or from <code>localhost</code> for Bluetooth to work.'
+      : 'This browser has no Web Bluetooth. Use Chrome on Android, or Edge/Chrome on a desktop.';
+    $('connect').disabled = true;
+  }
+})();
+
+function send(cmd) {
+  if (!chr) return Promise.resolve();
+  return chr.writeValue(new TextEncoder().encode(cmd)).catch(e => {
+    setStatus('Write failed: ' + e.message, true);
+  });
+}
+
+// Write a command and wait for the notification it triggers, so replies can't be mixed up
+function ask(cmd, ms = 2500) {
+  if (!chr) return Promise.resolve('');
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { pending = null; resolve(''); }, ms);
+    pending = value => { clearTimeout(timer); pending = null; resolve(value); };
+    send(cmd);
+  });
+}
+
+function onNotify(e) {
+  const text = new TextDecoder().decode(e.target.value);
+  if (pending) pending(text);
+}
+
+function applyStatus(line) {
+  if (!line || line[0] !== 's') return;
+  const f = {};
+  for (const part of line.slice(1).trim().split(/\s+/)) {
+    const eq = part.indexOf('=');
+    if (eq > 0) f[part.slice(0, eq)] = part.slice(eq + 1);
+  }
+  if (f.face) $('vFace').textContent = f.face;
+  if (f.bright !== undefined) {
+    $('vBright').textContent = f.bright;
+    $('bright').value = f.bright;
+    $('brightVal').textContent = f.bright;
+  }
+  if (f.boops !== undefined) $('vBoops').textContent = f.boops;
+  if (f.sleep !== undefined) $('vSleep').textContent = f.sleep === '1' ? 'yes' : 'no';
+  if (f.disp !== undefined) $('vDisp').textContent = f.disp === '1' ? 'on' : 'off';
+}
+
+async function loadFaces() {
+  const list = await ask('?');
+  const names = list.split(';').map(s => s.trim()).filter(Boolean);
+  const box = $('faces');
+  box.textContent = '';
+  if (!names.length) { $('facesNote').textContent = 'No faces came back — try Refresh.'; return; }
+  for (const name of names) {
+    const b = document.createElement('button');
+    b.textContent = name;
+    b.addEventListener('click', async () => { await send('f:' + name); setTimeout(readStatus, 250); });
+    box.appendChild(b);
+  }
+  $('facesNote').textContent = names.length + ' faces on the mask.';
+}
+
+async function readStatus() { applyStatus(await ask('s:')); }
+
+async function connect() {
+  if (device && device.gatt.connected) { device.gatt.disconnect(); return; }
+  try {
+    setStatus('Choosing a device…');
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [SERVICE] }],
+      optionalServices: [SERVICE],
+    });
+    device.addEventListener('gattserverdisconnected', () => {
+      chr = null;
+      setStatus('Disconnected', false);
+    });
+    setStatus('Connecting…');
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE);
+    chr = await service.getCharacteristic(CHAR);
+    await chr.startNotifications();
+    chr.addEventListener('characteristicvaluechanged', onNotify);
+    setStatus('Connected to ' + (device.name || 'the mask'), true);
+    await readStatus();
+    await loadFaces();
+  } catch (e) {
+    chr = null;
+    setStatus(/cancelled|User cancelled/i.test(e.message) ? 'Not connected' : 'Failed: ' + e.message, false);
+  }
+}
+
+$('connect').addEventListener('click', connect);
+$('refresh').addEventListener('click', async () => { await readStatus(); await loadFaces(); });
+
+for (const b of document.querySelectorAll('[data-cmd]')) {
+  b.addEventListener('click', async () => { await send(b.dataset.cmd); setTimeout(readStatus, 300); });
+}
+
+// Brightness: show instantly, but only send when the finger lifts, so dragging
+// doesn't flood the link with a write per pixel.
+$('bright').addEventListener('input', () => { $('brightVal').textContent = $('bright').value; });
+$('bright').addEventListener('change', () => send('b:' + $('bright').value));
+
+for (let i = 0; i < 6; i++) {
+  const b = document.createElement('button');
+  b.textContent = 'Phrase ' + (i + 1);
+  b.addEventListener('click', () => send('p:' + i));
+  $('phrases').appendChild(b);
+}
+
+setStatus('Not connected', false);
+</script>
+</body>
+</html>
