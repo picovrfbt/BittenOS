@@ -1,8 +1,18 @@
 //Status screen (SSD1306) drawn from /screen.json, the layout the on-board screen designer saves.
 //The font and icons come from screen_font.h, generated from the designer's own tables, so the
 //mask draws the same pixels the designer shows.
+//
+//A layout holds one or more pages. Pages marked "always" are the normal rotation, stepped by the
+//button or a timer; a page with a condition takes the screen over while that condition holds (a
+//boop, say) and can linger for a moment afterwards. A layout saved before pages existed is just a
+//list of elements, and loads as a single page.
 #pragma once
 #include <Arduino.h>
+
+#define SCREEN_MAX_PAGES 8
+
+//When a page is shown. Order matches the designer's list.
+enum : uint8_t { PAGE_ALWAYS, PAGE_BOOPED, PAGE_NOTBOOPED, PAGE_SLEEPING, PAGE_AWAKE, PAGE_DISPLAYSOFF };
 
 //Everything a layout can show. Filled in by the caller each time the screen is drawn.
 struct ScreenData {
@@ -26,6 +36,10 @@ struct ScreenData {
 
 bool screenLoadLayout();          //reads /screen.json; false if there isn't a usable one
 bool screenHasLayout();
-int screenElementCount();
-//Draws into a 1024-byte buffer in u8g2's layout (page * 128 + x, bit = y & 7)
-void screenRender(uint8_t *pageBuffer, const ScreenData &d);
+int screenPageCount();
+int screenElementCount();         //across every page, for the startup log
+uint8_t screenPageShow(int page); //one of the PAGE_ values
+int screenPageHold(int page);     //ms a takeover page lingers after its condition ends
+int screenCycleSecs();            //seconds between automatic steps through the always pages; 0 = manual only
+//Draws one page into a 1024-byte buffer in u8g2's layout (page * 128 + x, bit = y & 7)
+void screenRender(uint8_t *pageBuffer, const ScreenData &d, int page);

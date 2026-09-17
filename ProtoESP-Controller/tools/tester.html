@@ -297,7 +297,9 @@
       const r = await fetch('/screen.json', {cache: 'no-store'});
       screenLayout = r.ok ? await r.json() : ScreenSim.EXAMPLE;
       const d = ScreenSim.normalise(await (await fetch('/__screendata', {cache: 'no-store'})).json());
-      ScreenSim.paint(document.getElementById('oled'), ScreenSim.renderBuffer(screenLayout, d).buf, 3, 'white');
+      // Same page the mask would be showing, so the preview matches the real screen
+      const shown = ScreenSim.pickPage(screenLayout, d, Math.floor(Date.now() / 5000));
+      ScreenSim.paint(document.getElementById('oled'), ScreenSim.renderBuffer(screenLayout, d, shown).buf, 3, 'white');
     } catch (e) { /* server down: poll() already says so */ }
   }
   setInterval(pollScreen, 500);
