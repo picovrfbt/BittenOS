@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How to use</title>
+<meta name="theme-color" content="#0b0f17">
+<link rel="icon" href="/icon-192.png" sizes="192x192">
+<style>
+  :root {
+    --bg:#0b0f17; --surface:#131a26; --surface2:#1a2333; --line:#253047;
+    --text:#e8edf6; --dim:#8c97ad; --faint:#5f6b82; --accent:#4da3ff; --accent-soft:rgba(77,163,255,.14);
+    --bad:#ff6b6b; --good:#3ddc97; --warn:#ffb84d; --radius:16px; color-scheme: dark;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--text); }
+  body { font:15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  [hidden] { display:none !important; }
+  .topbar { position:sticky; top:0; z-index:10; background:rgba(11,15,23,.92); -webkit-backdrop-filter:blur(12px);
+            backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
+  .topbar-in { max-width:760px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:12px; }
+  .brand { font-weight:700; font-size:17px; line-height:1.15; }
+  .brand small { display:block; font-weight:400; font-size:12px; color:var(--dim); }
+  .topbar a { margin-left:auto; color:var(--accent); font-size:13px; font-weight:600; text-decoration:none; }
+  main { max-width:760px; margin:0 auto; padding:16px; display:grid; gap:14px; }
+  .search { width:100%; min-height:46px; background:var(--surface); color:var(--text); border:1px solid var(--line);
+            border-radius:12px; padding:10px 14px; font:inherit; }
+  details.card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+  details.card > summary { list-style:none; cursor:pointer; padding:14px 16px; display:flex; align-items:center;
+    justify-content:space-between; gap:12px; font-weight:600; }
+  details.card > summary::-webkit-details-marker { display:none; }
+  details.card > summary::after { content:"›"; font-size:22px; line-height:1; color:var(--dim);
+    transform:rotate(90deg); transition:transform .15s; }
+  details[open].card > summary::after { transform:rotate(-90deg); }
+  details.card > summary small { display:block; font-weight:400; font-size:13px; color:var(--dim); margin-top:2px; }
+  .body { padding:0 16px 16px; }
+  .body p { margin:0 0 10px; }
+  .body p:last-child { margin-bottom:0; }
+  .body ol, .body ul { margin:0 0 10px; padding-left:22px; }
+  .body li { margin-bottom:6px; }
+  b.k { background:var(--surface2); border:1px solid var(--line); border-radius:6px; padding:1px 6px; font-size:13px; font-weight:600; }
+  .note { border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 8px 8px 0; padding:10px 12px; margin:0 0 10px; }
+  .warn { border-left:3px solid var(--warn); background:rgba(255,184,77,.10); border-radius:0 8px 8px 0; padding:10px 12px; margin:0 0 10px; }
+  table { width:100%; border-collapse:collapse; margin:0 0 10px; font-size:14px; }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; font-size:13px; }
+  code { background:var(--surface2); border-radius:5px; padding:1px 5px; font-size:13px; }
+  .empty { color:var(--dim); text-align:center; padding:20px; }
+  footer { text-align:center; color:var(--faint); font-size:12px; padding:6px 16px 24px; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">How to use<small>FurBitten 14-panel</small></div>
+    <a href="/#settings">← Settings</a>
+  </div>
+</header>
+
+<main>
+  <input type="search" class="search" id="q" placeholder="Search — try boop, mic, sleep, button" aria-label="Search the guide">
+  <p class="empty" id="noHits" hidden>Nothing matches that.</p>
+
+  <details class="card" open>
+    <summary><span>The basics<small>Getting a face on the mask</small></span></summary>
+    <div class="body">
+      <p>The page has four tabs along the bottom:</p>
+      <table>
+        <tr><th>Mask</th><td>Faces, brightness, scrolling text and quick phrases</td></tr>
+        <tr><th>Design</th><td>The face maker and the screen designer</td></tr>
+        <tr><th>Settings</th><td>Everything that can be configured</td></tr>
+        <tr><th>System</th><td>How the mask is doing, and the tools</td></tr>
+      </table>
+      <p>Tap a face tile to show it. Tiles show half of each face at double size, because nearly every face is a mirror image; a face whose halves genuinely differ is shown whole.</p>
+      <p>The two round buttons at the top right are <b class="k">sleep</b> (the moon) and <b class="k">displays off</b> (the power symbol). Displays off darkens the panels while everything else keeps running, so it comes straight back.</p>
+      <div class="note">Every setting saves the moment you change it. There is no save button, and if the mask refuses a change the control goes back to what the mask actually has.</div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>Boops<small>Setting up the sensor so it triggers properly</small></span></summary>
+    <div class="body">
+      <p>The boop sensor uses two things at once: how close something is, and whether it casts a shadow. A stray closeness reading can't darken the light sensor, so demanding both is what stops random boops.</p>
+      <p><b>Setting it up</b>, in Settings &gt; Boop:</p>
+      <ol>
+        <li>With nothing near the visor, press <b class="k">Calibrate</b>. Closeness should sit near 0.</li>
+        <li>Hold your hand on the snout and watch <b class="k">Closeness</b>. Set <b class="k">Boop distance</b> about halfway between resting and your hand.</li>
+        <li>In normal light your hand should push <b class="k">Shadow</b> past its yellow line. If not, lower <b class="k">Shadow needed</b>.</li>
+        <li>Switch <b class="k">Boop</b> on and pick the <b class="k">Boop face</b>.</li>
+      </ol>
+      <p>A boop needs closeness over the line for three checks in a row, about 300 ms, plus a shadow within the last second. In the dark there's nothing to shade, so it falls back to closeness alone and the Shadow bar greys out.</p>
+      <p><b>Milestones:</b> every hundredth boop plays a face of your choosing instead of the usual one. Set the count and the face under Boop counter, or set the count to 0 to turn it off.</p>
+      <div class="warn">If boops fire at random, check <b class="k">Confirm with light</b> is on. If real boops say "no shadow — ignored", lower Shadow needed.</div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>Microphone<small>Making the mouth move with your voice</small></span></summary>
+    <div class="body">
+      <p>Loudness is measured peak to peak — the loudest reading minus the quietest, many times a second — so there is no resting level to drift and nothing to get stuck on.</p>
+      <ol>
+        <li>Settings &gt; Microphone, switch <b class="k">Speech</b> on and stay quiet for a second while it measures the room.</li>
+        <li>Press <b class="k">Mic test</b>: keep quiet for two seconds, then talk for three. Quiet should be a small number and talking several times bigger.</li>
+        <li>Press <b class="k">Measure loud</b> and talk normally for three seconds. That sets <b class="k">Range</b> so ordinary speech lands about 80 out of 100.</li>
+      </ol>
+      <p><b>Mouth movement</b> chooses how the mouth reacts. <b class="k">Shapes</b> opens it wider the louder you are, in four steps. <b class="k">Flap</b> is the original single-pixel opening.</p>
+      <p><b>Trigger point</b> is the level that counts as talking — the line on the meter. Raise it if the mouth moves when the room is merely noisy.</p>
+      <div class="warn">If the meter says <b>No signal</b>, the mask isn't hearing the mic at all: check its wiring rather than any setting.</div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>Brightness<small>Manual, or set from the light around you</small></span></summary>
+    <div class="body">
+      <p>The slider on the Mask tab sets panel brightness, 0 to 15. With auto-brightness on it locks and shows <b class="k">Auto</b> instead.</p>
+      <p><b>Auto-brightness</b> reads the light sensor. The panels shine into that sensor, so a plain reading partly measures the panels themselves, which is what the three methods are about:</p>
+      <table>
+        <tr><th>Blank</th><td>Switches the panels off for a quarter second at each check and reads the room. Most accurate, brief blink.</td></tr>
+        <tr><th>Hybrid</th><td>Watches the reading with the panels on and only blanks when the light seems to have changed. Few blinks.</td></tr>
+        <tr><th>Live</th><td>Never blinks; the panels' own glow nudges it brighter.</td></tr>
+      </table>
+      <p><b>Calibrating:</b> in the darkest place you'll wear it press <b class="k">Measure</b>, then <b class="k">Use now</b> on Dark point. Repeat in bright light for Bright point. <b class="k">Lowest</b> and <b class="k">Highest</b> cap the range.</p>
+      <div class="warn">Keep Highest modest if the panels run from the board's 5V pin — full brightness draws far more than the few watts it uses at 5.</div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>Sleep<small>Dozing off, and waking up</small></span></summary>
+    <div class="body">
+      <p>The moon button sleeps immediately. For it to happen on its own, switch <b class="k">Auto sleep</b> on and set <b class="k">Sleep after</b> to the minutes of stillness to wait. Stillness comes from the tilt sensor, so this needs the BMI270.</p>
+      <p>Moving the mask wakes it, and so does picking any face. <b class="k">Wake sensitivity</b> is how much movement counts — raise it if it wakes on its own, lower it if it ignores you.</p>
+      <p><b>Ease in and out</b> dims the panels over the last seconds before sleeping and brings them back gently instead of snapping.</p>
+      <p><b>Deep sleep</b> is separate and off by default: after the minutes you set, the panels switch off entirely. Any movement or a button press brings them back.</p>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>The button<small>Short press, double press and hold</small></span></summary>
+    <div class="body">
+      <p>Each of <b class="k">Short press</b>, <b class="k">Double press</b> and <b class="k">Hold</b> can be set separately in Settings &gt; Button:</p>
+      <table>
+        <tr><th>Nothing</th><td>Ignore it</td></tr>
+        <tr><th>Next / Previous face</th><td>Step through the faces</td></tr>
+        <tr><th>Displays on/off</th><td>Darken the panels, everything else keeps running</td></tr>
+        <tr><th>Sleep / wake</th><td>Same as the moon button</td></tr>
+        <tr><th>A chosen face</th><td>Jump straight to one face</td></tr>
+        <tr><th>A quick phrase</th><td>Scroll a saved message</td></tr>
+        <tr><th>Next screen page</th><td>Step the little status screen</td></tr>
+      </table>
+      <p><b class="k">Hold for</b> sets how long a hold takes, 1.5 seconds by default.</p>
+      <div class="note">Setting Double press to anything makes a single press wait about a quarter second to see whether a second follows. Leave it on Nothing and a single press acts the instant you let go.</div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>Scrolling text and quick phrases<small>Saying something without a keyboard</small></span></summary>
+    <div class="body">
+      <p><b>Scrolling text</b> on the Mask tab types a one-off message, up to 64 characters. Pick a speed and whether it repeats or plays once, then press Show. It scrolls across the mouth while the eyes keep the current face.</p>
+      <p><b>Quick phrases</b> are saved messages, one tap each. Press <b class="k">Edit</b>, fill in up to six with their own speed and repeat setting, then Save.</p>
+      <div class="note">The mask builds phrases itself rather than the phone doing it, which is why a phrase set on the button works with no phone anywhere near you.</div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>Faces<small>Choosing, managing and drawing them</small></span></summary>
+    <div class="body">
+      <p><b>Manage</b> on the Faces card adds Rename and Delete to every tile. Two faces are protected: <code>default</code>, which loads at startup, and whichever face is showing — switch away first to delete that one.</p>
+      <p><b>Face maker</b> on the Design tab draws faces pixel by pixel. <b>Upload faces</b> and <b>Download faces</b> take a single <code>.json</code> or a <code>.zip</code> of them.</p>
+      <p><b>Transitions</b> dip the panels dark between faces rather than cutting. <b>Mouth bob</b> lifts the mouth a pixel every second or so on any face.</p>
+      <p><b>Blinks</b> appears on the Mask tab only while a face the mask can blink is showing. Most faces are animations that blink themselves; the mask can only take over on a still face. In the face maker, tick <b class="k">The mask may blink this face</b> and you never need to draw blink frames.</p>
+      <div class="warn">Deleting or renaming a face that a setting points at leaves that setting pointing at nothing — the page warns you, so pick another.</div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>The status screen<small>The little screen inside the helmet</small></span></summary>
+    <div class="body">
+      <p>Switch it on in Settings &gt; Status screen and pick a brightness. <b class="k">Upside down</b> turns the picture round for how it's mounted.</p>
+      <p><b>Screen designer</b> on the Design tab lays it out: drag things around, and each element can show always or only in a certain state.</p>
+      <p><b>Pages:</b> up to eight, chosen from the bar above the screen. A page <b>in the rotation</b> is stepped by a button set to Next screen page, or automatically if you set a rotation time. A page that <b>takes over</b> appears whenever its condition holds — booped, sleeping, awake, displays off — and lingers for a moment after.</p>
+      <div class="note">Saving from the designer updates the screen straight away. No flashing needed to change what it shows.</div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>Updating<small>New firmware over WiFi</small></span></summary>
+    <div class="body">
+      <p>System &gt; Tools &gt; <b class="k">Update firmware</b>. Choose <code>firmware.bin</code> or <code>littlefs.bin</code>; the page works out which it is and refuses anything else.</p>
+      <table>
+        <tr><th>firmware.bin</th><td>The program. Goes into the spare slot and only takes over once it has fully arrived. If it fails to run, the mask goes back to the previous one by itself.</td></tr>
+        <tr><th>littlefs.bin</th><td>The faces and web pages. Keeps your settings, calibration and boop count.</td></tr>
+      </table>
+      <p>Keep the page open until it says done.</p>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>When something is wrong<small>The usual causes</small></span></summary>
+    <div class="body">
+      <table>
+        <tr><th>Boops fire on their own</th><td>Confirm with light off, or Boop distance too low. Recalibrate with nothing near the visor.</td></tr>
+        <tr><th>Boops never fire</th><td>Boop distance too high, or Shadow needed too strict. Watch the meter while you touch the snout.</td></tr>
+        <tr><th>Mouth doesn't move</th><td>Run Mic test. "No signal" means wiring; a small difference between quiet and talking means the level settings.</td></tr>
+        <tr><th>Mouth moves on its own</th><td>Raise Trigger point, or press Measure silence somewhere quiet.</td></tr>
+        <tr><th>A sensor says not found</th><td>Check <b>I2C devices</b> on the System tab: <code>0x39</code> boop, <code>0x68</code>/<code>0x69</code> tilt, <code>0x3c</code> screen. The mask keeps looking, so a fixed wire is picked up within seconds.</td></tr>
+        <tr><th>Panels are dark</th><td>Displays may be off — press the power button. If auto-brightness is on in a dark room, Lowest may be 0.</td></tr>
+        <tr><th>Page won't load</th><td>Make sure you're on the mask's WiFi with mobile data off.</td></tr>
+      </table>
+      <p>The mask keeps a log at <code>/log</code> if something needs a closer look.</p>
+    </div>
+  </details>
+
+  <footer>This guide is stored on the mask, so it works with no internet.</footer>
+</main>
+
+<script>
+  // Search filters the sections and opens the ones that match, so the answer is one tap away
+  const q = document.getElementById('q');
+  const cards = [...document.querySelectorAll('details.card')];
+  q.addEventListener('input', () => {
+    const term = q.value.trim().toLowerCase();
+    let hits = 0;
+    cards.forEach(c => {
+      const match = !term || c.textContent.toLowerCase().includes(term);
+      c.hidden = !match;
+      if (match) hits++;
+      if (term) c.open = match;
+    });
+    document.getElementById('noHits').hidden = hits > 0;
+    if (!term) cards.forEach((c, i) => { c.open = i === 0; });
+  });
+</script>
+</body>
+</html>
