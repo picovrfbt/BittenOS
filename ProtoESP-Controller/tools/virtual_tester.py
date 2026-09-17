@@ -53,6 +53,7 @@ SAVECONFIG_KEYS = {
     'phraseOnce0': bool, 'phraseOnce1': bool, 'phraseOnce2': bool,
     'phraseOnce3': bool, 'phraseOnce4': bool, 'phraseOnce5': bool,
     'sleepFadeEna': bool, 'sleepFadeSecs': int, 'sleepDeepEna': bool, 'sleepDeepMins': int,
+    'wakeFlickEna': bool, 'wakeFlickStyle': str, 'wakeFlickMs': int, 'wakeFlickGlitch': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
@@ -499,6 +500,15 @@ class Handler(BaseHTTPRequestHandler):
                 'boopSig': s['boopSig'], 'shade': s['shade'], 'booping': s['booping'],
                 'tilt': s['tilt'], 'boop': s['boop'],
             }), 'application/json')
+
+        if path == '/wakeflick':   # the deep-sleep warm-up. No panels here, so it only says what the mask would do.
+            if not cfg.get('wakeFlickEna', True):
+                return self.text('Wake-up flicker is switched off')
+            style = str(cfg.get('wakeFlickStyle') or 'crt')
+            win = min(8000, max(300, to_int(str(cfg.get('wakeFlickMs', 1800)))))
+            board.log('[I] Waking up: %s warm-up over %d ms' % (style, win))
+            board.log('[I] Warm-up done')
+            return self.text('ok')
 
         if path == '/sleep':   # state=on|off|toggle, or no state to report
             if 'state' in q:
