@@ -54,6 +54,7 @@
       return (d.clock24 && h < 10 ? '0' + h : String(h)) + ':' + (m < 10 ? '0' + m : m);
     }},
     clockAmPm:   {label: 'am / pm',          get: d => d.clockMins < 0 ? '' : (d.clockMins < 720 ? 'am' : 'pm')},
+    ip:          {label: 'IP address',       get: d => d.ip || '--'},
   };
 
   // what a "bar" element can fill with: fraction 0-1, and where its marker line goes
@@ -143,6 +144,7 @@
       boopSensor: !!pick('boop'),
       clockMins: pick('clockMins') === undefined ? -1 : num(pick('clockMins')),
       clock24: !!pick('clock24'),
+      ip: pick('ip') || '',
     };
   }
 

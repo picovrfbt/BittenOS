@@ -137,6 +137,16 @@
   </details>
 
   <details class="card">
+    <summary><span>WiFi<small>The mask's own network, and joining yours</small></span></summary>
+    <div class="body">
+      <p>The mask always runs its own network, named and secured in Settings &gt; <b class="k">The mask's own WiFi</b>. Connecting a phone to it works anywhere, but that network has no internet behind it, so while your phone is on it you lose data, and calls that go over the internet stop working.</p>
+      <p><b>Join a network</b> fixes that. Switch it on and give the mask your phone's hotspot or your home WiFi, and it connects to that instead — your phone keeps its own connection and its internet, and still reaches the mask. The mask's own network keeps running the whole time, so a wrong password here can never lock you out.</p>
+      <p>Once it has joined, <b class="k">Status</b> shows the address to type into a browser, and the mask also answers to the name you set plus <b class="k">.local</b> (<b class="k">protogen.local</b> by default). You can put the address on the status screen too: add a <b class="k">Live value</b> element set to <b class="k">IP address</b> in the screen designer, and the mask will show you where to find it.</p>
+      <p>One quirk worth knowing: the mask has a single radio, so when it joins your network its own network moves to that network's channel. Anything already connected to the mask's own network has to connect again. That is the hardware, not a fault.</p>
+    </div>
+  </details>
+
+  <details class="card">
     <summary><span>The button<small>Short press, double press and hold</small></span></summary>
     <div class="body">
       <p>Each of <b class="k">Short press</b>, <b class="k">Double press</b> and <b class="k">Hold</b> can be set separately in Settings &gt; Button:</p>

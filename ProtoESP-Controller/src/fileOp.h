@@ -36,6 +36,10 @@ public:
   //Sleep: go deeper after a while, switching the panels off
   bool sleepDeepEna;
   int sleepDeepMins;
+  //Joining an existing network, as well as making one. The mask keeps its own access point either
+  //way, so a wrong password here can never lock you out of it.
+  bool staEna;
+  String staName,staPass,mdnsName;
   //Waking from deep sleep: the panels stutter back on one at a time, like an old device warming up
   bool wakeFlickEna,wakeFlickBoot;    //after a deep sleep, and again when the mask is first switched on
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
