@@ -241,6 +241,8 @@ A mask still on the old 8MB table needs one USB flash before over-the-air update
 20. **Sleep easing:** in Settings > Sleep. **Ease in and out** dims the panels over the last few seconds before it drops off, and brings them back up gently on waking instead of snapping to full. **Dim over** sets how many seconds that takes.
 
     **Deep sleep** is separate and off by default: after **Deep sleep after** minutes asleep, the panels switch off entirely, and any movement or a button press brings them straight back. Leave it off if you would rather the sleeping face always stayed visible.
+
+    **Wake-up flicker** is how it comes back from a deep sleep. Instead of all fourteen panels snapping on together, each one stutters on in its own time — dim and unsteady before it settles — like an old device warming up. **Flicker style** is *Old CRT* (slow, heavy stutter) or *Fluorescent tube* (fast and twitchy), **Warm-up time** is how long until every panel is back, and **Picture tearing** scrambles a few rows and columns while it runs. **Play** watches it now, without waiting for a sleep. It runs only after a deep sleep, since that is the only time the panels were really off — and moving the mask, pressing the button or picking a face cuts it short. Needs deep sleep switched on to ever happen on its own.
 21. **Screen pages:** the status screen can hold up to eight pages, built in the screen designer (Design tab > Screen designer). The bar above the screen switches between them, `+` adds one, and each page has its own name, elements and behaviour:
 
     - **In the rotation** — an ordinary page. Set **Rotation** to a number of seconds to step through these automatically, or leave it at 0 and step them with a button set to **Next screen page**.

@@ -571,6 +571,21 @@
           <input type="checkbox" class="toggle" data-key="sleepDeepEna" data-label="Deep sleep"></label>
         <div class="row dep"><span class="row-text"><b>Deep sleep after</b><small>Minutes asleep before the panels go off</small></span>
           <div class="stepper" data-key="sleepDeepMins" data-label="Deep sleep after" data-min="1" data-max="240" data-step="5" data-unit=" min"><button type="button" aria-label="Less">−</button><output>20 min</output><button type="button" aria-label="More">+</button></div></div>
+        <label class="row dep"><span class="row-text"><b>Wake-up flicker</b><small>After a deep sleep the panels stutter back on one at a time, like an old device warming up</small></span>
+          <input type="checkbox" class="toggle" data-key="wakeFlickEna" data-label="Wake-up flicker"></label>
+        <div class="row dep"><span class="row-text"><b>Flicker style</b></span>
+          <select id="wakeFlickStyle" data-key="wakeFlickStyle" data-label="Flicker style" aria-label="Flicker style" style="text-transform:none">
+            <option value="crt">Old CRT — slow, heavy stutter</option>
+            <option value="tube">Fluorescent tube — fast and twitchy</option></select></div>
+        <div class="row dep"><span class="row-text"><b>Warm-up time</b><small>How long until every panel is back</small></span>
+          <div class="stepper" data-key="wakeFlickMs" data-label="Warm-up time" data-min="300" data-max="8000" data-step="100" data-unit=" ms"><button type="button" aria-label="Less">−</button><output>1800 ms</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row dep"><span class="row-text"><b>Picture tearing</b><small>Scrambled rows and columns while it warms up</small></span>
+          <select id="wakeFlickGlitch" data-key="wakeFlickGlitch" data-label="Picture tearing" aria-label="Picture tearing" style="text-transform:none">
+            <option value="0">None</option>
+            <option value="1">A little</option>
+            <option value="2">A lot</option></select></div>
+        <div class="row dep"><span class="row-text"><b>Try it</b><small>Plays the warm-up now, without waiting for a sleep</small></span>
+          <button class="btn small" type="button" onclick="tryWakeFlick()">Play</button></div>
       </div>
     </section>
 
@@ -1387,7 +1402,8 @@
                     autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face',
                     btnShort: 'nextFace', btnDouble: 'none', btnHold: 'displays', btnHoldMs: 1500,
                     btnShortPhrase: 0, btnDoublePhrase: 0, btnHoldPhrase: 0,
-                    sleepFadeEna: true, sleepFadeSecs: 4, sleepDeepEna: false, sleepDeepMins: 20};
+                    sleepFadeEna: true, sleepFadeSecs: 4, sleepDeepEna: false, sleepDeepMins: 20,
+                    wakeFlickEna: true, wakeFlickStyle: 'crt', wakeFlickMs: 1800, wakeFlickGlitch: 1};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');
@@ -1741,6 +1757,13 @@
     if (!confirm('Set the boop counter back to zero?')) return;
     await saveParams('boopCount=0', 'Boop counter reset');
     refreshStats();
+  }
+
+  async function tryWakeFlick() {
+    try {
+      const t = (await (await fetch('/wakeflick', NO_CACHE)).text()).trim();
+      toast(t === 'ok' ? 'Warming up…' : t, t !== 'ok');
+    } catch (e) { toast('Could not reach the mask', true); }
   }
 
   async function calBoop() {

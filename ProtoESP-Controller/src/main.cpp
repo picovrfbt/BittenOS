@@ -397,6 +397,7 @@ unsigned long screenTakeoverUntil = 0; //a takeover page lingers until here
 int screenTakeoverPage = -1;
 volatile bool screenReloadReq = false;   //set by /savescreen
 volatile bool oledFlipReq = false;       //set when Upside down is changed
+volatile bool wakeFlickReq = false;      //from /wakeflick: play the warm-up now
 volatile bool oledBrightReq = false;     //set when Screen brightness is changed
 void screenTick();
 inline bool oledLegacy(); //the old screen writes, only when no layout is loaded
@@ -1147,6 +1148,12 @@ void startWiFiWeb() {
     cfg.getBool(request, "sleepDeepEna", cfg.sleepDeepEna);
     if(cfg.getInt(request, "sleepFadeSecs", cfg.sleepFadeSecs)) cfg.sleepFadeSecs = constrain(cfg.sleepFadeSecs, 0, 30);
     if(cfg.getInt(request, "sleepDeepMins", cfg.sleepDeepMins)) cfg.sleepDeepMins = constrain(cfg.sleepDeepMins, 0, 240);
+    cfg.getBool(request, "wakeFlickEna", cfg.wakeFlickEna);
+    if(cfg.getString(request, "wakeFlickStyle", cfg.wakeFlickStyle)) {
+      if(cfg.wakeFlickStyle != "crt" && cfg.wakeFlickStyle != "tube") cfg.wakeFlickStyle = "crt";
+    }
+    if(cfg.getInt(request, "wakeFlickMs", cfg.wakeFlickMs)) cfg.wakeFlickMs = constrain(cfg.wakeFlickMs, 300, 8000);
+    if(cfg.getInt(request, "wakeFlickGlitch", cfg.wakeFlickGlitch)) cfg.wakeFlickGlitch = constrain(cfg.wakeFlickGlitch, 0, 2);
     if(cfg.getString(request, "blinkMode", cfg.blinkMode)) {
       if(cfg.blinkMode != "face" && cfg.blinkMode != "blink" && cfg.blinkMode != "still") cfg.blinkMode = "face";
       blinkCachedAnim = "";                //look at the face again under the new setting
@@ -1446,6 +1453,13 @@ void startWiFiWeb() {
     request->send(200, "text/plain", displayOn ? "on" : "off");
   });
 
+  server.on("/wakeflick", HTTP_GET, [](AsyncWebServerRequest *request){ //play the wake-up warm-up without waiting for a deep sleep
+    if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels flicker")); return; }
+    if(!cfg.wakeFlickEna) { request->send(200, "text/plain", F("Wake-up flicker is switched off")); return; }
+    wakeFlickReq = true;                 //the panels belong to the loop task
+    request->send(200, "text/plain", F("ok"));
+  });
+
   server.on("/brightness", HTTP_GET, [](AsyncWebServerRequest *request){ //MAX7219 brightness 0-15, save=1 also stores it
     if(request->hasParam("value")) {
       int value = request->getParam("value")->value().toInt();
@@ -1661,6 +1675,99 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
   logPrint("[E] Button: unknown action " + action);
 }
 
+//--------------------------------//Waking up from deep sleep
+//Deep sleep leaves all fourteen panels shut down. Rather than handing them back all at once, each
+//panel stutters on in its own time, dim and unsteady before it settles, with the picture tearing
+//while it does: an old device warming up. Only the MAX7219 shutdown and intensity registers are
+//driven, one chip at a time, plus a few throwaway rows the next frame paints over, so the face
+//itself is never touched. The chain runs in wiring order rather than the order the panels sit on
+//the face, which is exactly why the panels are woken in a random order instead of a sweep.
+uint8_t wakeFlickPhase = 0;          //0 = idle, 1 = warming up
+unsigned long wakeFlickEnds = 0;     //backstop, so a stuck panel can't hold the mask dark
+unsigned long wfNext[MATRIXESNUM];   //when each panel next changes
+uint16_t wfStep[MATRIXESNUM];        //each panel's own flicker speed
+uint8_t wfLeft[MATRIXESNUM];         //stutters still to come before it settles
+bool wfOn[MATRIXESNUM];
+unsigned long wfGlitchAt = 0, wfGlitchClear = 0;
+
+void wakeFlickBegin() {
+  if(visorType != "MAX72XX" || !cfg.wakeFlickEna) return;
+  unsigned long now = millis();
+  int win = constrain(cfg.wakeFlickMs, 300, 8000);
+  bool tube = (cfg.wakeFlickStyle == "tube");
+  uint16_t unit = max(10, win / (tube ? 40 : 18)); //one flicker step: a tube twitches faster and more often
+  for(int p = 0; p < MATRIXESNUM; p++) {
+    wfOn[p] = false;
+    mx.control((uint8_t)p, MD_MAX72XX::SHUTDOWN, MD_MAX72XX::ON);
+    wfLeft[p] = tube ? random(5, 13) : random(3, 7);
+    wfStep[p] = random(unit, unit * 2);
+    wfNext[p] = now + random(0, (long)(win * 0.55f)); //first pop spread over the first half of the window
+  }
+  mx.control(MD_MAX72XX::INTENSITY, 0);
+  displayOn = true;
+  displayDirty = false;              //the warm-up owns the panels now
+  wakeFlickPhase = 1;
+  wakeFlickEnds = now + win + 400;
+  wfGlitchAt = now + 60;
+  wfGlitchClear = 0;
+  logPrint("[I] Waking up: " + cfg.wakeFlickStyle + " warm-up over " + String(win) + " ms");
+}
+
+//Everything on and handed back to the normal brightness path. Also used to cut the warm-up short.
+void wakeFlickEnd() {
+  if(wakeFlickPhase == 0) return;
+  for(int p = 0; p < MATRIXESNUM; p++) mx.control((uint8_t)p, MD_MAX72XX::SHUTDOWN, MD_MAX72XX::OFF);
+  wakeFlickPhase = 0;
+  wfGlitchClear = 0;
+  brightnessDirty = true;
+  instantReload = true;              //paint the real face over any tearing left behind
+}
+
+void wakeFlickStep() {
+  if(wakeFlickPhase == 0) return;
+  if(visorType != "MAX72XX" || !cfg.wakeFlickEna) { wakeFlickEnd(); return; }
+  unsigned long now = millis();
+  int target = visorBright();
+  bool waiting = false;
+  for(int p = 0; p < MATRIXESNUM; p++) {
+    if(wfLeft[p] == 0) continue;     //this one has settled
+    waiting = true;
+    if(now < wfNext[p]) continue;
+    wfOn[p] = !wfOn[p];
+    if(--wfLeft[p] == 0) wfOn[p] = true; //however the stutter landed, a panel finishes lit
+    mx.control((uint8_t)p, MD_MAX72XX::SHUTDOWN, wfOn[p] ? MD_MAX72XX::OFF : MD_MAX72XX::ON);
+    if(wfOn[p]) {                    //unsteady while it warms, the real brightness once it settles
+      int lvl = (wfLeft[p] == 0) ? target : random(0, target + 1);
+      mx.control((uint8_t)p, MD_MAX72XX::INTENSITY, constrain(lvl, 0, 15));
+    }
+    wfNext[p] = now + random(wfStep[p] / 2, wfStep[p] * 2);
+  }
+  //Tearing: a few throwaway rows and columns, wiped by the next real frame
+  if(cfg.wakeFlickGlitch > 0 && waiting && wfGlitchClear == 0 && now >= wfGlitchAt) {
+    int burst = (cfg.wakeFlickGlitch >= 2) ? random(3, 9) : random(1, 4);
+    for(int i = 0; i < burst; i++) {
+      if(random(0, 2)) {
+        mx.setColumn((uint16_t)random(0, MATRIXESNUM * 8), (uint8_t)random(0, 256));
+      } else {
+        uint8_t d = (uint8_t)random(0, MATRIXESNUM);
+        mx.setRow(d, d, (uint8_t)random(0, 8), (uint8_t)random(0, 256));
+      }
+    }
+    mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);  //push the mess out now; the renderer isn't due yet
+    mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
+    wfGlitchClear = now + random(30, 110);
+  }
+  if(wfGlitchClear != 0 && now >= wfGlitchClear) {   //put the real face back over it
+    wfGlitchClear = 0;
+    wfGlitchAt = now + ((cfg.wakeFlickGlitch >= 2) ? random(70, 260) : random(200, 700));
+    instantReload = true;
+  }
+  if(!waiting || now > wakeFlickEnds) {
+    wakeFlickEnd();
+    logPrint(F("[I] Warm-up done"));
+  }
+}
+
 void setSleeping(bool on) { //loop task only: it loads animations
   if(on == sleeping) return;
   sleeping = on;
@@ -1678,9 +1785,11 @@ void setSleeping(bool on) { //loop task only: it loads animations
       sleepDeepDone = false;
       displayOn = true;
       displayDirty = true;
+      wakeFlickBegin();                    //one panel at a time, if the warm-up is switched on
     }
-    //Come back gently rather than snapping to full brightness
-    if(cfg.sleepFadeEna) sleepDimLevel = 0;
+    //Come back gently rather than snapping to full brightness. The warm-up does its own brightness,
+    //so the fade stays out of its way when it is running.
+    if(cfg.sleepFadeEna && wakeFlickPhase == 0) sleepDimLevel = 0;
     else sleepDimLevel = -1;
     sleepFadeStep = millis();
     brightnessDirty = true;
@@ -1707,7 +1816,7 @@ void sleepEaseStep() {
       int want = (int)(target - gone * target + 0.5f);
       if(want != sleepDimLevel) {
         sleepDimLevel = want;
-        if(transPhase == 0 && visorType == "MAX72XX") mx.control(MD_MAX72XX::INTENSITY, max(0, (int)sleepDimLevel));
+        if(transPhase == 0 && wakeFlickPhase == 0 && visorType == "MAX72XX") mx.control(MD_MAX72XX::INTENSITY, max(0, (int)sleepDimLevel));
       }
       return;
     }
@@ -1720,7 +1829,7 @@ void sleepEaseStep() {
       if(sleepDimLevel >= target) {
         sleepDimLevel = -1;                //done: hand the panels back
         brightnessDirty = true;
-      } else if(transPhase == 0 && visorType == "MAX72XX") {
+      } else if(transPhase == 0 && wakeFlickPhase == 0 && visorType == "MAX72XX") {
         mx.control(MD_MAX72XX::INTENSITY, sleepDimLevel);
       }
     }
@@ -2183,7 +2292,7 @@ void autoBrightnessStep() {
 
   bool asked = autoBriMeasureReq;
   if((asked || autoLevel < 0 || now - autoLastCheck >= (unsigned long)cfg.autoBriSecs * 1000UL)
-     && transPhase == 0 && !booping) {    //never blink over a face change or a boop
+     && transPhase == 0 && wakeFlickPhase == 0 && !booping) { //never blink over a face change, a warm-up or a boop
     autoBriMeasureReq = false;
     autoLastCheck = now;
     bool blank = cfg.autoBriMode != "live";
@@ -2338,11 +2447,13 @@ void loop() {
   }
   autoBrightnessStep();
   sleepEaseStep();
+  wakeFlickStep();
   screenTick();
   if(brightnessDirty && visorType == "MAX72XX") {
     brightnessDirty = false;
-    if(transPhase == 0) mx.control(MD_MAX72XX::INTENSITY, visorBright()); //a running transition owns the intensity
+    if(transPhase == 0 && wakeFlickPhase == 0) mx.control(MD_MAX72XX::INTENSITY, visorBright()); //a transition or warm-up owns the intensity
   }
+  if(displayDirty && wakeFlickPhase != 0) wakeFlickEnd(); //turning the displays on or off cuts the warm-up short
   if(displayDirty && visorType == "MAX72XX" && !blanking) { //from /display: MAX7219 shutdown turns the LEDs off but keeps the picture
     displayDirty = false;
     mx.control(MD_MAX72XX::SHUTDOWN, displayOn ? MD_MAX72XX::OFF : MD_MAX72XX::ON);
@@ -3039,7 +3150,7 @@ void loop() {
     } else if (visorType == "MAX72XX") {
       if(FdisplayVisor) {
         if(cfg.bVisor > 15) { cfg.bVisor = 15;}
-        if(transPhase == 0) mx.control(MD_MAX72XX::INTENSITY, visorBright()); //a running transition owns the intensity
+        if(transPhase == 0 && wakeFlickPhase == 0) mx.control(MD_MAX72XX::INTENSITY, visorBright()); //a transition or warm-up owns the intensity
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
         FdisplayVisor = false;
@@ -3111,11 +3222,17 @@ void loop() {
     sleepRequest = 0;
   }
 
+  if(wakeFlickReq) { //from /wakeflick: the Play button in Settings
+    wakeFlickReq = false;
+    wakeFlickBegin();
+  }
+
   String queuedAnim, queuedPost;
   xSemaphoreTake(animQueueMutex, portMAX_DELAY);
   queuedAnim = animToLoad; animToLoad = "";
   queuedPost = postAnimToLoad; postAnimToLoad = "";
   xSemaphoreGive(animQueueMutex);
+  if((queuedAnim != "" || queuedPost != "") && wakeFlickPhase != 0) wakeFlickEnd(); //a face change cuts the warm-up short
   if(cfg.transEna && visorType == "MAX72XX" && transPhase == 0 && (queuedAnim != "" || queuedPost != "")) {
     transAnim = queuedAnim; transPost = queuedPost; //hold the swap until the panels are dark
     uint8_t levels = visorBright() > 0 ? visorBright() : 1; //the dip time is shared out over the brightness steps there are

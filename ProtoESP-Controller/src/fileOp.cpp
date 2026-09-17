@@ -85,6 +85,10 @@ void Config::setDefault() {
   sleepFadeSecs = 4;     //seconds of dimming before it drops off
   sleepDeepEna = false;  //off by default: the panels going dark surprises people
   sleepDeepMins = 20;    //asleep this long and the panels go off entirely
+  wakeFlickEna = true;   //coming back from deep sleep, the panels flicker on one at a time
+  wakeFlickStyle = "crt";
+  wakeFlickMs = 1800;    //how long the whole warm-up takes
+  wakeFlickGlitch = 1;   //0 none, 1 a little tearing, 2 a lot
   boopMilestone = 100;   //every this many boops plays a special face; 0 turns it off
   aMilestone = "heart.json";
   oledFlip = false;      //the screen mounted upside down
@@ -164,6 +168,10 @@ bool Config::save() {
   doc["sleepFadeSecs"] = sleepFadeSecs;
   doc["sleepDeepEna"] = sleepDeepEna;
   doc["sleepDeepMins"] = sleepDeepMins;
+  doc["wakeFlickEna"] = wakeFlickEna;
+  doc["wakeFlickStyle"] = wakeFlickStyle;
+  doc["wakeFlickMs"] = wakeFlickMs;
+  doc["wakeFlickGlitch"] = wakeFlickGlitch;
   doc["boopMilestone"] = boopMilestone;
   doc["aMilestone"] = aMilestone;
   doc["oledFlip"] = oledFlip;
@@ -310,6 +318,10 @@ bool Config::load() {
   sleepFadeSecs = doc["sleepFadeSecs"] | 4;
   sleepDeepEna = doc["sleepDeepEna"] | false;
   sleepDeepMins = doc["sleepDeepMins"] | 20;
+  wakeFlickEna = doc["wakeFlickEna"] | true;
+  wakeFlickStyle = doc["wakeFlickStyle"] | "crt";
+  wakeFlickMs = doc["wakeFlickMs"] | 1800;
+  wakeFlickGlitch = doc["wakeFlickGlitch"] | 1;
   boopMilestone = doc["boopMilestone"] | 100;
   aMilestone = doc["aMilestone"] | "heart.json";
   oledFlip = doc["oledFlip"] | false;
