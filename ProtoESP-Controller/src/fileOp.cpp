@@ -81,8 +81,6 @@ void Config::setDefault() {
     phraseSpeed[i] = 55;   //the page's "Normal" speed
     phraseOnce[i] = false;
   }
-  sleepFadeEna = true;
-  sleepFadeSecs = 4;     //seconds of dimming before it drops off
   sleepDeepEna = false;  //off by default: the panels going dark surprises people
   sleepDeepMins = 20;    //asleep this long and the panels go off entirely
   wakeFlickEna = true;   //coming back from deep sleep, the panels flicker on one at a time
@@ -165,8 +163,6 @@ bool Config::save() {
     doc["phraseSpeed"][i] = phraseSpeed[i];
     doc["phraseOnce"][i] = phraseOnce[i];
   }
-  doc["sleepFadeEna"] = sleepFadeEna;
-  doc["sleepFadeSecs"] = sleepFadeSecs;
   doc["sleepDeepEna"] = sleepDeepEna;
   doc["sleepDeepMins"] = sleepDeepMins;
   doc["wakeFlickEna"] = wakeFlickEna;
@@ -316,8 +312,6 @@ bool Config::load() {
     phraseSpeed[i] = doc["phraseSpeed"][i] | 55;
     phraseOnce[i] = doc["phraseOnce"][i] | false;
   }
-  sleepFadeEna = doc["sleepFadeEna"] | true;
-  sleepFadeSecs = doc["sleepFadeSecs"] | 4;
   sleepDeepEna = doc["sleepDeepEna"] | false;
   sleepDeepMins = doc["sleepDeepMins"] | 20;
   wakeFlickEna = doc["wakeFlickEna"] | true;

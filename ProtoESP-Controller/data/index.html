@@ -563,10 +563,6 @@
           <div class="stepper" data-key="sleepTol" data-label="Wake sensitivity" data-min="0.02" data-max="1" data-step="0.02"><button type="button" aria-label="Less">−</button><output>0.20</output><button type="button" aria-label="More">+</button></div></div>
         <div class="row dep"><span class="row-text"><b>Sleeping face</b></span>
           <select id="aSleep" data-key="aSleep" data-label="Sleeping face" aria-label="Sleeping face"></select></div>
-        <label class="row dep"><span class="row-text"><b>Ease in and out</b><small>Dim on the way down, come back gently instead of snapping</small></span>
-          <input type="checkbox" class="toggle" data-key="sleepFadeEna" data-label="Ease in and out"></label>
-        <div class="row dep"><span class="row-text"><b>Dim over</b><small>Seconds of dimming before it drops off</small></span>
-          <div class="stepper" data-key="sleepFadeSecs" data-label="Dim over" data-min="0" data-max="30" data-step="1" data-unit=" s"><button type="button" aria-label="Less">−</button><output>4 s</output><button type="button" aria-label="More">+</button></div></div>
         <label class="row dep"><span class="row-text"><b>Deep sleep</b><small>After a long sleep, turn the panels off entirely</small></span>
           <input type="checkbox" class="toggle" data-key="sleepDeepEna" data-label="Deep sleep"></label>
         <div class="row dep"><span class="row-text"><b>Deep sleep after</b><small>Minutes asleep before the panels go off</small></span>
@@ -1404,7 +1400,7 @@
                     autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face',
                     btnShort: 'nextFace', btnDouble: 'none', btnHold: 'displays', btnHoldMs: 1500,
                     btnShortPhrase: 0, btnDoublePhrase: 0, btnHoldPhrase: 0,
-                    sleepFadeEna: true, sleepFadeSecs: 4, sleepDeepEna: false, sleepDeepMins: 20,
+                    sleepDeepEna: false, sleepDeepMins: 20,
                     wakeFlickEna: true, wakeFlickBoot: true, wakeFlickStyle: 'crt', wakeFlickMs: 1800, wakeFlickGlitch: 1};
 
   /* ---------- auto-brightness ---------- */
