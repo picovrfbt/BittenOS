@@ -88,6 +88,7 @@ Config cfg;
 
 #include "oled.h"
 #include "screen.h"
+#include "screen_font.h"   //the 5x7 font, shared by the status screen and quick phrases
 #include "driver/i2s_std.h"
 SSDOLED oled;
 
@@ -135,6 +136,7 @@ extern bool speaking;
 extern int micVolume;          //0-100, how loud it is against the Speech range
 extern float finalMicAvg;      //the raw smoothed mic reading, for the level meter
 extern String blinkCachedAnim; //which face the blink rule was last worked out for
+extern int btnNum;             //which face the button last stepped to
 
 //--------------------------------//APDS-9930: proximity only, straight at the registers
 #define apds9930Addr 0x39
@@ -331,6 +333,12 @@ bool boopCountDirty = false;
 bool milestoneBoop = false;     //this boop hit the milestone, so it played the special face
 unsigned long boopCountSaved = 0;
 volatile int8_t sleepRequest = 0; //from /sleep: 1 = sleep now, -1 = wake, 0 = nothing
+volatile int8_t phraseRequest = -1; //from /phrase: the slot to show, -1 = nothing
+//Sleep easing: dim over the last few seconds before dropping off, come back gently rather than
+//snapping to full, and after a long enough sleep shut the panels off entirely if that is switched on.
+int8_t sleepDimLevel = -1;        //brightness the fade is holding, -1 when the fade is not running
+unsigned long sleepFadeStep = 0, sleepDeepAt = 0;
+bool sleepDeepDone = false;
 unsigned long stillSince = 0; //when the mask last moved
 float stillX = 0, stillY = 0, stillZ = 0; //what "not moving" currently looks like
 uint8_t moveSamples = 0; //readings in a row over the threshold, so a single noisy one can't wake it
@@ -1095,6 +1103,29 @@ void startWiFiWeb() {
     cfg.getString(request, "aBoop", cfg.aBoop);
     cfg.getString(request, "aSleep", cfg.aSleep);
     cfg.getString(request, "aMilestone", cfg.aMilestone);
+    //button
+    cfg.getString(request, "btnShort", cfg.btnShort);
+    cfg.getString(request, "btnDouble", cfg.btnDouble);
+    cfg.getString(request, "btnHold", cfg.btnHold);
+    cfg.getString(request, "btnShortFace", cfg.btnShortFace);
+    cfg.getString(request, "btnDoubleFace", cfg.btnDoubleFace);
+    cfg.getString(request, "btnHoldFace", cfg.btnHoldFace);
+    if(cfg.getInt(request, "btnHoldMs", cfg.btnHoldMs)) cfg.btnHoldMs = constrain(cfg.btnHoldMs, 300, 5000);
+    if(cfg.getInt(request, "btnShortPhrase", cfg.btnShortPhrase)) cfg.btnShortPhrase = constrain(cfg.btnShortPhrase, 0, 5);
+    if(cfg.getInt(request, "btnDoublePhrase", cfg.btnDoublePhrase)) cfg.btnDoublePhrase = constrain(cfg.btnDoublePhrase, 0, 5);
+    if(cfg.getInt(request, "btnHoldPhrase", cfg.btnHoldPhrase)) cfg.btnHoldPhrase = constrain(cfg.btnHoldPhrase, 0, 5);
+    //quick phrases, one slot per request: phraseN, phraseSpeedN, phraseOnceN
+    for(int i = 0; i < 6; i++) {
+      cfg.getString(request, ("phrase" + String(i)).c_str(), cfg.phrase[i]);
+      if(cfg.getInt(request, ("phraseSpeed" + String(i)).c_str(), cfg.phraseSpeed[i]))
+        cfg.phraseSpeed[i] = constrain(cfg.phraseSpeed[i], 20, 300);
+      cfg.getBool(request, ("phraseOnce" + String(i)).c_str(), cfg.phraseOnce[i]);
+    }
+    //sleep
+    cfg.getBool(request, "sleepFadeEna", cfg.sleepFadeEna);
+    cfg.getBool(request, "sleepDeepEna", cfg.sleepDeepEna);
+    if(cfg.getInt(request, "sleepFadeSecs", cfg.sleepFadeSecs)) cfg.sleepFadeSecs = constrain(cfg.sleepFadeSecs, 0, 30);
+    if(cfg.getInt(request, "sleepDeepMins", cfg.sleepDeepMins)) cfg.sleepDeepMins = constrain(cfg.sleepDeepMins, 0, 240);
     if(cfg.getString(request, "blinkMode", cfg.blinkMode)) {
       if(cfg.blinkMode != "face" && cfg.blinkMode != "blink" && cfg.blinkMode != "still") cfg.blinkMode = "face";
       blinkCachedAnim = "";                //look at the face again under the new setting
@@ -1241,6 +1272,24 @@ void startWiFiWeb() {
 
   server.on("/autobri", HTTP_GET, [](AsyncWebServerRequest *request){ //measure=1: look at the light now
     if(request->hasParam("measure")) autoBriMeasureReq = true; //the loop task does it; the web task never touches I2C
+    request->send(200, "text/plain", "ok");
+  });
+
+  server.on("/phrase", HTTP_GET, [](AsyncWebServerRequest *request){ //show a saved phrase: ?slot=0..5
+    if(!request->hasParam("slot")) {
+      request->send(200, "text/plain", F("No slot given"));
+      return;
+    }
+    int slot = request->getParam("slot")->value().toInt();
+    if(slot < 0 || slot > 5) {
+      request->send(200, "text/plain", F("Slot must be 0 to 5"));
+      return;
+    }
+    if(cfg.phrase[slot] == "") {
+      request->send(200, "text/plain", F("That phrase is empty"));
+      return;
+    }
+    phraseRequest = slot;                  //the loop task builds it; the web task never loads faces
     request->send(200, "text/plain", "ok");
   });
 
@@ -1441,6 +1490,129 @@ void startWiFiWeb() {
 }
 
 //--------------------------------//Sleep mode
+//--------------------------------//Quick phrases
+//The homepage builds its scrolling text in JavaScript and posts it, which is fine from a phone but
+//no use to a button press with nobody holding a phone. So the mask builds its own: the current
+//face's panels stay as the eyes, and the text scrolls along whichever row has the most panels,
+//which is the mouth. Same 5x7 font the status screen uses, so it is already in the firmware.
+void showPhrase(int slot) {
+  if(slot < 0 || slot > 5) return;
+  String text = cfg.phrase[slot];
+  text.trim();
+  if(text == "") {
+    logPrint("[E] Quick phrase " + String(slot + 1) + " is empty");
+    return;
+  }
+  if(!visorNow || numOfSegm == 0) return;
+
+  //The mouth row: the panels flagged isMouth, left to right as they are numbered
+  int mouth[MATRIXESNUM], mouthCount = 0;
+  for(int i = 0; i < numOfSegm && i < MATRIXESNUM; i++) if(visorNow->isMouth[i]) mouth[mouthCount++] = i;
+  if(mouthCount == 0) {
+    logPrint(F("[E] This face has no mouth panels to scroll text along"));
+    return;
+  }
+
+  //Text as columns of pixels, a blank column between letters
+  const int maxCols = 64 * 6;
+  static uint8_t cols[maxCols];
+  int colCount = 0;
+  for(unsigned int c = 0; c < text.length() && colCount < maxCols - 6; c++) {
+    int idx = (uint8_t)text[c] - SCREEN_FONT_FIRST;
+    if(idx < 0 || idx >= SCREEN_FONT_COUNT) idx = '?' - SCREEN_FONT_FIRST;
+    uint8_t w = pgm_read_byte(&screenFontWidth[idx]);
+    for(uint8_t x = 0; x < w; x++) cols[colCount++] = pgm_read_byte(&screenFont[idx][x]);
+    cols[colCount++] = 0;
+  }
+
+  int width = mouthCount * 8;
+  int steps = colCount + width;
+  int speed = constrain(cfg.phraseSpeed[slot], 20, 300);
+  //Frames are built as JSON because that is what loadAnim() understands; keeping one builder means
+  //the phrase path cannot drift away from how faces are loaded.
+  String out = "{\"ears\":{\"type\":\"none\"},\"visor\":{\"type\":\"custom\",\"isMouth\":[";
+  for(int i = 0; i < numOfSegm; i++) out += (i ? ",false" : "false");   //no speech wobble on the text
+  out += "],\"frames\":[";
+  for(int s = 0; s < steps; s++) {
+    if(s) out += ",";
+    out += "{\"timespan\":" + String(speed) + ",\"leds\":[";
+    for(int p = 0; p < numOfSegm; p++) {
+      if(p) out += ",";
+      int at = -1;
+      for(int m = 0; m < mouthCount; m++) if(mouth[m] == p) { at = m; break; }
+      uint64_t word = 0;
+      if(at < 0) {
+        word = visorNow->frames[currentVisorFrame].leds[p];   //not the mouth: leave the face as it is
+      } else {
+        for(int x = 0; x < 8; x++) {
+          int t = at * 8 + x + s - width;
+          uint8_t col = (t >= 0 && t < colCount) ? cols[t] : 0;
+          for(int r = 0; r < 8; r++) if((col >> r) & 1) word |= 1ULL << (r * 8 + x);
+        }
+      }
+      out += "\"" + String((uint32_t)(word >> 32), HEX) + String((uint32_t)word, HEX) + "\"";
+    }
+    out += "]}";
+  }
+  //Play once then go back to the face that was showing, or loop until something else is picked
+  if(cfg.phraseOnce[slot] && currentAnim != "" && currentAnim != "POSTAnimLoad")
+    out += "],\"then\":\"" + currentAnim + "\"}}";
+  else out += "]}}";
+
+  xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+  postAnimToLoad = out;
+  xSemaphoreGive(animQueueMutex);
+  logPrint("[I] Quick phrase " + String(slot + 1) + ": " + text);
+}
+
+//--------------------------------//What the button does
+//Runs on the loop task, so it is free to load faces and touch the panels.
+
+void doButtonAction(const String &action, const String &face, int phraseSlot) {
+  if(action == "none" || action == "") return;
+  if(action == "nextFace" || action == "prevFace") {
+    if(totalAnims <= 0) return;
+    int at = btnNum;
+    for(int i = 0; i < totalAnims; i++) {
+      if(availAnims[i] == currentAnim) { at = i; break; }
+    }
+    btnNum = (action == "nextFace") ? (at + 1) % totalAnims
+                                    : (at - 1 + totalAnims) % totalAnims;
+    xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+    animToLoad = availAnims[btnNum];
+    xSemaphoreGive(animQueueMutex);
+    logPrint("[I] Button: " + availAnims[btnNum]);
+    return;
+  }
+  if(action == "displays") {
+    displayOn = !displayOn;
+    displayDirty = true;
+    logPrint(displayOn ? F("[I] Button: displays on") : F("[I] Button: displays off"));
+    return;
+  }
+  if(action == "sleep") {
+    sleepRequest = sleeping ? -1 : 1;      //loop() does the face change
+    logPrint(sleeping ? F("[I] Button: waking") : F("[I] Button: sleeping"));
+    return;
+  }
+  if(action == "face") {
+    if(face == "" || !LittleFS.exists("/anims/" + face)) {
+      logPrint("[E] Button: no such face, " + face);
+      return;
+    }
+    xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+    animToLoad = face;
+    xSemaphoreGive(animQueueMutex);
+    logPrint("[I] Button: " + face);
+    return;
+  }
+  if(action == "phrase") {
+    showPhrase(phraseSlot);
+    return;
+  }
+  logPrint("[E] Button: unknown action " + action);
+}
+
 void setSleeping(bool on) { //loop task only: it loads animations
   if(on == sleeping) return;
   sleeping = on;
@@ -1448,12 +1620,72 @@ void setSleeping(bool on) { //loop task only: it loads animations
     wakeAnim = currentAnim;
     logPrint("[I] Sleeping: " + cfg.aSleep);
     loadAnim(cfg.aSleep,"");
+    sleepDeepAt = millis();
+    sleepDeepDone = false;
   } else {
     logPrint(F("[I] Woke up"));
     if(wakeAnim != "" && wakeAnim != cfg.aSleep) loadAnim(wakeAnim,"");
     wakeAnim = "";
+    if(sleepDeepDone) {                    //deep sleep had switched the panels off: bring them back
+      sleepDeepDone = false;
+      displayOn = true;
+      displayDirty = true;
+    }
+    //Come back gently rather than snapping to full brightness
+    if(cfg.sleepFadeEna) sleepDimLevel = 0;
+    else sleepDimLevel = -1;
+    sleepFadeStep = millis();
+    brightnessDirty = true;
   }
   stillSince = millis();
+}
+
+//Eases the panels down as sleep approaches and back up on waking, and handles the deeper sleep that
+//turns them off. Brightness is only borrowed while this runs: visorBright() is left alone, and the
+//normal brightness path takes over again the moment the fade finishes.
+void sleepEaseStep() {
+  int target = visorBright();
+  if(!cfg.sleepFadeEna && sleepDimLevel >= 0) {   //switched off mid-fade
+    sleepDimLevel = -1;
+    brightnessDirty = true;
+  }
+  //Falling asleep: dim through the last seconds of stillness, so it fades rather than cuts
+  if(!sleeping && cfg.sleepEna && cfg.sleepFadeEna && cfg.sleepFadeSecs > 0 && tiltInitDone) {
+    unsigned long still = millis() - stillSince;
+    unsigned long sleepAt = (unsigned long)cfg.sleepMins * 60000UL;
+    unsigned long fade = (unsigned long)cfg.sleepFadeSecs * 1000UL;
+    if(sleepAt > fade && still > sleepAt - fade && still < sleepAt) {
+      float gone = (float)(still - (sleepAt - fade)) / (float)fade;   //0 at the start of the fade, 1 at sleep
+      int want = (int)(target - gone * target + 0.5f);
+      if(want != sleepDimLevel) {
+        sleepDimLevel = want;
+        if(transPhase == 0 && visorType == "MAX72XX") mx.control(MD_MAX72XX::INTENSITY, max(0, (int)sleepDimLevel));
+      }
+      return;
+    }
+  }
+  //Waking: climb back to the normal brightness a step at a time
+  if(sleepDimLevel >= 0 && !sleeping) {
+    if(millis() - sleepFadeStep >= 60) {
+      sleepFadeStep = millis();
+      sleepDimLevel++;
+      if(sleepDimLevel >= target) {
+        sleepDimLevel = -1;                //done: hand the panels back
+        brightnessDirty = true;
+      } else if(transPhase == 0 && visorType == "MAX72XX") {
+        mx.control(MD_MAX72XX::INTENSITY, sleepDimLevel);
+      }
+    }
+    return;
+  }
+  //Asleep a long time: switch the panels off entirely, if that is switched on
+  if(sleeping && cfg.sleepDeepEna && cfg.sleepDeepMins > 0 && !sleepDeepDone && displayOn &&
+     millis() - sleepDeepAt >= (unsigned long)cfg.sleepDeepMins * 60000UL) {
+    sleepDeepDone = true;
+    displayOn = false;
+    displayDirty = true;
+    logPrint("[I] Deep sleep after " + String(cfg.sleepDeepMins) + " minutes: displays off");
+  }
 }
 
 //--------------------------------//Setup
@@ -1619,6 +1851,11 @@ float zAx,yAx,finalMicAvg; //the envelope follower and its averaging array went 
 int boopRead, startIndex = 1, micVolume, btnNum = 0, currFade = 1;
 unsigned long lastMillsEars = 0, lastMillsVisor = 0, lastMillsTilt = 0, laskSpeakCheck = 0, lastMillsBoop = 0, lastFLED = 0, vaStatLast = 0, btnPressTime = 0, tiltChange = 0, check0button = 0, looptime = 0, fadeTime = 0, laskSpeakAnim = 0, lastBoopCheck = 0;
 bool btnHeld = false, btnLongDone = false; //button: held down now / hold action already fired
+//Double press: a single press has to wait this long to see whether a second one is coming. Only
+//waited when Double press is actually set to something, so the button stays instant otherwise.
+#define BTN_DOUBLE_MS 260
+bool btnWaitingSingle = false;
+unsigned long btnFirstRelease = 0;
 unsigned long lastImuRetry = 0, lastApdsRetry = 0; //sensor not found yet: when it was last looked for
 
 //How the mouth moves with your voice, chosen by Mouth movement in Settings:
@@ -2000,6 +2237,7 @@ void loop() {
     }
   }
   autoBrightnessStep();
+  sleepEaseStep();
   screenTick();
   if(brightnessDirty && visorType == "MAX72XX") {
     brightnessDirty = false;
@@ -2323,6 +2561,11 @@ void loop() {
     micTestReq = false;
     if(cfg.speechEna) startMicTest();
   }
+  if(phraseRequest >= 0) {                 //from the page or a button bound to a phrase
+    int slot = phraseRequest;
+    phraseRequest = -1;
+    showPhrase(slot);
+  }
   if(cfg.speechEna) {
     micCollect();
 
@@ -2396,31 +2639,37 @@ void loop() {
   }
   //Serial.println(">SPK1:"+String(micros()-looptime));
 
-  //--------------------------------//Single button: short press = next face, hold 1.5s = displays off/on
+  //--------------------------------//Single button: each of short press, double press and hold does
+  //whatever Settings says. Defaults are what the button always did: short = next face, hold = displays.
   hwBtn.loop();
-  if(hwBtn.isPressed()) { //detect press
+  if(hwBtn.isPressed()) {
     btnPressTime = millis();
     btnHeld = true;
     btnLongDone = false;
   }
-  if(btnHeld && !btnLongDone && millis()-btnPressTime >= 1500) { //held 1.5s: toggle the displays right away, like the web power button
-    btnLongDone = true;
-    displayOn = !displayOn;
-    displayDirty = true;
+  if(btnHeld && !btnLongDone && millis()-btnPressTime >= (unsigned long)max(200, cfg.btnHoldMs)) {
+    btnLongDone = true;                    //fires while still held down, so it feels immediate
+    btnWaitingSingle = false;              //a hold is not the first half of a double press
+    doButtonAction(cfg.btnHold, cfg.btnHoldFace, cfg.btnHoldPhrase);
   }
   if(hwBtn.isReleased()) {
     btnHeld = false;
-    if(!btnLongDone && totalAnims > 0) { //short press: the face after the one showing, wherever it was picked
-      int next = btnNum + 1;
-      for(int i = 0; i < totalAnims; i++) {
-        if(availAnims[i] == currentAnim) { next = i + 1; break; }
+    if(!btnLongDone) {
+      if(cfg.btnDouble == "none") {
+        doButtonAction(cfg.btnShort, cfg.btnShortFace, cfg.btnShortPhrase); //nothing to wait for
+      } else if(btnWaitingSingle && millis() - btnFirstRelease <= BTN_DOUBLE_MS) {
+        btnWaitingSingle = false;          //second press inside the window
+        doButtonAction(cfg.btnDouble, cfg.btnDoubleFace, cfg.btnDoublePhrase);
+      } else {
+        btnWaitingSingle = true;           //might be the first of two: hold it briefly
+        btnFirstRelease = millis();
       }
-      btnNum = next % totalAnims;
-      xSemaphoreTake(animQueueMutex, portMAX_DELAY);
-      animToLoad = availAnims[btnNum];
-      xSemaphoreGive(animQueueMutex);
-      logPrint("Changing to "+availAnims[btnNum]+", amount of anims: "+String(totalAnims));
     }
+  }
+  //The single press only fires once the double-press window has passed without a second press
+  if(btnWaitingSingle && millis() - btnFirstRelease > BTN_DOUBLE_MS) {
+    btnWaitingSingle = false;
+    doButtonAction(cfg.btnShort, cfg.btnShortFace, cfg.btnShortPhrase);
   }
 
   //--------------------------------//Look for the boop sensor, Boop switched on or not.
