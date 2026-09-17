@@ -573,6 +573,8 @@
           <div class="stepper" data-key="sleepDeepMins" data-label="Deep sleep after" data-min="1" data-max="240" data-step="5" data-unit=" min"><button type="button" aria-label="Less">−</button><output>20 min</output><button type="button" aria-label="More">+</button></div></div>
         <label class="row dep"><span class="row-text"><b>Wake-up flicker</b><small>After a deep sleep the panels stutter back on one at a time, like an old device warming up</small></span>
           <input type="checkbox" class="toggle" data-key="wakeFlickEna" data-label="Wake-up flicker"></label>
+        <label class="row dep"><span class="row-text"><b>Flicker on startup</b><small>Warm up the same way when the mask is switched on</small></span>
+          <input type="checkbox" class="toggle" data-key="wakeFlickBoot" data-label="Flicker on startup"></label>
         <div class="row dep"><span class="row-text"><b>Flicker style</b></span>
           <select id="wakeFlickStyle" data-key="wakeFlickStyle" data-label="Flicker style" aria-label="Flicker style" style="text-transform:none">
             <option value="crt">Old CRT — slow, heavy stutter</option>
@@ -1403,7 +1405,7 @@
                     btnShort: 'nextFace', btnDouble: 'none', btnHold: 'displays', btnHoldMs: 1500,
                     btnShortPhrase: 0, btnDoublePhrase: 0, btnHoldPhrase: 0,
                     sleepFadeEna: true, sleepFadeSecs: 4, sleepDeepEna: false, sleepDeepMins: 20,
-                    wakeFlickEna: true, wakeFlickStyle: 'crt', wakeFlickMs: 1800, wakeFlickGlitch: 1};
+                    wakeFlickEna: true, wakeFlickBoot: true, wakeFlickStyle: 'crt', wakeFlickMs: 1800, wakeFlickGlitch: 1};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');

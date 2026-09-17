@@ -37,7 +37,7 @@ public:
   bool sleepFadeEna,sleepDeepEna;
   int sleepFadeSecs,sleepDeepMins;
   //Waking from deep sleep: the panels stutter back on one at a time, like an old device warming up
-  bool wakeFlickEna;
+  bool wakeFlickEna,wakeFlickBoot;    //after a deep sleep, and again when the mask is first switched on
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
   int wakeFlickMs,wakeFlickGlitch;    //how long the warm-up runs, and how much the picture tears (0-2)
   float neutralX,neutralY,neutralZ,tiltX,tiltY,tiltZ,upX,upY,upZ,tiltTol,sleepTol;
