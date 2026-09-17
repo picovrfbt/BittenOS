@@ -147,6 +147,26 @@
   </details>
 
   <details class="card">
+    <summary><span>Bluetooth<small>Controlling the mask without touching WiFi</small></span></summary>
+    <div class="body">
+      <p>Switch <b class="k">Remote (BLE)</b> on in Settings and the mask advertises over Bluetooth under the same name as its WiFi. This is the one way to control it that leaves your phone's own connection completely alone — no joining anything, no losing internet.</p>
+      <p>It works with the physical ProtoESP remote, and with a phone. Commands are a letter, a colon and a value, written to characteristic <b class="k">ffe1</b> on service <b class="k">ffe0</b>:</p>
+      <table>
+        <tr><th>s:</th><td>Ask what the mask is doing — face, brightness, boops, sleeping, displays, speech</td></tr>
+        <tr><th>f:name</th><td>Switch to a face, e.g. <b class="k">f:angry</b></td></tr>
+        <tr><th>b:0-15</th><td>Panel brightness</td></tr>
+        <tr><th>d:0 / d:1</th><td>Displays off or on</td></tr>
+        <tr><th>z:0 / z:1</th><td>Wake or sleep</td></tr>
+        <tr><th>p:0-5</th><td>Play a quick phrase</td></tr>
+        <tr><th>n:1</th><td>Next screen page</td></tr>
+        <tr><th>w:1</th><td>Play the wake-up warm-up</td></tr>
+        <tr><th>m:0 / m:1</th><td>Speech off or on</td></tr>
+      </table>
+      <p>You can try all of this today with a free app like <b class="k">nRF Connect</b> before any custom app exists — connect, find ffe1, and write <b class="k">s:</b> to see the mask answer.</p>
+    </div>
+  </details>
+
+  <details class="card">
     <summary><span>The button<small>Short press, double press and hold</small></span></summary>
     <div class="body">
       <p>Each of <b class="k">Short press</b>, <b class="k">Double press</b> and <b class="k">Hold</b> can be set separately in Settings &gt; Button:</p>
