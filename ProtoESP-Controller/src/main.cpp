@@ -302,6 +302,7 @@ void logPrint(const String &str) {
 
 //--------------------------------//web / wifi
 #include "WiFi.h"
+#include <ESPmDNS.h>
 #include "ESPAsyncWebServer.h"
 #include <Update.h>
 #include <MD5Builder.h>
@@ -1060,9 +1061,77 @@ void applyStagedFilesystem() { //setup(), before LittleFS mounts: a staged files
   Serial.println(F("[I] Staged filesystem applied, settings kept"));
 }
 
+//--------------------------------//Joining an existing network
+//As well as making its own access point, the mask can join a network you already have: a phone's
+//hotspot, or the house WiFi. That is the whole difference between reaching the mask and having
+//internet at the same time, because on the mask's own access point a phone cannot have both.
+//The access point keeps running throughout, so nothing set here can lock you out of the mask.
+//One radio means one channel: while the mask is on someone else's network its own access point
+//moves to that network's channel, and anything already connected to it has to join again. That is
+//the hardware being a single radio, not a fault.
+bool staJoined = false;             //on the network right now
+volatile bool staApplyReq = false;  //the details changed on the web page: start over
+unsigned long staTryAt = 0;         //when this attempt started; 0 when not trying
+bool mdnsUp = false;
+
+void staBegin() {
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(cfg.staName.c_str(), cfg.staPass.c_str());
+  staTryAt = millis();
+  logPrint("[I] Joining " + cfg.staName);
+}
+
+void staStop() {
+  if(mdnsUp) { MDNS.end(); mdnsUp = false; }
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_AP);               //the mask's own access point carries on
+  staJoined = false;
+  staTryAt = 0;
+}
+
+//Non-blocking: boot is never held up waiting for a network, and a wrong password just keeps
+//retrying slowly in the background instead of stalling the mask.
+void staStep() {
+  if(staApplyReq) {
+    staApplyReq = false;
+    staStop();
+    if(cfg.staEna && cfg.staName.length()) staBegin();
+    else logPrint(F("[I] Not joining a network"));
+    return;
+  }
+  if(!cfg.staEna) return;
+  bool up = (WiFi.status() == WL_CONNECTED);
+  if(up != staJoined) {
+    staJoined = up;
+    if(up) {
+      staTryAt = 0;
+      logPrint("[I] Joined " + cfg.staName + " as " + WiFi.localIP().toString());
+      if(!mdnsUp && MDNS.begin(cfg.mdnsName.c_str())) {
+        MDNS.addService("http", "tcp", 80);
+        mdnsUp = true;
+        logPrint("[I] Also at http://" + cfg.mdnsName + ".local");
+      }
+    } else {
+      logPrint(F("[I] Dropped off the network"));
+      if(mdnsUp) { MDNS.end(); mdnsUp = false; }
+      staTryAt = millis();
+    }
+  }
+  if(!staJoined && cfg.staName.length() && staTryAt != 0 && millis() - staTryAt > 25000) {
+    logPrint("[I] Still trying to join " + cfg.staName);
+    WiFi.begin(cfg.staName.c_str(), cfg.staPass.c_str());
+    staTryAt = millis();
+  }
+}
+
 //--------------------------------//WiFi server setup
 void startWiFiWeb() {
+  //AP_STA runs both at once: the mask's own access point stays up whatever happens to the network
+  //it is asked to join, so a wrong password here can never lock you out of your own mask.
+  WiFi.mode(cfg.staEna ? WIFI_AP_STA : WIFI_AP);
   WiFi.softAP(cfg.wifiName, cfg.wifiPass);
+  if(cfg.staEna && cfg.staName.length()) staBegin();
 
   server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
@@ -1178,9 +1247,22 @@ void startWiFiWeb() {
     //RGB visor color
     if(cfg.getString(request, "visColor", cfg.visColorStr))
         cfg.visColor = strtol(cfg.visColorStr.c_str() + 1, NULL, 16);
-    //wifi
+    //wifi: the mask's own access point
     cfg.getString(request, "wifiName", cfg.wifiName);
     cfg.getString(request, "wifiPass", cfg.wifiPass);
+    //wifi: a network to join as well. Applied without a restart, so the page can say what happened.
+    {
+      bool wasEna = cfg.staEna;
+      String wasName = cfg.staName, wasPass = cfg.staPass;
+      cfg.getBool(request, "staEna", cfg.staEna);
+      cfg.getString(request, "staName", cfg.staName);
+      cfg.getString(request, "staPass", cfg.staPass);
+      if(cfg.getString(request, "mdnsName", cfg.mdnsName)) {
+        cfg.mdnsName.toLowerCase();                    //.local names are case-insensitive; keep one spelling
+        if(cfg.mdnsName == "") cfg.mdnsName = "protogen";
+      }
+      if(cfg.staEna != wasEna || cfg.staName != wasName || cfg.staPass != wasPass) staApplyReq = true;
+    }
     //boop threshold
     cfg.getInt(request, "boopThresh", cfg.boopThresh);
     cfg.getInt(request, "sleepMins", cfg.sleepMins);
@@ -1380,6 +1462,12 @@ void startWiFiWeb() {
     st["tempC"] = temperatureRead();
     st["loopHz"] = loopsPerSec;
     st["wifiClients"] = WiFi.softAPgetStationNum();
+    st["staOn"] = cfg.staEna;                                         //joining a network is switched on
+    st["staJoined"] = staJoined;                                      //and it actually got on
+    st["staIp"] = staJoined ? WiFi.localIP().toString() : String("");
+    st["staRssi"] = staJoined ? WiFi.RSSI() : 0;
+    st["staName"] = cfg.staName;
+    st["mdns"] = cfg.mdnsName;
     st["tilt"] = tiltInitDone;
     st["boop"] = ToFInitDone;
     st["boops"] = cfg.boopCount;
@@ -2369,6 +2457,7 @@ void screenTick() {
   d.wifiName = cfg.wifiName;
   d.boops = cfg.boopCount;
   d.wifiClients = WiFi.softAPgetStationNum();
+  d.ip = staJoined ? WiFi.localIP().toString() : String("");
   d.brightness = visorBright();
   d.uptime = millis() / 1000;
   d.tempC = temperatureRead();
@@ -2448,6 +2537,7 @@ void loop() {
   autoBrightnessStep();
   sleepEaseStep();
   wakeFlickStep();
+  staStep();
   screenTick();
   if(brightnessDirty && visorType == "MAX72XX") {
     brightnessDirty = false;
