@@ -11,7 +11,7 @@ enum : uint8_t { EL_TEXT, EL_VALUE, EL_BAR, EL_ICON, EL_RECT };
 
 static const char *const SOURCES[] = {"face", "boops", "wifiClients", "wifiName", "brightness", "uptime",
                                       "temp", "closeness", "shade", "tilt", "boopSensor", "displays",
-                                      "clock", "clockAmPm"};
+                                      "clock", "clockAmPm", "ip"};
 #define SOURCE_COUNT (sizeof(SOURCES) / sizeof(SOURCES[0]))
 static const char *const BARS[] = {"closeness", "shade", "brightness"};
 #define BAR_COUNT (sizeof(BARS) / sizeof(BARS[0]))
@@ -190,6 +190,8 @@ static String sourceText(uint8_t source, const ScreenData &d) {
     case 13:                              //am or pm on its own, for putting beside a big clock
       if(d.clockMins < 0) return "";
       return (d.clockMins < 720) ? "am" : "pm";
+    case 14:                              //the address on the joined network, to type into a phone
+      return d.ip.length() ? d.ip : "--";
   }
   return "?";
 }

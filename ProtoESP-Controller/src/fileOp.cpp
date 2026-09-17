@@ -83,6 +83,10 @@ void Config::setDefault() {
   }
   sleepDeepEna = false;  //off by default: the panels going dark surprises people
   sleepDeepMins = 20;    //asleep this long and the panels go off entirely
+  staEna = false;        //off until you give it a network to join; the access point always runs
+  staName = "";
+  staPass = "";
+  mdnsName = "protogen"; //reachable as protogen.local once it has joined
   wakeFlickEna = true;   //coming back from deep sleep, the panels flicker on one at a time
   wakeFlickBoot = true;  //and again when the mask is switched on, like an old device starting up
   wakeFlickStyle = "crt";
@@ -165,6 +169,10 @@ bool Config::save() {
   }
   doc["sleepDeepEna"] = sleepDeepEna;
   doc["sleepDeepMins"] = sleepDeepMins;
+  doc["staEna"] = staEna;
+  doc["staName"] = staName;
+  doc["staPass"] = staPass;
+  doc["mdnsName"] = mdnsName;
   doc["wakeFlickEna"] = wakeFlickEna;
   doc["wakeFlickBoot"] = wakeFlickBoot;
   doc["wakeFlickStyle"] = wakeFlickStyle;
@@ -314,6 +322,10 @@ bool Config::load() {
   }
   sleepDeepEna = doc["sleepDeepEna"] | false;
   sleepDeepMins = doc["sleepDeepMins"] | 20;
+  staEna = doc["staEna"] | false;
+  staName = doc["staName"] | "";
+  staPass = doc["staPass"] | "";
+  mdnsName = doc["mdnsName"] | "protogen";
   wakeFlickEna = doc["wakeFlickEna"] | true;
   wakeFlickBoot = doc["wakeFlickBoot"] | true;
   wakeFlickStyle = doc["wakeFlickStyle"] | "crt";

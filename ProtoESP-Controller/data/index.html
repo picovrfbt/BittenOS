@@ -656,14 +656,31 @@
 
     <!-- WiFi -->
     <section class="section">
-      <h2 class="section-title">WiFi</h2>
+      <h2 class="section-title">The mask's own WiFi</h2>
       <div class="group">
         <form class="wifi" id="wifiForm" autocomplete="off">
           <label>Network name<input type="text" id="wifiName" name="wifiName" minlength="9" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
           <label>Password<input type="text" id="wifiPass" name="wifiPass" minlength="9" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-          <p class="hint" style="margin:0">9 characters or more. Change the name if other ProtoESP masks are nearby. You'll need to reconnect afterwards.</p>
+          <p class="hint" style="margin:0">9 characters or more. Change the name if other ProtoESP masks are nearby. You'll need to reconnect afterwards. This network always runs, so you can never be locked out of the mask.</p>
           <button class="btn primary" type="submit">Save WiFi</button>
         </form>
+      </div>
+    </section>
+
+    <!-- Join a network -->
+    <section class="section">
+      <h2 class="section-title">Join a network</h2>
+      <div class="group" data-group="staEna">
+        <label class="row"><span class="row-text"><b>Join a network</b><small>Also connect to your phone's hotspot or home WiFi, so your phone keeps its internet while it talks to the mask</small></span>
+          <input type="checkbox" class="toggle" data-key="staEna" data-label="Join a network"></label>
+        <div class="row dep"><span class="row-text"><b>Status</b></span><b id="staStatus">—</b></div>
+        <div class="row dep wide"><form class="wifi" id="staForm" autocomplete="off" style="width:100%">
+          <label>Network to join<input type="text" id="staName" name="staName" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label>Password<input type="text" id="staPass" name="staPass" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label>Name on the network<input type="text" id="mdnsName" name="mdnsName" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="protogen"></label>
+          <p class="hint" style="margin:0">Once joined, reach the mask at the address shown above, or at <b id="mdnsHint">protogen.local</b>. Joining moves the mask's own network onto the same channel, so anything connected to it has to join again.</p>
+          <button class="btn primary" type="submit">Save and join</button>
+        </form></div>
       </div>
     </section>
 
@@ -703,6 +720,7 @@
         <div class="stat"><span>PSRAM</span><b id="stPsram">—</b><i class="bar"><i id="stPsramBar"></i></i></div>
         <div class="stat"><span>Storage</span><b id="stFs">—</b><i class="bar"><i id="stFsBar"></i></i></div>
         <div class="stat"><span>WiFi devices</span><b id="stClients">—</b></div>
+        <div class="stat wide"><span>On the network</span><b id="stSta">—</b></div>
         <div class="stat"><span>Loop speed</span><b id="stLoop">—</b></div>
         <div class="stat"><span>Face frame</span><b id="stFrame">—</b></div>
         <div class="stat wide"><span>Boop sensor readings</span><b id="stBoopSig">—</b></div>
@@ -1238,6 +1256,7 @@
       updateAutoBri(s);
       if (currentView === 'settings') updateMic(s);
       if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
+      showStaStatus(s);
       $('boopTotal').textContent = s.boops === undefined ? '—' : s.boops;
       if (currentView === 'settings') updateBoopMeter(s);
       if (currentView !== 'system') return;
@@ -1245,6 +1264,9 @@
       $('stTemp').textContent = typeof s.tempC === 'number' ? s.tempC.toFixed(1) + ' °C' : '—';
       $('stLoop').textContent = s.loopHz + ' /s';
       $('stClients').textContent = s.wifiClients;
+      $('stSta').textContent = !s.staOn ? 'not joining a network'
+        : s.staJoined ? s.staIp + ' on ' + s.staName + '  (' + s.staRssi + ' dBm, ' + s.mdns + '.local)'
+        : 'trying to join ' + (s.staName || '—');
       $('stHeap').textContent = fmtBytes(s.heapFree) + ' free';
       setBar('stHeapBar', s.heapSize - s.heapFree, s.heapSize);
       $('stPsram').textContent = fmtBytes(s.psramFree) + ' free';
@@ -1713,6 +1735,8 @@
       if (v !== undefined) setControl(el, v);
     }
     for (const k of TILT_KEYS.concat(['wifiName', 'wifiPass'])) if (o[k] !== undefined) byName(k).value = o[k];
+    for (const k of ['staName', 'staPass', 'mdnsName']) if (o[k] !== undefined && $(k)) $(k).value = o[k];
+    if ($('mdnsHint')) $('mdnsHint').textContent = (o.mdnsName || 'protogen') + '.local';
     updateButtonRows();
     if (o.fanDuty !== undefined) { $('fanspeed').value = o.fanDuty; showFan(); }
     if (o.bVisor !== undefined) {
@@ -1731,6 +1755,30 @@
     e.preventDefault();
     saveParams(new URLSearchParams(new FormData(e.target)).toString(), 'Tilt positions saved');
   });
+
+  // Joining a network: saved without a restart, so the status line can say what happened
+  $('staForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const name = $('staName').value.trim(), pass = $('staPass').value;
+    let mdns = $('mdnsName').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (!mdns) mdns = 'protogen';
+    $('mdnsName').value = mdns;
+    if (!name) { toast('Give it a network name to join', true); return; }
+    if (await saveParams(new URLSearchParams({staName: name, staPass: pass, mdnsName: mdns}).toString(), 'Joining ' + name + '…')) {
+      $('mdnsHint').textContent = mdns + '.local';
+      setTimeout(refreshStats, 1500);   // give it a moment to get on
+      setTimeout(refreshStats, 6000);
+    }
+  });
+
+  function showStaStatus(s) {
+    const el = $('staStatus');
+    if (!el) return;
+    if (!s || s.staOn === undefined) { el.textContent = '—'; return; }
+    if (!s.staOn) el.textContent = 'Not joining a network';
+    else if (s.staJoined) el.textContent = s.staIp + (s.staRssi ? '  (' + s.staRssi + ' dBm)' : '');
+    else el.textContent = s.staName ? 'Trying to join ' + s.staName + '…' : 'No network set';
+  }
 
   $('wifiForm').addEventListener('submit', e => {
     e.preventDefault();
