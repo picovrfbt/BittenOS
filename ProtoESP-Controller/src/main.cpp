@@ -398,6 +398,7 @@ int screenTakeoverPage = -1;
 volatile bool screenReloadReq = false;   //set by /savescreen
 volatile bool oledFlipReq = false;       //set when Upside down is changed
 volatile bool wakeFlickReq = false;      //from /wakeflick: play the warm-up now
+bool bootFlickPending = false;           //switched on: warm up as soon as the first frame is drawn
 volatile bool oledBrightReq = false;     //set when Screen brightness is changed
 void screenTick();
 inline bool oledLegacy(); //the old screen writes, only when no layout is loaded
@@ -1149,6 +1150,7 @@ void startWiFiWeb() {
     if(cfg.getInt(request, "sleepFadeSecs", cfg.sleepFadeSecs)) cfg.sleepFadeSecs = constrain(cfg.sleepFadeSecs, 0, 30);
     if(cfg.getInt(request, "sleepDeepMins", cfg.sleepDeepMins)) cfg.sleepDeepMins = constrain(cfg.sleepDeepMins, 0, 240);
     cfg.getBool(request, "wakeFlickEna", cfg.wakeFlickEna);
+    cfg.getBool(request, "wakeFlickBoot", cfg.wakeFlickBoot);
     if(cfg.getString(request, "wakeFlickStyle", cfg.wakeFlickStyle)) {
       if(cfg.wakeFlickStyle != "crt" && cfg.wakeFlickStyle != "tube") cfg.wakeFlickStyle = "crt";
     }
@@ -1916,6 +1918,13 @@ void setup() {
     ledController[0] = &FastLED.addLeds<WS2812B, DATA_PIN_VISOR, GRB>(visorLeds, visorLedsNum);
   } else if (visorType == "MAX72XX") {
     mx.begin();
+    //Switching on warms up like waking from a deep sleep. The panels start shut down here so
+    //nothing shows before the stutter begins; the warm-up itself is started by the first drawn
+    //frame further down, once the face is actually in the chips and there is something to reveal.
+    if(cfg.wakeFlickEna && cfg.wakeFlickBoot) {
+      for(int p = 0; p < MATRIXESNUM; p++) mx.control((uint8_t)p, MD_MAX72XX::SHUTDOWN, MD_MAX72XX::ON);
+      bootFlickPending = true;
+    }
   }
   if(earPresent || blushPresent) { //RMT4 2 controller fix
     ledController[1] = &FastLED.addLeds<WS2812B, DATA_PIN_EARS, GRB>(c2Leds, earLedsNum+blushLedsNum);
@@ -3154,6 +3163,10 @@ void loop() {
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
         FdisplayVisor = false;
+        if(bootFlickPending) { //the face is in the panels now: warm them up over the top of it
+          bootFlickPending = false;
+          wakeFlickBegin();
+        }
       }
     }
     if(blushPresent && useRGBblush) {

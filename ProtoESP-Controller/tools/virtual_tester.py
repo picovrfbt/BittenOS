@@ -53,7 +53,7 @@ SAVECONFIG_KEYS = {
     'phraseOnce0': bool, 'phraseOnce1': bool, 'phraseOnce2': bool,
     'phraseOnce3': bool, 'phraseOnce4': bool, 'phraseOnce5': bool,
     'sleepFadeEna': bool, 'sleepFadeSecs': int, 'sleepDeepEna': bool, 'sleepDeepMins': int,
-    'wakeFlickEna': bool, 'wakeFlickStyle': str, 'wakeFlickMs': int, 'wakeFlickGlitch': int,
+    'wakeFlickEna': bool, 'wakeFlickBoot': bool, 'wakeFlickStyle': str, 'wakeFlickMs': int, 'wakeFlickGlitch': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
