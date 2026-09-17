@@ -45,6 +45,15 @@
     tilt:        {label: 'Tilt sensor ok/--',get: d => d.tilt ? 'ok' : '--'},
     boopSensor:  {label: 'Boop sensor ok/--',get: d => d.boopSensor ? 'ok' : '--'},
     displays:    {label: 'Displays on/off',  get: d => d.displayOn ? 'on' : 'off'},
+    clock:       {label: 'Clock',            get: d => {
+      // Blinks 00:00 until a phone has set it, the way an unset appliance clock does
+      if (d.clockMins < 0) return (Math.floor(Date.now() / 600) % 2) ? '00:00' : '     ';
+      let h = Math.floor(d.clockMins / 60);
+      const m = d.clockMins % 60;
+      if (!d.clock24) { h = h % 12; if (h === 0) h = 12; }
+      return (d.clock24 && h < 10 ? '0' + h : String(h)) + ':' + (m < 10 ? '0' + m : m);
+    }},
+    clockAmPm:   {label: 'am / pm',          get: d => d.clockMins < 0 ? '' : (d.clockMins < 720 ? 'am' : 'pm')},
   };
 
   // what a "bar" element can fill with: fraction 0-1, and where its marker line goes
@@ -132,6 +141,8 @@
       displayOn: pick('displayOn', 'display') !== false,
       tilt: !!pick('tilt'),
       boopSensor: !!pick('boop'),
+      clockMins: pick('clockMins') === undefined ? -1 : num(pick('clockMins')),
+      clock24: !!pick('clock24'),
     };
   }
 

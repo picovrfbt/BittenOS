@@ -1132,6 +1132,23 @@
     }
   });
 
+  /* ---------- telling the mask the time ---------- */
+  // The ESP has no battery-backed clock and no internet, so it cannot know the time by itself.
+  // Whichever phone opens this page tells it, and the mask counts on from there. Sent again every
+  // few minutes so it cannot drift, and right after waking, since a locked phone stops the timer.
+  let lastTimeSent = 0;
+  async function sendTime(force) {
+    if (!force && Date.now() - lastTimeSent < 300000) return;
+    lastTimeSent = Date.now();
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    // Whether this phone shows a 24 hour clock, so the mask matches what you are used to
+    const h24 = !new Intl.DateTimeFormat(undefined, {hour: 'numeric'}).resolvedOptions().hour12;
+    try { await fetch('/settime?mins=' + mins + '&h24=' + (h24 ? 1 : 0), NO_CACHE); }
+    catch (e) { lastTimeSent = 0; }   // out of reach: try again on the next poll
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) sendTime(true); });
+
   /* ---------- status polling ---------- */
   // Every 2 s normally; faster on Settings so the boop meter feels live. Nothing while the
   // phone screen is off or the tab is in the background.
@@ -1204,6 +1221,7 @@
     try {
       const s = await (await fetch('/stats', NO_CACHE)).json();
       lastStats = s;
+      sendTime(s.clockMins === undefined ? false : s.clockMins < 0);   //never been told, or due again
       updateAutoBri(s);
       if (currentView === 'settings') updateMic(s);
       if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);

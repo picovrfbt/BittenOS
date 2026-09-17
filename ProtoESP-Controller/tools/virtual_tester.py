@@ -116,6 +116,9 @@ class VirtualBoard:
         self.measure_now = False
         self.mic_gain = 0              # 0 not measured, 1 about right, 2 turn up, 3 turn down
         self.mic_test_at = 0.0         # when the two-part mic test was started
+        self.clock_mins = -1           # minutes past midnight a page last reported, -1 = never
+        self.clock_at = 0.0
+        self.clock_24 = False
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -231,6 +234,10 @@ def stats_dict():
     else:
         mic_test_phase = 0
     return {
+        # the clock counts on from whenever a page last set it, like the firmware does
+        'clockMins': -1 if board.clock_mins < 0 else
+                     int((board.clock_mins + (time.time() - board.clock_at) // 60) % 1440),
+        'clock24': board.clock_24,
         'mic': mic, 'micRaw': 1860, 'micQuiet': 40, 'micCal': False, 'micLoud': False,
         'micSwing': 40 + mic * 4 if mic > 0 else 40,
         'micGain': board.mic_gain,
@@ -535,6 +542,17 @@ class Handler(BaseHTTPRequestHandler):
                 board.save_config()
             board.version += 1
             return self.text('Set brightness to: %d' % value)
+
+        if path == '/settime':   # the page tells the mask what time it is
+            if 'mins' not in q:
+                return self.text('No time given')
+            mins = to_int(q['mins'])
+            if not 0 <= mins <= 1439:
+                return self.text('Minutes must be 0 to 1439')
+            board.clock_mins = mins
+            board.clock_at = time.time()
+            board.clock_24 = q.get('h24') == '1'
+            return self.text('ok')
 
         if path == '/mictest':   # two seconds quiet, three talking
             board.mic_test_at = time.time()

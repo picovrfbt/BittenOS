@@ -10,7 +10,8 @@
 enum : uint8_t { EL_TEXT, EL_VALUE, EL_BAR, EL_ICON, EL_RECT };
 
 static const char *const SOURCES[] = {"face", "boops", "wifiClients", "wifiName", "brightness", "uptime",
-                                      "temp", "closeness", "shade", "tilt", "boopSensor", "displays"};
+                                      "temp", "closeness", "shade", "tilt", "boopSensor", "displays",
+                                      "clock", "clockAmPm"};
 #define SOURCE_COUNT (sizeof(SOURCES) / sizeof(SOURCES[0]))
 static const char *const BARS[] = {"closeness", "shade", "brightness"};
 #define BAR_COUNT (sizeof(BARS) / sizeof(BARS[0]))
@@ -176,6 +177,19 @@ static String sourceText(uint8_t source, const ScreenData &d) {
     case 9: return d.tilt ? "ok" : "--";
     case 10: return d.boopSensor ? "ok" : "--";
     case 11: return d.displayOn ? "on" : "off";
+    case 12: {                            //the time, or a blinking 00:00 until a phone has told the mask
+      if(d.clockMins < 0) return ((millis() / 600) % 2) ? "00:00" : "     ";
+      int h = d.clockMins / 60, m = d.clockMins % 60;
+      if(!d.clock24) {
+        h = h % 12;
+        if(h == 0) h = 12;
+      }
+      String out = (d.clock24 && h < 10) ? "0" + String(h) : String(h);
+      return out + ":" + (m < 10 ? "0" + String(m) : String(m));
+    }
+    case 13:                              //am or pm on its own, for putting beside a big clock
+      if(d.clockMins < 0) return "";
+      return (d.clockMins < 720) ? "am" : "pm";
   }
   return "?";
 }

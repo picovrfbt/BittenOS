@@ -527,6 +527,14 @@
       if (!drag) redraw();
     } catch (e) { /* out of reach: keep the last values */ }
   }
+  // The designer is a page too, so it can set the mask's clock just like the homepage does
+  async function sendTime() {
+    const now = new Date();
+    const h24 = !new Intl.DateTimeFormat(undefined, {hour: 'numeric'}).resolvedOptions().hour12;
+    try { await fetch('/settime?mins=' + (now.getHours() * 60 + now.getMinutes()) + '&h24=' + (h24 ? 1 : 0), NO_CACHE); }
+    catch (e) { /* out of reach: the homepage will set it */ }
+  }
+
   async function loadCfg() {
     try {
       const o = await (await fetch('/config.json', NO_CACHE)).json();
@@ -535,6 +543,7 @@
   }
 
   (async () => {
+    await sendTime();
     await loadCfg();
     await revert();
     poll();
