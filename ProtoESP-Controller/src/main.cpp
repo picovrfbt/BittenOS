@@ -334,6 +334,20 @@ bool milestoneBoop = false;     //this boop hit the milestone, so it played the 
 unsigned long boopCountSaved = 0;
 volatile int8_t sleepRequest = 0; //from /sleep: 1 = sleep now, -1 = wake, 0 = nothing
 volatile int8_t phraseRequest = -1; //from /phrase: the slot to show, -1 = nothing
+//Clock. The ESP has no battery-backed clock and no internet, so it cannot know the time by itself:
+//whichever phone opens the page tells it, and it counts on from there. That means the time is right
+//until the next restart, and unknown again after one until a phone visits.
+volatile uint32_t clockSetTo = 0;        //minutes past midnight the phone last reported
+volatile unsigned long clockSetAt = 0;   //millis() when it said so
+volatile bool clockIs24 = false;         //the phone's own preference, so it matches what you are used to
+bool clockKnown() { return clockSetAt != 0; }
+
+//Minutes past midnight now, counting on from whenever the phone last told us
+int clockMinutesNow() {
+  if(!clockKnown()) return -1;
+  unsigned long gone = (millis() - clockSetAt) / 60000UL;
+  return (int)((clockSetTo + gone) % 1440);
+}
 //Sleep easing: dim over the last few seconds before dropping off, come back gently rather than
 //snapping to full, and after a long enough sleep shut the panels off entirely if that is switched on.
 int8_t sleepDimLevel = -1;        //brightness the fade is holding, -1 when the fade is not running
@@ -1284,6 +1298,22 @@ void startWiFiWeb() {
     request->send(200, "text/plain", "ok");
   });
 
+  server.on("/settime", HTTP_GET, [](AsyncWebServerRequest *request){ //the page tells the mask what time it is
+    if(!request->hasParam("mins")) {
+      request->send(200, "text/plain", F("No time given"));
+      return;
+    }
+    int mins = request->getParam("mins")->value().toInt();
+    if(mins < 0 || mins > 1439) {
+      request->send(200, "text/plain", F("Minutes must be 0 to 1439"));
+      return;
+    }
+    clockSetTo = (uint32_t)mins;
+    clockSetAt = millis();
+    if(request->hasParam("h24")) clockIs24 = request->getParam("h24")->value() == "1";
+    request->send(200, "text/plain", "ok");
+  });
+
   server.on("/phrase", HTTP_GET, [](AsyncWebServerRequest *request){ //show a saved phrase: ?slot=0..5
     if(!request->hasParam("slot")) {
       request->send(200, "text/plain", F("No slot given"));
@@ -1368,6 +1398,8 @@ void startWiFiWeb() {
     st["micTest"] = micTestPhase;                                     //1 keep quiet, 2 talk, 3 done
     st["micTestQuiet"] = micTestQuiet > 90000 ? -1 : (int)(micTestQuiet + 0.5f);
     st["micTestLoud"] = (int)(micTestLoud + 0.5f);
+    st["clockMins"] = clockMinutesNow();                              //-1 until a phone says what time it is
+    st["clock24"] = clockIs24;
     st["micType"] = micMode;                                          //I2S or ANALOG: a digital mic has no gain pot
     st["micReady"] = micIs("I2S") ? micI2SReady : true;
     st["speaking"] = speaking;
@@ -2217,7 +2249,11 @@ void screenTick() {
     }
   }
   if(!cfg.oledEna || !oledInitDone || !screenHasLayout()) return;
-  if(millis() - lastScreenDraw < 400) return;   //a few times a second is plenty, and it shares I2C with the sensors
+  //A few times a second is plenty, and the screen shares I2C with the sensors. The unset clock
+  //blinks on a 600 ms beat, so while it is blinking the draw has to come round faster than that or
+  //it would stop on whichever half it last drew.
+  unsigned long drawEvery = clockKnown() ? 400 : 200;
+  if(millis() - lastScreenDraw < drawEvery) return;
   lastScreenDraw = millis();
   ScreenData d;
   d.face = currentAnim.endsWith(".json") ? currentAnim.substring(0, currentAnim.length() - 5) : currentAnim;
@@ -2236,6 +2272,8 @@ void screenTick() {
   d.displayOn = displayOn;
   d.tilt = tiltInitDone;
   d.boopSensor = ToFInitDone;
+  d.clockMins = clockMinutesNow();
+  d.clock24 = clockIs24;
   //Pick the page. A page with a condition wins while that condition holds, and keeps the screen for
   //its linger time afterwards, so a boop page does not vanish the instant the paw lifts.
   int page = -1;

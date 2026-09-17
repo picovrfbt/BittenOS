@@ -32,6 +32,8 @@ struct ScreenData {
   bool displayOn = true;
   bool tilt = false;
   bool boopSensor = false;
+  int clockMins = -1;   //minutes past midnight, or -1 when no phone has said what time it is
+  bool clock24 = false; //24 hour or 12 hour, following the phone that set it
 };
 
 bool screenLoadLayout();          //reads /screen.json; false if there isn't a usable one
