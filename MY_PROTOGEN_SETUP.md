@@ -238,7 +238,7 @@ A mask still on the old 8MB table needs one USB flash before over-the-air update
 19. **Button:** in Settings > Button, each of **Short press**, **Double press** and **Hold** can be set to Nothing, Next face, Previous face, Displays on/off, Sleep/wake, a chosen face, a quick phrase, or **Next screen page**. It starts as it always was — short press for the next face, hold for displays on/off — with double press off.
 
     **Hold for** sets how long a hold takes, default 1.5 seconds. Setting **Double press** to anything makes a single press wait about a quarter of a second to see whether a second press follows; leave it on Nothing and a single press acts the moment you let go. The button is the one across GPIO 21 and 47.
-20. **Sleep easing:** in Settings > Sleep. **Ease in and out** dims the panels over the last few seconds before it drops off, and brings them back up gently on waking instead of snapping to full. **Dim over** sets how many seconds that takes.
+20. **Sleep:** in Settings > Sleep. Sleeping goes straight to the sleeping face and waking goes straight back — there is no dimming either way. (There used to be; it looked like the mask dying rather than dozing, so it was taken out.)
 
     **Deep sleep** is separate and off by default: after **Deep sleep after** minutes asleep, the panels switch off entirely, and any movement or a button press brings them straight back. Leave it off if you would rather the sleeping face always stayed visible.
 

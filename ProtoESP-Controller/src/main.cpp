@@ -350,8 +350,7 @@ int clockMinutesNow() {
 }
 //Sleep easing: dim over the last few seconds before dropping off, come back gently rather than
 //snapping to full, and after a long enough sleep shut the panels off entirely if that is switched on.
-int8_t sleepDimLevel = -1;        //brightness the fade is holding, -1 when the fade is not running
-unsigned long sleepFadeStep = 0, sleepDeepAt = 0;
+unsigned long sleepDeepAt = 0;
 bool sleepDeepDone = false;
 unsigned long stillSince = 0; //when the mask last moved
 float stillX = 0, stillY = 0, stillZ = 0; //what "not moving" currently looks like
@@ -1145,9 +1144,7 @@ void startWiFiWeb() {
       cfg.getBool(request, ("phraseOnce" + String(i)).c_str(), cfg.phraseOnce[i]);
     }
     //sleep
-    cfg.getBool(request, "sleepFadeEna", cfg.sleepFadeEna);
     cfg.getBool(request, "sleepDeepEna", cfg.sleepDeepEna);
-    if(cfg.getInt(request, "sleepFadeSecs", cfg.sleepFadeSecs)) cfg.sleepFadeSecs = constrain(cfg.sleepFadeSecs, 0, 30);
     if(cfg.getInt(request, "sleepDeepMins", cfg.sleepDeepMins)) cfg.sleepDeepMins = constrain(cfg.sleepDeepMins, 0, 240);
     cfg.getBool(request, "wakeFlickEna", cfg.wakeFlickEna);
     cfg.getBool(request, "wakeFlickBoot", cfg.wakeFlickBoot);
@@ -1789,54 +1786,14 @@ void setSleeping(bool on) { //loop task only: it loads animations
       displayDirty = true;
       wakeFlickBegin();                    //one panel at a time, if the warm-up is switched on
     }
-    //Come back gently rather than snapping to full brightness. The warm-up does its own brightness,
-    //so the fade stays out of its way when it is running.
-    if(cfg.sleepFadeEna && wakeFlickPhase == 0) sleepDimLevel = 0;
-    else sleepDimLevel = -1;
-    sleepFadeStep = millis();
     brightnessDirty = true;
   }
   stillSince = millis();
 }
 
-//Eases the panels down as sleep approaches and back up on waking, and handles the deeper sleep that
-//turns them off. Brightness is only borrowed while this runs: visorBright() is left alone, and the
-//normal brightness path takes over again the moment the fade finishes.
+//Sleep goes straight to the sleeping face: no dimming down, no climbing back. This only handles
+//the deeper sleep that switches the panels off after a while.
 void sleepEaseStep() {
-  int target = visorBright();
-  if(!cfg.sleepFadeEna && sleepDimLevel >= 0) {   //switched off mid-fade
-    sleepDimLevel = -1;
-    brightnessDirty = true;
-  }
-  //Falling asleep: dim through the last seconds of stillness, so it fades rather than cuts
-  if(!sleeping && cfg.sleepEna && cfg.sleepFadeEna && cfg.sleepFadeSecs > 0 && tiltInitDone) {
-    unsigned long still = millis() - stillSince;
-    unsigned long sleepAt = (unsigned long)cfg.sleepMins * 60000UL;
-    unsigned long fade = (unsigned long)cfg.sleepFadeSecs * 1000UL;
-    if(sleepAt > fade && still > sleepAt - fade && still < sleepAt) {
-      float gone = (float)(still - (sleepAt - fade)) / (float)fade;   //0 at the start of the fade, 1 at sleep
-      int want = (int)(target - gone * target + 0.5f);
-      if(want != sleepDimLevel) {
-        sleepDimLevel = want;
-        if(transPhase == 0 && wakeFlickPhase == 0 && visorType == "MAX72XX") mx.control(MD_MAX72XX::INTENSITY, max(0, (int)sleepDimLevel));
-      }
-      return;
-    }
-  }
-  //Waking: climb back to the normal brightness a step at a time
-  if(sleepDimLevel >= 0 && !sleeping) {
-    if(millis() - sleepFadeStep >= 60) {
-      sleepFadeStep = millis();
-      sleepDimLevel++;
-      if(sleepDimLevel >= target) {
-        sleepDimLevel = -1;                //done: hand the panels back
-        brightnessDirty = true;
-      } else if(transPhase == 0 && wakeFlickPhase == 0 && visorType == "MAX72XX") {
-        mx.control(MD_MAX72XX::INTENSITY, sleepDimLevel);
-      }
-    }
-    return;
-  }
   //Asleep a long time: switch the panels off entirely, if that is switched on
   if(sleeping && cfg.sleepDeepEna && cfg.sleepDeepMins > 0 && !sleepDeepDone && displayOn &&
      millis() - sleepDeepAt >= (unsigned long)cfg.sleepDeepMins * 60000UL) {

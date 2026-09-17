@@ -33,9 +33,9 @@ public:
   String phrase[6];
   int phraseSpeed[6];
   bool phraseOnce[6];
-  //Sleep: ease down before dropping off, come back gently, and go deeper after a while
-  bool sleepFadeEna,sleepDeepEna;
-  int sleepFadeSecs,sleepDeepMins;
+  //Sleep: go deeper after a while, switching the panels off
+  bool sleepDeepEna;
+  int sleepDeepMins;
   //Waking from deep sleep: the panels stutter back on one at a time, like an old device warming up
   bool wakeFlickEna,wakeFlickBoot;    //after a deep sleep, and again when the mask is first switched on
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
