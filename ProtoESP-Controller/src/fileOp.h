@@ -25,6 +25,17 @@ public:
   int bEar,bVisor,bOled,rbSpeed,rbWidth,spMin,spMax,spTrig,fanDuty,boopThresh,sleepMins,transMs,boopCount,boopBase,boopShade;
   int autoBriSecs,autoBriMin,autoBriMax,autoBriDark,autoBriBright,boopMilestone;
   String autoBriMode,mouthMode,aMilestone,blinkMode;
+  //Button: what a short press, a double press and a hold each do, and how long a hold is.
+  //Actions are names: none, nextFace, prevFace, displays, sleep, face, phrase.
+  String btnShort,btnDouble,btnHold,btnShortFace,btnDoubleFace,btnHoldFace;
+  int btnHoldMs,btnShortPhrase,btnDoublePhrase,btnHoldPhrase;
+  //Quick phrases: saved scrolling-text messages, one tap each
+  String phrase[6];
+  int phraseSpeed[6];
+  bool phraseOnce[6];
+  //Sleep: ease down before dropping off, come back gently, and go deeper after a while
+  bool sleepFadeEna,sleepDeepEna;
+  int sleepFadeSecs,sleepDeepMins;
   float neutralX,neutralY,neutralZ,tiltX,tiltY,tiltZ,upX,upY,upZ,tiltTol,sleepTol;
   String aTilt,aUp,aBoop,aSleep,visColorStr,wifiName = "ProtoWiFi",wifiPass = "Proto1234";
   unsigned long visColor;

@@ -19,6 +19,7 @@ import email.parser
 import email.policy
 import json
 import os
+import re
 import shutil
 import threading
 import time
@@ -43,6 +44,15 @@ SAVECONFIG_KEYS = {
     'autoBriEna': bool, 'autoBriMode': str, 'autoBriSecs': int, 'autoBriMin': int, 'autoBriMax': int,
     'autoBriDark': int, 'autoBriBright': int, 'oledFlip': bool,
     'mouthMode': str, 'boopMilestone': int, 'aMilestone': str, 'blinkMode': str,
+    'btnShort': str, 'btnDouble': str, 'btnHold': str,
+    'btnShortFace': str, 'btnDoubleFace': str, 'btnHoldFace': str,
+    'btnHoldMs': int, 'btnShortPhrase': int, 'btnDoublePhrase': int, 'btnHoldPhrase': int,
+    'phrase0': str, 'phrase1': str, 'phrase2': str, 'phrase3': str, 'phrase4': str, 'phrase5': str,
+    'phraseSpeed0': int, 'phraseSpeed1': int, 'phraseSpeed2': int,
+    'phraseSpeed3': int, 'phraseSpeed4': int, 'phraseSpeed5': int,
+    'phraseOnce0': bool, 'phraseOnce1': bool, 'phraseOnce2': bool,
+    'phraseOnce3': bool, 'phraseOnce4': bool, 'phraseOnce5': bool,
+    'sleepFadeEna': bool, 'sleepFadeSecs': int, 'sleepDeepEna': bool, 'sleepDeepMins': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
@@ -418,13 +428,28 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 v = q[key]
                 if kind is bool:
-                    cfg[key] = v in ('true', '1', 'on')
+                    value = v in ('true', '1', 'on')
                 elif kind is int:
-                    cfg[key] = to_int(v)
+                    value = to_int(v)
                 elif kind is float:
-                    cfg[key] = to_float(v)
+                    value = to_float(v)
                 else:
-                    cfg[key] = v
+                    value = v
+                # Quick phrases arrive one slot at a time (phrase0, phraseSpeed0, phraseOnce0) but the
+                # firmware stores them as arrays, and the page reads them back as arrays. Fold them the
+                # same way here, or the tester quietly disagrees with the mask.
+                m = re.match(r'^(phrase|phraseSpeed|phraseOnce)([0-5])$', key)
+                if m:
+                    name, slot = m.group(1), int(m.group(2))
+                    blank = '' if name == 'phrase' else (False if name == 'phraseOnce' else 55)
+                    arr = cfg.get(name)
+                    if not isinstance(arr, list) or len(arr) != 6:
+                        arr = [blank] * 6
+                    arr[slot] = value
+                    cfg[name] = arr
+                    cfg.pop(key, None)
+                else:
+                    cfg[key] = value
             board.save_config()
             board.log('[I] Config saved')
             return self.redirect('/saved.html?main')

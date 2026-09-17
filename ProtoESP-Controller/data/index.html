@@ -299,6 +299,13 @@
       </div>
       <p class="hint">Scrolls across the mouth while the eyes keep the current face. Repeat runs until you tap a face; Play once goes back to it after one pass.</p>
     </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Quick phrases</h2><button class="linkbtn" type="button" id="phraseEditBtn">Edit</button></div>
+      <div class="tools" id="phraseButtons"></div>
+      <div id="phraseEditor" hidden></div>
+      <p class="hint">Saved messages, one tap each. The mask builds these itself, so a phrase on the button works with no phone involved.</p>
+    </section>
   </div>
 
   <!-- ================= DESIGN ================= -->
@@ -547,6 +554,44 @@
           <div class="stepper" data-key="sleepTol" data-label="Wake sensitivity" data-min="0.02" data-max="1" data-step="0.02"><button type="button" aria-label="Less">−</button><output>0.20</output><button type="button" aria-label="More">+</button></div></div>
         <div class="row dep"><span class="row-text"><b>Sleeping face</b></span>
           <select id="aSleep" data-key="aSleep" data-label="Sleeping face" aria-label="Sleeping face"></select></div>
+        <label class="row dep"><span class="row-text"><b>Ease in and out</b><small>Dim on the way down, come back gently instead of snapping</small></span>
+          <input type="checkbox" class="toggle" data-key="sleepFadeEna" data-label="Ease in and out"></label>
+        <div class="row dep"><span class="row-text"><b>Dim over</b><small>Seconds of dimming before it drops off</small></span>
+          <div class="stepper" data-key="sleepFadeSecs" data-label="Dim over" data-min="0" data-max="30" data-step="1" data-unit=" s"><button type="button" aria-label="Less">−</button><output>4 s</output><button type="button" aria-label="More">+</button></div></div>
+        <label class="row dep"><span class="row-text"><b>Deep sleep</b><small>After a long sleep, turn the panels off entirely</small></span>
+          <input type="checkbox" class="toggle" data-key="sleepDeepEna" data-label="Deep sleep"></label>
+        <div class="row dep"><span class="row-text"><b>Deep sleep after</b><small>Minutes asleep before the panels go off</small></span>
+          <div class="stepper" data-key="sleepDeepMins" data-label="Deep sleep after" data-min="1" data-max="240" data-step="5" data-unit=" min"><button type="button" aria-label="Less">−</button><output>20 min</output><button type="button" aria-label="More">+</button></div></div>
+      </div>
+    </section>
+
+    <!-- Button -->
+    <section class="section">
+      <h2 class="section-title">Button</h2>
+      <div class="group">
+        <div class="row"><span class="row-text"><b>Short press</b></span>
+          <select id="btnShort" data-key="btnShort" data-label="Short press" aria-label="Short press" style="text-transform:none"></select></div>
+        <div class="row" id="btnShortFaceRow" hidden><span class="row-text"><b>Which face</b></span>
+          <select id="btnShortFace" data-key="btnShortFace" data-label="Short press face" aria-label="Short press face"></select></div>
+        <div class="row" id="btnShortPhraseRow" hidden><span class="row-text"><b>Which phrase</b></span>
+          <select id="btnShortPhrase" data-key="btnShortPhrase" data-label="Short press phrase" aria-label="Short press phrase" style="text-transform:none"></select></div>
+
+        <div class="row"><span class="row-text"><b>Double press</b><small id="btnDoubleHint">Off, so a single press acts the moment you let go</small></span>
+          <select id="btnDouble" data-key="btnDouble" data-label="Double press" aria-label="Double press" style="text-transform:none"></select></div>
+        <div class="row" id="btnDoubleFaceRow" hidden><span class="row-text"><b>Which face</b></span>
+          <select id="btnDoubleFace" data-key="btnDoubleFace" data-label="Double press face" aria-label="Double press face"></select></div>
+        <div class="row" id="btnDoublePhraseRow" hidden><span class="row-text"><b>Which phrase</b></span>
+          <select id="btnDoublePhrase" data-key="btnDoublePhrase" data-label="Double press phrase" aria-label="Double press phrase" style="text-transform:none"></select></div>
+
+        <div class="row"><span class="row-text"><b>Hold</b></span>
+          <select id="btnHold" data-key="btnHold" data-label="Hold" aria-label="Hold" style="text-transform:none"></select></div>
+        <div class="row" id="btnHoldFaceRow" hidden><span class="row-text"><b>Which face</b></span>
+          <select id="btnHoldFace" data-key="btnHoldFace" data-label="Hold face" aria-label="Hold face"></select></div>
+        <div class="row" id="btnHoldPhraseRow" hidden><span class="row-text"><b>Which phrase</b></span>
+          <select id="btnHoldPhrase" data-key="btnHoldPhrase" data-label="Hold phrase" aria-label="Hold phrase" style="text-transform:none"></select></div>
+        <div class="row"><span class="row-text"><b>Hold for</b><small>How long counts as a hold</small></span>
+          <div class="stepper" data-key="btnHoldMs" data-label="Hold for" data-min="300" data-max="5000" data-step="100" data-unit=" ms"><button type="button" aria-label="Less">−</button><output>1500 ms</output><button type="button" aria-label="More">+</button></div></div>
+        <p class="hint" style="padding:0 16px 14px">The button is the one across GPIO 21 and 47. Setting Double press to anything makes a single press wait about a quarter of a second to see if a second one is coming; leave it off to keep the single press instant.</p>
       </div>
     </section>
 
@@ -749,7 +794,8 @@
     if (ok) $('blinkFaceName').textContent = name.replace(/\.json$/, '');
   }
 
-  const FACE_PICKERS = ['aTilt', 'aUp', 'aBoop', 'aSleep', 'aMilestone'];
+  const FACE_PICKERS = ['aTilt', 'aUp', 'aBoop', 'aSleep', 'aMilestone',
+                        'btnShortFace', 'btnDoubleFace', 'btnHoldFace'];
 
   async function loadFiles() {
     const parts = (await (await fetch('/getfiles', NO_CACHE)).text()).split(';');
@@ -1311,7 +1357,10 @@
   const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol'];
   const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, transMs: 80, sleepTol: 0.2, sleepMins: 5,
                     autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
-                    autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face'};
+                    autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face',
+                    btnShort: 'nextFace', btnDouble: 'none', btnHold: 'displays', btnHoldMs: 1500,
+                    btnShortPhrase: 0, btnDoublePhrase: 0, btnHoldPhrase: 0,
+                    sleepFadeEna: true, sleepFadeSecs: 4, sleepDeepEna: false, sleepDeepMins: 20};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');
@@ -1438,6 +1487,122 @@
   }
   $('blinkMode').addEventListener('change', showBlinkHint);
 
+  /* ---------- button actions ---------- */
+  // Kept in step with doButtonAction() in src/main.cpp
+  const BTN_ACTIONS = {none: 'Nothing', nextFace: 'Next face', prevFace: 'Previous face',
+                       displays: 'Displays on/off', sleep: 'Sleep / wake', face: 'A chosen face',
+                       phrase: 'A quick phrase'};
+  const BTN_SLOTS = ['btnShort', 'btnDouble', 'btnHold'];
+
+  function fillButtonPickers() {
+    for (const id of BTN_SLOTS) {
+      const sel = $(id), keep = sel.value;
+      if (!sel.options.length) {
+        for (const [val, label] of Object.entries(BTN_ACTIONS)) sel.add(new Option(label, val));
+        if (keep) sel.value = keep;
+      }
+    }
+    // the phrase pickers list the six slots, showing their text so the choice means something
+    for (const id of ['btnShortPhrase', 'btnDoublePhrase', 'btnHoldPhrase']) {
+      const sel = $(id), keep = sel.value;
+      sel.innerHTML = '';
+      for (let i = 0; i < 6; i++) {
+        const text = (phrases[i] && phrases[i].text) || '';
+        sel.add(new Option((i + 1) + (text ? ': ' + text : ' (empty)'), String(i)));
+      }
+      if (keep) sel.value = keep;
+    }
+  }
+
+  // Only show "which face" or "which phrase" for the action that needs it
+  function updateButtonRows() {
+    for (const id of BTN_SLOTS) {
+      const action = $(id).value;
+      $(id + 'FaceRow').hidden = action !== 'face';
+      $(id + 'PhraseRow').hidden = action !== 'phrase';
+    }
+    $('btnDoubleHint').textContent = $('btnDouble').value === 'none'
+      ? 'Off, so a single press acts the moment you let go'
+      : 'On, so a single press waits a moment to see if a second follows';
+  }
+  BTN_SLOTS.forEach(id => $(id).addEventListener('change', updateButtonRows));
+
+  /* ---------- quick phrases ---------- */
+  let phrases = Array.from({length: 6}, () => ({text: '', speed: 55, once: false}));
+
+  function renderPhrases() {
+    const row = $('phraseButtons');
+    row.innerHTML = '';
+    let any = false;
+    phrases.forEach((p, i) => {
+      if (!p.text) return;
+      any = true;
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.type = 'button';
+      b.textContent = p.text;
+      b.addEventListener('click', () => sendPhrase(i, b));
+      row.appendChild(b);
+    });
+    if (!any) row.innerHTML = '<p class="empty">No phrases saved yet — press Edit.</p>';
+    fillButtonPickers();
+  }
+
+  async function sendPhrase(i, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      const t = (await (await fetch('/phrase?slot=' + i, NO_CACHE)).text()).trim();
+      if (t !== 'ok') toast(t, true);
+      else { toast('Showing "' + phrases[i].text + '"'); setActive('POSTAnimLoad'); }
+    } catch (e) { toast('Could not reach the mask', true); }
+    if (btn) btn.disabled = false;
+  }
+
+  const SPEEDS = [[160, 'Very slow'], [90, 'Slow'], [55, 'Normal'], [30, 'Fast']];
+
+  function renderPhraseEditor() {
+    const box = $('phraseEditor');
+    box.innerHTML = phrases.map((p, i) => `
+      <div class="row stack" style="border-top:1px solid var(--line);padding:12px 0">
+        <input type="text" maxlength="64" placeholder="Phrase ${i + 1}" value="${esc(p.text)}" data-slot="${i}" data-part="text">
+        <div class="row" style="padding:0;gap:8px">
+          <select data-slot="${i}" data-part="speed" style="flex:1;text-transform:none">
+            ${SPEEDS.map(([v, l]) => `<option value="${v}"${v === p.speed ? ' selected' : ''}>${l}</option>`).join('')}
+          </select>
+          <label class="chk" style="display:inline-flex;gap:6px;align-items:center;color:var(--dim);font-size:13px">
+            <input type="checkbox" data-slot="${i}" data-part="once"${p.once ? ' checked' : ''}> Play once
+          </label>
+          <button class="btn small" type="button" data-slot="${i}" data-part="save">Save</button>
+        </div>
+      </div>`).join('');
+    box.querySelectorAll('[data-part=save]').forEach(b =>
+      b.addEventListener('click', () => savePhrase(Number(b.dataset.slot))));
+  }
+
+  function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+  async function savePhrase(i) {
+    const box = $('phraseEditor');
+    const text = box.querySelector(`[data-slot="${i}"][data-part=text]`).value.trim();
+    const speed = Number(box.querySelector(`[data-slot="${i}"][data-part=speed]`).value);
+    const once = box.querySelector(`[data-slot="${i}"][data-part=once]`).checked;
+    const p = new URLSearchParams();
+    p.set('phrase' + i, text);
+    p.set('phraseSpeed' + i, speed);
+    p.set('phraseOnce' + i, once);
+    if (await saveParams(p.toString(), text ? 'Phrase ' + (i + 1) + ' saved' : 'Phrase ' + (i + 1) + ' cleared')) {
+      phrases[i] = {text, speed, once};
+      renderPhrases();
+    }
+  }
+
+  $('phraseEditBtn').addEventListener('click', () => {
+    const open = $('phraseEditor').hidden;
+    $('phraseEditor').hidden = !open;
+    $('phraseEditBtn').textContent = open ? 'Done' : 'Edit';
+    if (open) renderPhraseEditor();
+  });
+
   /* ---------- mic level ---------- */
   // Tells "no mic wired" from "mic wired but quiet": with nothing on the pin the raw reading sits
   // at a dead number, while a real mic's reading always wanders a little.
@@ -1491,12 +1656,23 @@
   document.querySelector('[data-key=autoBriEna]').addEventListener('change', () => setTimeout(refreshStats, 800));
 
   function loadIntoInputs(o) {
+    // phrases come back as three parallel arrays, the way the config stores them
+    for (let i = 0; i < 6; i++) {
+      phrases[i] = {
+        text: (o.phrase && o.phrase[i]) || '',
+        speed: (o.phraseSpeed && o.phraseSpeed[i]) || 55,
+        once: !!(o.phraseOnce && o.phraseOnce[i]),
+      };
+    }
+    fillButtonPickers();
+    renderPhrases();
     for (const el of document.querySelectorAll('[data-key]')) {
       const key = el.dataset.key;
       const v = o[key] !== undefined ? o[key] : DEFAULTS[key];
       if (v !== undefined) setControl(el, v);
     }
     for (const k of TILT_KEYS.concat(['wifiName', 'wifiPass'])) if (o[k] !== undefined) byName(k).value = o[k];
+    updateButtonRows();
     if (o.fanDuty !== undefined) { $('fanspeed').value = o.fanDuty; showFan(); }
     if (o.bVisor !== undefined) {
       const bri = Math.min(15, Math.max(0, o.bVisor));
