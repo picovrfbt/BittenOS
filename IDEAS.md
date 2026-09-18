@@ -19,7 +19,15 @@ value-for-effort within each group.
       analog MAX4466 was defeated by panel supply noise. Peak-to-peak measurement, noise floor
       measured rather than guessed, level meter and Mic test in Settings.
 - [x] **Idle blinks** (2026-09-16) — Blinks setting picks the face's own or the mask's, with a
-      per-face "the mask may blink this face" tick box in the designer.
+      per-face "the mask may blink this face" tick box in the designer. The mask's own blink was
+      broken until 2026-09-18: the step counter turned around at 4 instead of counting through, so
+      it ticked 3,4,3,4 forever, the lids shut to a line and the redraw check then stopped
+      repainting. Also repaced from a 108 ms twitch to 450 ms, matching default.json's own blink.
+- [x] **Mic widgets on the screen** (2026-09-18) — a bar that fills with how loud you are and marks
+      where the mouth starts moving, a mic icon that fills in while you talk, and a value source for
+      the number. Added `speaking` / `notSpeaking` conditions for elements and whole pages.
+- [x] **Boop milestone screen page** (2026-09-18) — an `On a boop milestone` condition, bounded by
+      `boopPhase()` so it lasts the celebration rather than until the next boop.
 - [x] **Quick phrases** (2026-09-16) — six saved messages rendered by the firmware itself, so a
       button press works with no phone nearby.
 - [x] **Screen pages** (2026-09-16) — up to eight, rotation or condition-triggered with linger.
@@ -65,18 +73,30 @@ it was suggested and rejected on exactly that ground. Anything meant to be funny
       action. Will need tuning on real hardware; 32x8 is unforgiving.
 - [ ] **Konami code** on the web page unlocks something silly (~20 lines).
 
-## Software only — nothing to buy
+## Being done by hand, not by me
 
-- [ ] **Per-face settings** — mouth bob, transition speed or brightness remembered per face,
-      rather than one setting for all of them.
-- [ ] **Boop milestone screen page** — the milestone plays a face; it could take over the status
-      screen too. The page conditions already exist, so this is a new show-condition and little else.
-- [ ] **Face preview on the screen** — a tiny live copy of the visor on the SSD1306. The panel data
-      is already in a buffer each frame; this is downscaling it into the screen buffer.
-- [ ] **Shout trigger** — a sudden loud noise switches to a surprised face for a moment. Declined
-      once already ("I dont want mic yelling"), kept here only for completeness.
+- **Speech-reactive screen page** — the `speaking` condition is in and verified at page level; the
+  page itself is being designed in the screen designer.
 
-## Needs parts
+## Decided against — do not suggest these again
+
+- **Sleep easing** — dimmed down before sleep and climbed back on waking. Read as the mask dying
+  rather than dozing off. Removed 2026-09-17; deep sleep stayed.
+- **Per-face settings** — mouth bob, transition speed or brightness per face. Declined 2026-09-17:
+  a lot of machinery for the payoff.
+- **Live face preview on the screen** — a downscaled copy of the visor on the SSD1306. Declined
+  2026-09-18. It would be ~190 lines across seven files and, at 80x24 on a mono screen, would
+  almost certainly read as noise. The diagnostic argument for it (spotting a dead panel without a
+  mirror) does not apply — that is not a worry here.
+- **Shout trigger** — a loud noise switches to a surprised face. Declined twice.
+- **Bouncing DVD logo screensaver** — suggested as a joke, rejected because the inside screen has
+  an audience of one. See the rule at the top of Funnies.
+
+## Needs parts — closed for now
+
+**No more hardware is going on this mask** (decided 2026-09-17), so everything below is parked
+rather than planned. Kept only so the reasoning is not lost if that ever changes. The fan has been
+moved to its own supply, which takes the fan curve off the table too.
 
 - [ ] **Remote** — decided against ProtoESP's own BLE remote project for now. Two routes: a bought
       BLE camera-shutter clicker (cheap, two buttons, must be Bluetooth 4.0/BLE since the S3 has no
