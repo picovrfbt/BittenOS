@@ -2521,6 +2521,9 @@ void screenTick() {
   d.boopSensor = ToFInitDone;
   d.clockMins = clockMinutesNow();
   d.clock24 = clockIs24;
+  d.micLevel = cfg.speechEna ? micVolume : 0;
+  d.micTrig = cfg.spTrig;
+  d.speaking = cfg.speechEna && speaking;   //speaking is what actually moves the mouth
   //Pick the page. A page with a condition wins while that condition holds, and keeps the screen for
   //its linger time afterwards, so a boop page does not vanish the instant the paw lifts.
   int page = -1;

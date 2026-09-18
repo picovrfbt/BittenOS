@@ -22,6 +22,8 @@
     cross:   [0xC3,0x66,0x3C,0x18,0x3C,0x66,0xC3,0x00],
     sun:     [0x10,0x54,0x38,0xFE,0x38,0x54,0x10,0x00],
     temp:    [0x18,0x24,0x24,0x24,0x5A,0x5A,0x3C,0x00],
+    mic:     [0x18,0x3C,0x3C,0x3C,0x99,0x5A,0x18,0x7E],
+    micOff:  [0x18,0x24,0x24,0x24,0x99,0x5A,0x18,0x7E],
   };
 
   function fmtUptime(s) {
@@ -55,6 +57,7 @@
     }},
     clockAmPm:   {label: 'am / pm',          get: d => d.clockMins < 0 ? '' : (d.clockMins < 720 ? 'am' : 'pm')},
     ip:          {label: 'IP address',       get: d => d.ip || '--'},
+    mic:         {label: 'Mic level (0-100)',get: d => String(d.micLevel)},
   };
 
   // what a "bar" element can fill with: fraction 0-1, and where its marker line goes
@@ -62,6 +65,7 @@
     closeness:  {label: 'Boop closeness', get: d => [d.closeness / Math.max(10, d.boopThresh * 2), d.boopThresh / Math.max(10, d.boopThresh * 2)]},
     shade:      {label: 'Shadow',         get: d => [d.shade / 100, d.shadeNeed / 100]},
     brightness: {label: 'Brightness',     get: d => [d.brightness / 15, null]},
+    mic:        {label: 'Mic level',      get: d => [d.micLevel / 100, d.micTrig / 100]},
   };
 
   const SHOW = {
@@ -71,6 +75,8 @@
     sleeping: {label: 'While sleeping', test: d => d.sleeping},
     awake: {label: 'While awake', test: d => !d.sleeping},
     displaysOff: {label: 'While displays are off', test: d => !d.displayOn},
+    speaking: {label: 'While the mouth is moving', test: d => d.speaking},
+    notSpeaking: {label: 'While quiet', test: d => !d.speaking},
   };
 
   const TYPES = {
@@ -145,6 +151,9 @@
       clockMins: pick('clockMins') === undefined ? -1 : num(pick('clockMins')),
       clock24: !!pick('clock24'),
       ip: pick('ip') || '',
+      micLevel: Math.max(0, num(pick('mic'))),   //the mask sends -1 when Speech is off
+      micTrig: num(pick('spTrig')) || 10,
+      speaking: !!pick('speaking'),
     };
   }
 

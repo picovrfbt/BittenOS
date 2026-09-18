@@ -11,11 +11,12 @@ enum : uint8_t { EL_TEXT, EL_VALUE, EL_BAR, EL_ICON, EL_RECT };
 
 static const char *const SOURCES[] = {"face", "boops", "wifiClients", "wifiName", "brightness", "uptime",
                                       "temp", "closeness", "shade", "tilt", "boopSensor", "displays",
-                                      "clock", "clockAmPm", "ip"};
+                                      "clock", "clockAmPm", "ip", "mic"};
 #define SOURCE_COUNT (sizeof(SOURCES) / sizeof(SOURCES[0]))
-static const char *const BARS[] = {"closeness", "shade", "brightness"};
+static const char *const BARS[] = {"closeness", "shade", "brightness", "mic"};
 #define BAR_COUNT (sizeof(BARS) / sizeof(BARS[0]))
-static const char *const SHOWS[] = {"always", "booped", "notBooped", "sleeping", "awake", "displaysOff"};
+static const char *const SHOWS[] = {"always", "booped", "notBooped", "sleeping", "awake", "displaysOff",
+                                    "speaking", "notSpeaking"};
 #define SHOW_COUNT (sizeof(SHOWS) / sizeof(SHOWS[0]))
 
 #define MAX_ELEMENTS 64            //across every page; a 128x64 screen cannot usefully hold more
@@ -192,6 +193,8 @@ static String sourceText(uint8_t source, const ScreenData &d) {
       return (d.clockMins < 720) ? "am" : "pm";
     case 14:                              //the address on the joined network, to type into a phone
       return d.ip.length() ? d.ip : "--";
+    case 15:                              //how loud it is, 0-100 against the Speech range
+      return String(d.micLevel);
   }
   return "?";
 }
@@ -209,6 +212,10 @@ static void barFractions(uint8_t source, const ScreenData &d, float &frac, float
       frac = d.shade / 100.0f;
       mark = d.shadeNeed / 100.0f;
       break;
+    case 3:                               //mic level, with the marker where the mouth starts moving
+      frac = d.micLevel / 100.0f;
+      mark = d.micTrig / 100.0f;
+      break;
     default:
       frac = d.brightness / 15.0f;
       hasMark = false;
@@ -223,6 +230,8 @@ static bool visible(uint8_t show, const ScreenData &d) {
     case PAGE_SLEEPING: return d.sleeping;
     case PAGE_AWAKE: return !d.sleeping;
     case PAGE_DISPLAYSOFF: return !d.displayOn;
+    case PAGE_SPEAKING: return d.speaking;
+    case PAGE_NOTSPEAKING: return !d.speaking;
   }
   return true;
 }
