@@ -2175,7 +2175,10 @@ unsigned long blinkStepAt = 0, nextBlinkAt = 0;
 int blinkRestFrame = 0;             //the long "eyes open" frame
 bool blinkFaceEligible = false;
 String blinkCachedAnim = "";
-#define BLINK_STEP_MS 18            //per step of the close and open
+//Per step of the close and open. Six steps, so a blink takes about 450 ms - the same as the blink
+//the default face draws for itself (five frames at 90 ms), so the mask's blink and a face's own
+//read as the same gesture rather than one of them looking like a twitch.
+#define BLINK_STEP_MS 75
 
 //Works out, once per face, whether it is a long look plus a short blink, and which frame the look is
 void blinkCheckFace() {
@@ -2766,8 +2769,12 @@ void loop() {
         else if(millis() >= nextBlinkAt) { wantBlink = 1; blinkStepAt = millis(); }
       } else if(millis() - blinkStepAt >= BLINK_STEP_MS) {
         blinkStepAt = millis();
-        //1,2,3 shut then 3,2,1 open again, held one step at the bottom
-        wantBlink = (blinkStep < 4) ? blinkStep + 1 : blinkStep - 1;
+        //Count 1..6 straight through and let drawStep below fold it: 1,2,3 close the lids, then
+        //4,5,6 draw as 3,2,1 to open them, holding a moment at the bottom.
+        //This used to turn the counter around at 4 instead of counting on, which left it ticking
+        //3,4,3,4 forever - and since both of those draw as 3, the eyes shut to a line, stopped
+        //changing, and so stopped being redrawn at all.
+        wantBlink = blinkStep + 1;
         if(wantBlink > 6) { wantBlink = 0; nextBlinkAt = millis() + random(2500, 7000); }
       }
     } else if(blinkStep != 0) {
