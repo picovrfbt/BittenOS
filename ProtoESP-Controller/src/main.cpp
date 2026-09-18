@@ -134,6 +134,10 @@ bool apdsStart();
 extern bool booping;
 extern bool speaking;
 extern bool FdisplayVisor;     //set when panels have been written and need flushing
+//Repaints the frame that is already showing. The warm-up needs this to paint over its own tearing:
+//instantReload would do it, but the renderer reads that as "advance to the next frame", which ate
+//the loading bar a frame at a time.
+void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame);
 extern int micVolume;          //0-100, how loud it is against the Speech range
 extern float finalMicAvg;      //the raw smoothed mic reading, for the level meter
 extern String blinkCachedAnim; //which face the blink rule was last worked out for
@@ -400,6 +404,7 @@ volatile bool screenReloadReq = false;   //set by /savescreen
 volatile bool oledFlipReq = false;       //set when Upside down is changed
 volatile bool wakeFlickReq = false;      //from /wakeflick: play the warm-up now
 bool bootFlickPending = false;           //switched on: warm up as soon as the first frame is drawn
+bool bootBarHandover = false;            //the startup bar is playing; arm the warm-up when it ends
 //Dino game: the flags live up here because /dino and doButtonAction both sit above the game itself
 bool dinoActive = false;
 volatile bool dinoStartReq = false, dinoJumpReq = false, dinoStopReq = false;
@@ -1306,6 +1311,7 @@ void startWiFiWeb() {
     cfg.getBool(request, "wakeFlickEna", cfg.wakeFlickEna);
     cfg.getBool(request, "wakeFlickBoot", cfg.wakeFlickBoot);
     cfg.getBool(request, "bootBarEna", cfg.bootBarEna);
+    if(cfg.getInt(request, "bootBarMs", cfg.bootBarMs)) cfg.bootBarMs = constrain(cfg.bootBarMs, 300, 8000);
     if(cfg.getString(request, "wakeFlickStyle", cfg.wakeFlickStyle)) {
       if(cfg.wakeFlickStyle != "crt" && cfg.wakeFlickStyle != "tube") cfg.wakeFlickStyle = "crt";
     }
@@ -1903,12 +1909,31 @@ void showBootBar() {
   //animation of a bar. The last value repeats so the full bar is held a moment before the face.
   static const uint8_t STUT[] = {0,3,3,7,7,7,12,12,16,16,16,16,21,25,25,25,27,27,30,30,30,30};
   const int steps = sizeof(STUT) / sizeof(STUT[0]);
+  //The bar runs on its own clock, before the warm-up rather than underneath it, so the two can be
+  //tuned separately. Running them together put the bar's most interesting part behind four seconds
+  //of stuttering panels and tearing, which read as no bar at all.
+  //
+  //A frame shorter than about 45 ms is gone before it registers, so below that the bar drops
+  //frames instead of shortening them: a short setting gives a coarser bar rather than a longer
+  //one. Clamping the span alone made everything under ~990 ms come out at 990 ms, so the bottom
+  //third of the setting did nothing at all.
+  const int barMs = constrain(cfg.bootBarMs, 300, 8000);
+  int span = barMs / steps;
+  int skip = 1;                                                 //show every skip'th step of the curve
+  if(span < 45) {
+    skip = (45 * steps + barMs - 1) / barMs;                    //enough thinning to keep frames visible
+    if(skip < 1) skip = 1;
+    span = barMs / ((steps + skip - 1) / skip);
+  }
+  span = constrain(span, 45, 400);
 
   String out = "{\"ears\":{\"type\":\"none\"},\"visor\":{\"type\":\"custom\",\"isMouth\":[";
   //every flag false: no speech wobble, and mouth bob leaves the bar alone rather than lifting it
   for(int i = 0; i < numOfSegm; i++) out += (i ? ",false" : "false");
   out += "],\"frames\":[";
-  for(int s = 0; s < steps; s++) {
+  bool firstFrame = true;
+  for(int s = 0; s < steps; s += skip) {
+    if(s + skip >= steps) s = steps - 1;                        //always finish on the full bar
     uint64_t words[MATRIXESNUM];
     for(int i = 0; i < MATRIXESNUM; i++) words[i] = 0;
     for(int t = 0; t < 2; t++) {
@@ -1923,8 +1948,9 @@ void showBootBar() {
           for(int r = 3; r <= 4; r++) words[panel] |= 1ULL << (r * 8 + col);
       }
     }
-    if(s) out += ",";
-    out += "{\"timespan\":70,\"leds\":[";
+    if(!firstFrame) out += ",";
+    firstFrame = false;
+    out += "{\"timespan\":" + String(span) + ",\"leds\":[";
     for(int p = 0; p < numOfSegm; p++) {
       if(p) out += ",";
       char hex[17];
@@ -1939,7 +1965,8 @@ void showBootBar() {
   xSemaphoreTake(animQueueMutex, portMAX_DELAY);
   postAnimToLoad = out;
   xSemaphoreGive(animQueueMutex);
-  logPrint(F("[I] Booting: loading bar"));
+  bootBarHandover = (cfg.wakeFlickEna && cfg.wakeFlickBoot);    //warm up once the bar has finished
+  logPrint("[I] Booting: loading bar over " + String(constrain(cfg.bootBarMs, 300, 8000)) + " ms");
 }
 
 //--------------------------------//Dino game on the maw
@@ -2176,10 +2203,14 @@ void wakeFlickStep() {
     mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
     wfGlitchClear = now + random(30, 110);
   }
-  if(wfGlitchClear != 0 && now >= wfGlitchClear) {   //put the real face back over it
+  if(wfGlitchClear != 0 && now >= wfGlitchClear) {   //put the picture back over the tearing
     wfGlitchClear = 0;
     wfGlitchAt = now + ((cfg.wakeFlickGlitch >= 2) ? random(70, 260) : random(200, 700));
-    instantReload = true;
+    //Repaint what is showing rather than setting instantReload. The renderer treats that as
+    //"advance a frame", so with tearing on it skipped the startup loading bar forward every
+    //cleanup - a couple of dozen times across a long warm-up, which used the whole bar up in
+    //about a second and left the face showing before the panels had finished stuttering on.
+    if(visorNow && currentVisorFrame < visorNow->numOfFrames) setAllVisor(visorLedsNEW, 0, currentVisorFrame);
   }
   if(!waiting || now > wakeFlickEnds) {
     wakeFlickEnd();
@@ -2295,10 +2326,11 @@ void setup() {
     ledController[0] = &FastLED.addLeds<WS2812B, DATA_PIN_VISOR, GRB>(visorLeds, visorLedsNum);
   } else if (visorType == "MAX72XX") {
     mx.begin();
-    //Switching on warms up like waking from a deep sleep. The panels start shut down here so
-    //nothing shows before the stutter begins; the warm-up itself is started by the first drawn
-    //frame further down, once the face is actually in the chips and there is something to reveal.
-    if(cfg.wakeFlickEna && cfg.wakeFlickBoot) {
+    //Startup runs in order: the loading bar fills on lit panels, then the warm-up stutters them
+    //back on to reveal the face. So the panels are only blacked out here when there is no bar to
+    //show - with one, blacking out would play the bar into dark panels. When the bar is running,
+    //the warm-up is armed later, at the moment the bar hands over to the face.
+    if(cfg.wakeFlickEna && cfg.wakeFlickBoot && !cfg.bootBarEna) {
       for(int p = 0; p < MATRIXESNUM; p++) mx.control((uint8_t)p, MD_MAX72XX::SHUTDOWN, MD_MAX72XX::ON);
       bootFlickPending = true;
     }
@@ -3681,6 +3713,13 @@ void loop() {
   queuedPost = postAnimToLoad; postAnimToLoad = "";
   xSemaphoreGive(animQueueMutex);
   if((queuedAnim != "" || queuedPost != "") && wakeFlickPhase != 0) wakeFlickEnd(); //a face change cuts the warm-up short
+  //The startup bar has reached its end and handed over to the face. Arm the warm-up now, so it
+  //fires on the face's first drawn frame. Done here rather than in either branch below, because
+  //with transitions on the queued face is swallowed by the dip and never reaches the plain load.
+  if(bootBarHandover && queuedAnim != "") {
+    bootBarHandover = false;
+    bootFlickPending = true;
+  }
   if(cfg.transEna && visorType == "MAX72XX" && transPhase == 0 && (queuedAnim != "" || queuedPost != "")) {
     transAnim = queuedAnim; transPost = queuedPost; //hold the swap until the panels are dark
     uint8_t levels = visorBright() > 0 ? visorBright() : 1; //the dip time is shared out over the brightness steps there are

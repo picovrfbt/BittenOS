@@ -90,7 +90,8 @@ void Config::setDefault() {
   mdnsName = "protogen"; //reachable as protogen.local once it has joined
   wakeFlickEna = true;   //coming back from deep sleep, the panels flicker on one at a time
   wakeFlickBoot = true;  //and again when the mask is switched on, like an old device starting up
-  bootBarEna = true;     //and a loading bar crawls the maw while it does
+  bootBarEna = true;     //a loading bar fills first, then the warm-up reveals the face
+  bootBarMs = 1500;      //how long the bar takes, on its own clock
   dinoBest = 0;          //nobody has run yet
   wakeFlickStyle = "crt";
   wakeFlickMs = 1800;    //how long the whole warm-up takes
@@ -180,6 +181,7 @@ bool Config::save() {
   doc["wakeFlickEna"] = wakeFlickEna;
   doc["wakeFlickBoot"] = wakeFlickBoot;
   doc["bootBarEna"] = bootBarEna;
+  doc["bootBarMs"] = bootBarMs;
   doc["dinoBest"] = dinoBest;
   doc["wakeFlickStyle"] = wakeFlickStyle;
   doc["wakeFlickMs"] = wakeFlickMs;
@@ -336,6 +338,7 @@ bool Config::load() {
   wakeFlickEna = doc["wakeFlickEna"] | true;
   wakeFlickBoot = doc["wakeFlickBoot"] | true;
   bootBarEna = doc["bootBarEna"] | true;
+  bootBarMs = doc["bootBarMs"] | 1500;
   dinoBest = doc["dinoBest"] | 0;
   wakeFlickStyle = doc["wakeFlickStyle"] | "crt";
   wakeFlickMs = doc["wakeFlickMs"] | 1800;

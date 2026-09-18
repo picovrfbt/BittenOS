@@ -43,7 +43,8 @@ public:
   String staName,staPass,mdnsName;
   //Waking from deep sleep: the panels stutter back on one at a time, like an old device warming up
   bool wakeFlickEna,wakeFlickBoot;    //after a deep sleep, and again when the mask is first switched on
-  bool bootBarEna;                    //a loading bar crawls the maw at startup before the face arrives
+  bool bootBarEna;                    //a loading bar fills the maw at startup, before the warm-up
+  int bootBarMs;                      //how long that bar takes, tuned separately from the warm-up
   int dinoBest;                       //best distance reached in the dino game on the maw
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
   int wakeFlickMs,wakeFlickGlitch;    //how long the warm-up runs, and how much the picture tears (0-2)

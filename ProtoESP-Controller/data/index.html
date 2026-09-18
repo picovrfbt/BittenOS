@@ -575,8 +575,10 @@
           <input type="checkbox" class="toggle" data-key="wakeFlickEna" data-label="Wake-up flicker"></label>
         <label class="row dep"><span class="row-text"><b>Flicker on startup</b><small>Warm up the same way when the mask is switched on</small></span>
           <input type="checkbox" class="toggle" data-key="wakeFlickBoot" data-label="Flicker on startup"></label>
-        <label class="row dep"><span class="row-text"><b>Loading bar on startup</b><small>A bar crawls the maw while it starts, then the face arrives</small></span>
+        <label class="row dep"><span class="row-text"><b>Loading bar on startup</b><small>A bar fills the maw first, then the flicker brings the face in</small></span>
           <input type="checkbox" class="toggle" data-key="bootBarEna" data-label="Loading bar on startup"></label>
+        <div class="row dep"><span class="row-text"><b>Loading bar time</b><small>How long the bar takes, before the flicker starts</small></span>
+          <div class="stepper" data-key="bootBarMs" data-label="Loading bar time" data-min="300" data-max="8000" data-step="100" data-unit=" ms"><button type="button" aria-label="Less">−</button><output>1500 ms</output><button type="button" aria-label="More">+</button></div></div>
         <div class="row dep"><span class="row-text"><b>Flicker style</b></span>
           <select id="wakeFlickStyle" data-key="wakeFlickStyle" data-label="Flicker style" aria-label="Flicker style" style="text-transform:none">
             <option value="crt">Old CRT — slow, heavy stutter</option>
@@ -1438,7 +1440,7 @@
                     btnShortPhrase: 0, btnDoublePhrase: 0, btnHoldPhrase: 0,
                     sleepDeepEna: false, sleepDeepMins: 20,
                     wakeFlickEna: true, wakeFlickBoot: true, wakeFlickStyle: 'crt', wakeFlickMs: 1800, wakeFlickGlitch: 1,
-                    bootBarEna: true};
+                    bootBarEna: true, bootBarMs: 1500};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');
