@@ -25,6 +25,7 @@ public:
   int bEar,bVisor,bOled,rbSpeed,rbWidth,spMin,spMax,spTrig,fanDuty,boopThresh,sleepMins,transMs,boopCount,boopBase,boopShade;
   int autoBriSecs,autoBriMin,autoBriMax,autoBriDark,autoBriBright,boopMilestone;
   String autoBriMode,mouthMode,aMilestone,blinkMode;
+  int blinkDoublePct;                 //percent of the mask's blinks that come as a quick pair
   //Button: what a short press, a double press and a hold each do, and how long a hold is.
   //Actions are names: none, nextFace, prevFace, displays, sleep, face, phrase.
   String btnShort,btnDouble,btnHold,btnShortFace,btnDoubleFace,btnHoldFace;

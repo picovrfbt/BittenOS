@@ -1310,6 +1310,7 @@ void startWiFiWeb() {
       blinkCachedAnim = "";                //look at the face again under the new setting
       instantReload = true;
     }
+    if(cfg.getInt(request, "blinkDoublePct", cfg.blinkDoublePct)) cfg.blinkDoublePct = constrain(cfg.blinkDoublePct, 0, 100);
     if(cfg.getInt(request, "boopMilestone", cfg.boopMilestone)) cfg.boopMilestone = constrain(cfg.boopMilestone, 0, 10000);
     if(cfg.getString(request, "mouthMode", cfg.mouthMode)) {
       if(cfg.mouthMode != "flap" && cfg.mouthMode != "shapes") cfg.mouthMode = "shapes";
@@ -2174,6 +2175,7 @@ uint8_t blinkStep = 0;              //0 open, 3 nearly shut
 unsigned long blinkStepAt = 0, nextBlinkAt = 0;
 int blinkRestFrame = 0;             //the long "eyes open" frame
 bool blinkFaceEligible = false;
+bool blinkPaired = false;           //this blink is the second of a quick pair, so don't pair again
 String blinkCachedAnim = "";
 //Per step of the close and open. Six steps, so a blink takes about 450 ms - the same as the blink
 //the default face draws for itself (five frames at 90 ms), so the mask's blink and a face's own
@@ -2775,10 +2777,25 @@ void loop() {
         //3,4,3,4 forever - and since both of those draw as 3, the eyes shut to a line, stopped
         //changing, and so stopped being redrawn at all.
         wantBlink = blinkStep + 1;
-        if(wantBlink > 6) { wantBlink = 0; nextBlinkAt = millis() + random(2500, 7000); }
+        if(wantBlink > 6) {
+          wantBlink = 0;
+          //Now and then, blink twice. A second blink a tenth of a second behind the first is what
+          //reads as alive; a single blink on a timer, however random the gap, still reads as a
+          //machine ticking. blinkPaired makes sure a pair is a pair and never a stutter of three.
+          if(blinkPaired) {
+            blinkPaired = false;
+            nextBlinkAt = millis() + random(2500, 7000);
+          } else if(cfg.blinkDoublePct > 0 && (int)random(0, 100) < cfg.blinkDoublePct) {
+            blinkPaired = true;
+            nextBlinkAt = millis() + random(90, 190);   //the gap inside a pair, not between blinks
+          } else {
+            nextBlinkAt = millis() + random(2500, 7000);
+          }
+        }
       }
     } else if(blinkStep != 0) {
       wantBlink = 0;                       //mode changed or the face took over: open the eyes again
+      blinkPaired = false;                 //and don't owe a second blink from before
     }
     uint8_t drawStep = wantBlink <= 3 ? wantBlink : (uint8_t)(7 - wantBlink); //4,5,6 reopen as 3,2,1
     uint8_t lastDraw = blinkStep <= 3 ? blinkStep : (uint8_t)(7 - blinkStep);

@@ -65,6 +65,7 @@ void Config::setDefault() {
   boopShade = 30;  //percent darker than normal that counts as a shadow
   mouthMode = "shapes";  //how the mouth moves with your voice: flap (the old way) or shapes
   blinkMode = "face";    //blinks: face (the face's own), blink (the mask blinks it), still (neither)
+  blinkDoublePct = 25;   //a quarter of the mask's blinks come as a quick double
   //The button keeps doing what it always did until you change it
   btnShort = "nextFace";
   btnDouble = "none";
@@ -152,6 +153,7 @@ bool Config::save() {
   doc["boopShade"] = boopShade;
   doc["mouthMode"] = mouthMode;
   doc["blinkMode"] = blinkMode;
+  doc["blinkDoublePct"] = blinkDoublePct;
   doc["btnShort"] = btnShort;
   doc["btnDouble"] = btnDouble;
   doc["btnHold"] = btnHold;
@@ -305,6 +307,7 @@ bool Config::load() {
   boopShade = doc["boopShade"] | 30;
   mouthMode = doc["mouthMode"] | "shapes";
   blinkMode = doc["blinkMode"] | "face";
+  blinkDoublePct = doc["blinkDoublePct"] | 25;
   btnShort = doc["btnShort"] | "nextFace";
   btnDouble = doc["btnDouble"] | "none";
   btnHold = doc["btnHold"] | "displays";
