@@ -737,6 +737,14 @@
     </section>
 
     <section class="card">
+      <h2>Dino</h2>
+      <div class="row"><span class="row-text"><b>A game on the maw</b><small>Both maws become a playfield. While it runs, the mask's own button jumps.</small></span>
+        <button class="btn small" type="button" id="dinoBtn" onclick="dinoToggle()">Start</button></div>
+      <div class="row"><span class="row-text"><b>Score</b></span><b id="dinoScore">—</b></div>
+      <div style="margin-top:10px"><button class="btn wide" type="button" id="dinoJump" onclick="dinoJump()" hidden>Jump</button></div>
+    </section>
+
+    <section class="card">
       <h2>Tools</h2>
       <div class="tools">
         <button class="btn" type="button" onclick="document.getElementById('cfgFile').click()">Load config</button>
@@ -1818,6 +1826,23 @@
       toast(t === 'ok' ? 'Warming up…' : t, t !== 'ok');
     } catch (e) { toast('Could not reach the mask', true); }
   }
+
+  /* ---------- dino ---------- */
+  let dinoOn = false, dinoPoll = null;
+  function showDino(s) {
+    dinoOn = !!(s && s.on);
+    $('dinoBtn').textContent = dinoOn ? 'Stop' : 'Start';
+    $('dinoJump').hidden = !dinoOn;
+    $('dinoScore').textContent = s ? (s.score + (s.best ? '   best ' + s.best : '')) : '—';
+    if (dinoOn && !dinoPoll) dinoPoll = setInterval(() => dinoSend(''), 700);
+    if (!dinoOn && dinoPoll) { clearInterval(dinoPoll); dinoPoll = null; }
+  }
+  async function dinoSend(q) {
+    try { showDino(await (await fetch('/dino' + (q ? '?' + q : ''), NO_CACHE)).json()); }
+    catch (e) { toast('Could not reach the mask', true); }
+  }
+  function dinoToggle() { dinoSend(dinoOn ? 'stop=1' : 'go=1'); }
+  function dinoJump() { dinoSend('jump=1'); }
 
   async function calBoop() {
     if (!confirm('Measure the resting level? Keep everything away from the visor.')) return;

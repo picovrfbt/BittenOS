@@ -44,6 +44,7 @@ public:
   //Waking from deep sleep: the panels stutter back on one at a time, like an old device warming up
   bool wakeFlickEna,wakeFlickBoot;    //after a deep sleep, and again when the mask is first switched on
   bool bootBarEna;                    //a loading bar crawls the maw at startup before the face arrives
+  int dinoBest;                       //best distance reached in the dino game on the maw
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
   int wakeFlickMs,wakeFlickGlitch;    //how long the warm-up runs, and how much the picture tears (0-2)
   float neutralX,neutralY,neutralZ,tiltX,tiltY,tiltZ,upX,upY,upZ,tiltTol,sleepTol;
