@@ -16,7 +16,7 @@ static const char *const SOURCES[] = {"face", "boops", "wifiClients", "wifiName"
 static const char *const BARS[] = {"closeness", "shade", "brightness", "mic"};
 #define BAR_COUNT (sizeof(BARS) / sizeof(BARS[0]))
 static const char *const SHOWS[] = {"always", "booped", "notBooped", "sleeping", "awake", "displaysOff",
-                                    "speaking", "notSpeaking"};
+                                    "speaking", "notSpeaking", "milestone"};
 #define SHOW_COUNT (sizeof(SHOWS) / sizeof(SHOWS[0]))
 
 #define MAX_ELEMENTS 64            //across every page; a 128x64 screen cannot usefully hold more
@@ -232,6 +232,7 @@ static bool visible(uint8_t show, const ScreenData &d) {
     case PAGE_DISPLAYSOFF: return !d.displayOn;
     case PAGE_SPEAKING: return d.speaking;
     case PAGE_NOTSPEAKING: return !d.speaking;
+    case PAGE_MILESTONE: return d.milestone;
   }
   return true;
 }

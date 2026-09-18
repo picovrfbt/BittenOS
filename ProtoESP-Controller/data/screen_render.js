@@ -77,6 +77,7 @@
     displaysOff: {label: 'While displays are off', test: d => !d.displayOn},
     speaking: {label: 'While the mouth is moving', test: d => d.speaking},
     notSpeaking: {label: 'While quiet', test: d => !d.speaking},
+    milestone: {label: 'On a boop milestone', test: d => d.milestone},
   };
 
   const TYPES = {
@@ -154,6 +155,7 @@
       micLevel: Math.max(0, num(pick('mic'))),   //the mask sends -1 when Speech is off
       micTrig: num(pick('spTrig')) || 10,
       speaking: !!pick('speaking'),
+      milestone: !!pick('milestone'),
     };
   }
 

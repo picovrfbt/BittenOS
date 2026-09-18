@@ -507,6 +507,9 @@ class Handler(BaseHTTPRequestHandler):
                 'boopThresh': int(cfg.get('boopThresh') or 15), 'boopShade': int(cfg.get('boopShade') or 30),
                 'ip': s['staIp'],
                 'mic': s['mic'], 'speaking': s['speaking'],
+                # a milestone while the Boop button is held and the total lands on the interval
+                'milestone': bool(s['booping']) and int(cfg.get('boopMilestone') or 0) > 0
+                             and int(cfg.get('boopCount') or 0) % int(cfg.get('boopMilestone') or 100) == 0,
                 'spTrig': int(cfg.get('spTrig') or 10),
                 'wifiClients': s['wifiClients'], 'uptime': s['uptime'], 'tempC': s['tempC'],
                 'boopSig': s['boopSig'], 'shade': s['shade'], 'booping': s['booping'],
