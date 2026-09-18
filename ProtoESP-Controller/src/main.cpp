@@ -133,6 +133,7 @@ void logPrint(const String &str);
 bool apdsStart();
 extern bool booping;
 extern bool speaking;
+extern bool FdisplayVisor;     //set when panels have been written and need flushing
 extern int micVolume;          //0-100, how loud it is against the Speech range
 extern float finalMicAvg;      //the raw smoothed mic reading, for the level meter
 extern String blinkCachedAnim; //which face the blink rule was last worked out for
@@ -399,6 +400,10 @@ volatile bool screenReloadReq = false;   //set by /savescreen
 volatile bool oledFlipReq = false;       //set when Upside down is changed
 volatile bool wakeFlickReq = false;      //from /wakeflick: play the warm-up now
 bool bootFlickPending = false;           //switched on: warm up as soon as the first frame is drawn
+//Dino game: the flags live up here because /dino and doButtonAction both sit above the game itself
+bool dinoActive = false;
+volatile bool dinoStartReq = false, dinoJumpReq = false, dinoStopReq = false;
+int dinoScore = 0;
 volatile bool oledBrightReq = false;     //set when Screen brightness is changed
 void screenTick();
 inline bool oledLegacy(); //the old screen writes, only when no layout is loaded
@@ -1625,6 +1630,20 @@ void startWiFiWeb() {
     request->send(200, "text/plain", displayOn ? "on" : "off");
   });
 
+  server.on("/dino", HTTP_GET, [](AsyncWebServerRequest *request){ //the game on the maw: go, jump, stop
+    if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels")); return; }
+    if(request->hasParam("go")) dinoStartReq = true;
+    else if(request->hasParam("jump")) dinoJumpReq = true;
+    else if(request->hasParam("stop")) dinoStopReq = true;
+    JsonDocument d;                         //the page shows the score while it plays
+    d["on"] = dinoActive;
+    d["score"] = dinoScore;
+    d["best"] = cfg.dinoBest;
+    String out;
+    serializeJson(d, out);
+    request->send(200, "application/json", out);
+  });
+
   server.on("/wakeflick", HTTP_GET, [](AsyncWebServerRequest *request){ //play the wake-up warm-up without waiting for a deep sleep
     if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels flicker")); return; }
     if(!cfg.wakeFlickEna) { request->send(200, "text/plain", F("Wake-up flicker is switched off")); return; }
@@ -1796,6 +1815,7 @@ void showPhrase(int slot) {
 //Runs on the loop task, so it is free to load faces and touch the panels.
 
 void doButtonAction(const String &action, const String &face, int phraseSlot) {
+  if(dinoActive) { dinoJumpReq = true; return; }   //while a game runs the button jumps, whatever it is set to
   if(action == "none" || action == "") return;
   if(action == "nextFace" || action == "prevFace") {
     if(totalAnims <= 0) return;
@@ -1920,6 +1940,158 @@ void showBootBar() {
   postAnimToLoad = out;
   xSemaphoreGive(animQueueMutex);
   logPrint(F("[I] Booting: loading bar"));
+}
+
+//--------------------------------//Dino game on the maw
+//The visor is a 10x3 grid of panel slots with only 14 filled, so there is no continuous strip to
+//run along. Each maw is a clean 32x8 run though, so the game plays out on one and is mirrored onto
+//the other, which reads as deliberate rather than lopsided. Playfield position 0 is the end nearest
+//the nose and 31 is the end nearest the back of the head, matching the loading bar.
+//
+//Unlike the loading bar this cannot be a prebuilt animation: it reacts to the button every frame.
+//So it takes the panels over directly while it runs, and the normal face render is skipped.
+uint8_t dinoArcAt = 0;              //0 = on the ground, otherwise how far through the jump
+bool dinoJustJumped = false;        //so the first airborne frame is shown rather than skipped past
+int8_t dinoCactus[3];               //playfield positions, -1 for an empty slot
+unsigned long dinoTickAt = 0, dinoOverAt = 0;
+uint16_t dinoStepMs = 90;
+int dinoTicks = 0;
+String dinoBackTo = "";
+
+//Lift per frame of a jump. The first arc tried was {1,2,3,3,3,3,2,1}, and simulating the rules
+//showed it was unfair: a cactus sits inside the dino's box for five consecutive ticks while only
+//six frames cleared it, leaving a one tick margin - one correct trigger position, which is the
+//pixel-perfect timing that picking the short dino was meant to avoid. Rising straight to 2 and
+//holding longer widens that to a real window.
+static const uint8_t DINO_ARC[] = {2, 3, 3, 3, 3, 3, 2, 1};
+#define DINO_ARC_LEN (sizeof(DINO_ARC) / sizeof(DINO_ARC[0]))
+static const char *const DINO_SPRITE[] = {".###", ".#.#", "####", ".#.#"};   //4 wide, 4 tall
+#define DINO_W 4
+#define DINO_H 4
+#define DINO_X 4                    //where the dino stands, in playfield positions
+#define DINO_LEN 32                 //four panels of eight columns
+//Column 0 of the sprite is only the tail tip, on one row. Colliding against it made the dino four
+//wide and cost a tick of jump margin, so the box is the body: columns 1 to 3.
+#define DINO_BOX_LO (DINO_X + 1)
+#define DINO_BOX_HI (DINO_X + DINO_W - 1)
+
+//The two maws in the order they sit on the face, exactly as the loading bar uses them.
+struct DinoStrip { uint8_t panel[4]; bool mirrored; };
+static const DinoStrip dinoStrips[2] = {
+  {{8, 9, 10, 11}, true},           //left maw, nose end first
+  {{5, 4, 3,  2},  false},          //right maw, nose end first
+};
+
+static inline uint8_t dinoLift() { return dinoArcAt == 0 ? 0 : DINO_ARC[dinoArcAt - 1]; }
+
+//Draws straight to the panels, the same way setAllVisor() ends, since there is no face to build
+static void dinoPush(const uint64_t *words) {
+  if(visorType != "MAX72XX") return;
+  for(int y = 0; y < numOfSegm; y++) {
+    for(int i = 0; i < 8; i++) {
+      byte row = (words[y] >> (i * 8)) & 0xFF;
+      for(int j = 0; j < 8; j++) mx.setPoint(i, j + (y * 8), bitRead(row, j));
+    }
+  }
+  FdisplayVisor = true;
+}
+
+static void dinoRender(bool crashed) {
+  uint64_t words[MATRIXESNUM];
+  for(int i = 0; i < MATRIXESNUM; i++) words[i] = 0;
+  //one plot lands on both maws at once, mirrored
+  auto plot = [&](int pos, int r) {
+    if(pos < 0 || pos >= DINO_LEN || r < 0 || r > 7) return;
+    for(int t = 0; t < 2; t++) {
+      uint8_t panel = dinoStrips[t].panel[pos / 8];
+      uint8_t col = dinoStrips[t].mirrored ? (uint8_t)(7 - (pos % 8)) : (uint8_t)(pos % 8);
+      words[panel] |= 1ULL << (r * 8 + col);
+    }
+  };
+  for(int pos = 0; pos < DINO_LEN; pos++) plot(pos, 7);          //the ground
+  uint8_t lift = dinoLift();
+  for(int ri = 0; ri < DINO_H; ri++)
+    for(int ci = 0; ci < DINO_W; ci++)
+      if(DINO_SPRITE[ri][ci] == '#') plot(DINO_X + ci, (7 - DINO_H) + ri - lift);
+  for(int c = 0; c < 3; c++) {
+    if(dinoCactus[c] < 0) continue;
+    for(int ri = 0; ri < 2; ri++) for(int ci = 0; ci < 2; ci++) plot(dinoCactus[c] + ci, 5 + ri);
+  }
+  if(crashed && ((millis() / 120) % 2)) {                        //flash the wreck before bowing out
+    for(int i = 0; i < MATRIXESNUM; i++) words[i] = 0;
+    for(int pos = 0; pos < DINO_LEN; pos++) plot(pos, 7);
+  }
+  dinoPush(words);
+}
+
+void dinoStart() {
+  if(visorType != "MAX72XX" || !visorNow || numOfSegm == 0) return;
+  for(int t = 0; t < 2; t++)
+    for(int k = 0; k < 4; k++)
+      if(dinoStrips[t].panel[k] >= numOfSegm) return;            //not this mask's layout
+  dinoBackTo = currentAnim;
+  dinoActive = true;
+  dinoArcAt = 0;
+  dinoJustJumped = false;
+  dinoCactus[0] = DINO_LEN - 1; dinoCactus[1] = -1; dinoCactus[2] = -1;
+  dinoScore = 0; dinoTicks = 0;
+  dinoStepMs = 90;
+  dinoOverAt = 0;
+  dinoTickAt = millis();
+  logPrint(F("[I] Dino: go"));
+}
+
+void dinoEnd() {
+  if(!dinoActive) return;
+  dinoActive = false;
+  dinoOverAt = 0;
+  if(dinoScore > cfg.dinoBest) { cfg.dinoBest = dinoScore; cfg.save(); }
+  logPrint("[I] Dino: " + String(dinoScore) + " (best " + String(cfg.dinoBest) + ")");
+  if(dinoBackTo != "" && dinoBackTo != "POSTAnimLoad") loadAnim(dinoBackTo, "");
+  dinoBackTo = "";
+  instantReload = true;
+}
+
+void dinoStep() {
+  if(dinoStartReq) { dinoStartReq = false; if(!dinoActive) dinoStart(); }
+  if(dinoStopReq)  { dinoStopReq = false; if(dinoActive) dinoEnd(); }
+  if(!dinoActive) { dinoJumpReq = false; return; }
+  if(dinoJumpReq) {                                             //only from the ground, no mid-air hops
+    dinoJumpReq = false;
+    if(dinoArcAt == 0) { dinoArcAt = 1; dinoJustJumped = true; }
+  }
+  if(dinoOverAt) {                                              //crashed: hold the wreck a moment
+    dinoRender(true);
+    if(millis() - dinoOverAt > 1200) dinoEnd();
+    return;
+  }
+  if(millis() - dinoTickAt < dinoStepMs) return;
+  dinoTickAt = millis();
+
+  if(dinoArcAt) {
+    if(dinoJustJumped) dinoJustJumped = false;                  //show frame one before moving on
+    else { dinoArcAt++; if(dinoArcAt > DINO_ARC_LEN) dinoArcAt = 0; }
+  }
+  for(int c = 0; c < 3; c++) if(dinoCactus[c] >= 0) dinoCactus[c]--;
+  for(int c = 0; c < 3; c++) if(dinoCactus[c] < -2) dinoCactus[c] = -1;
+  //a new one once the last is far enough along, with a random gap so it never settles into a rhythm
+  int furthest = -1;
+  for(int c = 0; c < 3; c++) if(dinoCactus[c] > furthest) furthest = dinoCactus[c];
+  if(furthest < DINO_LEN - 12 - (int)random(0, 8))
+    for(int c = 0; c < 3; c++) if(dinoCactus[c] < 0) { dinoCactus[c] = DINO_LEN - 1; break; }
+
+  if(++dinoTicks % 4 == 0) dinoScore++;
+  if(dinoStepMs > 45 && dinoTicks % 40 == 0) dinoStepMs -= 5;    //creeps faster the longer you last
+
+  uint8_t lift = dinoLift();
+  int dTop = (7 - DINO_H) - lift, dBot = 6 - lift;               //the dino's rows right now
+  for(int c = 0; c < 3; c++) {
+    if(dinoCactus[c] < 0) continue;
+    bool acrossX = (dinoCactus[c] + 1 >= DINO_BOX_LO) && (dinoCactus[c] <= DINO_BOX_HI);
+    bool acrossY = (dBot >= 5) && (dTop <= 6);
+    if(acrossX && acrossY) { dinoOverAt = millis(); dinoRender(true); return; }
+  }
+  dinoRender(false);
 }
 
 //--------------------------------//Waking up from deep sleep
@@ -2792,7 +2964,8 @@ void loop() {
   }
 
   //--------------------------------//VISOR+BLUSH Leds render
-  if(visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX")) { //custom
+  dinoStep();                              //while a game is running it owns the panels
+  if(!dinoActive && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) { //custom
     if(blinkHoldsFace()) {                 //the mask is doing the blinking: sit on the resting frame
       if(currentVisorFrame != blinkRestFrame || instantReload) {
         currentVisorFrame = blinkRestFrame;
@@ -2837,7 +3010,7 @@ void loop() {
   //--------------------------------//MOUTH BOB
   //The frame often doesn't change for seconds at a time, so the redraw has to be asked for
   //here rather than waiting for the next frame.
-  if(visorNow && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) {
+  if(!dinoActive && visorNow && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) {
     bool wantUp = cfg.bobEna && (millis() % bobPeriod) < bobLift;
     //Blink, when the mask is the one doing it. Random gaps: a blink on a metronome reads as
     //mechanical. Never while asleep (the eyes are already shut) or mid-dip between faces.

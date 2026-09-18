@@ -56,7 +56,7 @@ SAVECONFIG_KEYS = {
     'sleepDeepEna': bool, 'sleepDeepMins': int,
     'staEna': bool, 'staName': str, 'staPass': str, 'mdnsName': str,
     'wakeFlickEna': bool, 'wakeFlickBoot': bool, 'wakeFlickStyle': str, 'wakeFlickMs': int, 'wakeFlickGlitch': int,
-    'bootBarEna': bool,
+    'bootBarEna': bool, 'dinoBest': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
@@ -123,6 +123,8 @@ class VirtualBoard:
         self.clock_mins = -1           # minutes past midnight a page last reported, -1 = never
         self.clock_at = 0.0
         self.clock_24 = False
+        self.dino_on = False           # /dino: the game on the maw. The virtual face cannot play
+        self.dino_score = 0            # it, so this is only enough state for the page to drive
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -516,6 +518,26 @@ class Handler(BaseHTTPRequestHandler):
                 'wifiClients': s['wifiClients'], 'uptime': s['uptime'], 'tempC': s['tempC'],
                 'boopSig': s['boopSig'], 'shade': s['shade'], 'booping': s['booping'],
                 'tilt': s['tilt'], 'boop': s['boop'],
+            }), 'application/json')
+
+        if path == '/dino':   # the game on the maw. The virtual face cannot play it, so this only
+            # tracks the state the page reads, enough to exercise Start, Jump, the score and Stop.
+            if 'go' in q:
+                board.dino_on = True
+                board.dino_score = 0
+                board.log('[I] Dino: go')
+            elif 'stop' in q and board.dino_on:
+                board.dino_on = False
+                best = max(int(cfg.get('dinoBest') or 0), board.dino_score)
+                cfg['dinoBest'] = best
+                board.save_config()
+                board.log('[I] Dino: %d (best %d)' % (board.dino_score, best))
+            elif 'jump' in q and board.dino_on:
+                board.dino_score += 3          # a pretend run, so the score visibly moves
+            return self.reply(200, json.dumps({
+                'on': board.dino_on,
+                'score': board.dino_score,
+                'best': int(cfg.get('dinoBest') or 0),
             }), 'application/json')
 
         if path == '/wakeflick':   # the deep-sleep warm-up. No panels here, so it only says what the mask would do.

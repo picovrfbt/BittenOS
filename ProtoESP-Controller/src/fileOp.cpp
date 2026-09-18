@@ -91,6 +91,7 @@ void Config::setDefault() {
   wakeFlickEna = true;   //coming back from deep sleep, the panels flicker on one at a time
   wakeFlickBoot = true;  //and again when the mask is switched on, like an old device starting up
   bootBarEna = true;     //and a loading bar crawls the maw while it does
+  dinoBest = 0;          //nobody has run yet
   wakeFlickStyle = "crt";
   wakeFlickMs = 1800;    //how long the whole warm-up takes
   wakeFlickGlitch = 1;   //0 none, 1 a little tearing, 2 a lot
@@ -179,6 +180,7 @@ bool Config::save() {
   doc["wakeFlickEna"] = wakeFlickEna;
   doc["wakeFlickBoot"] = wakeFlickBoot;
   doc["bootBarEna"] = bootBarEna;
+  doc["dinoBest"] = dinoBest;
   doc["wakeFlickStyle"] = wakeFlickStyle;
   doc["wakeFlickMs"] = wakeFlickMs;
   doc["wakeFlickGlitch"] = wakeFlickGlitch;
@@ -334,6 +336,7 @@ bool Config::load() {
   wakeFlickEna = doc["wakeFlickEna"] | true;
   wakeFlickBoot = doc["wakeFlickBoot"] | true;
   bootBarEna = doc["bootBarEna"] | true;
+  dinoBest = doc["dinoBest"] | 0;
   wakeFlickStyle = doc["wakeFlickStyle"] | "crt";
   wakeFlickMs = doc["wakeFlickMs"] | 1800;
   wakeFlickGlitch = doc["wakeFlickGlitch"] | 1;
