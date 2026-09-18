@@ -133,6 +133,22 @@
   /* settings: grouped rows, label on the left, control on the right */
   .section { display:grid; }
   .section-title { margin:0 4px 8px; display:flex; align-items:center; gap:8px; }
+  /* Settings sections fold away, so the tab is a list of headings rather than one long scroll.
+     Each says what is inside, so you can find things without opening them all. */
+  details.section > summary { list-style:none; cursor:pointer; margin:0 4px 8px; padding:10px 12px;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    display:flex; align-items:center; gap:10px; }
+  details.section > summary::-webkit-details-marker { display:none; }
+  details.section > summary .what { flex:1; min-width:0; display:grid; gap:2px; }
+  details.section > summary .what b { font-size:13px; font-weight:600; color:var(--text);
+    text-transform:uppercase; letter-spacing:.08em; }
+  details.section > summary .what small { color:var(--dim); font-size:13px; line-height:1.3;
+    text-transform:none; letter-spacing:0; }
+  details.section > summary .chev { flex:none; color:var(--faint); transition:transform .15s ease; }
+  details.section[open] > summary .chev { transform:rotate(90deg); }
+  details.section[open] > summary { border-bottom-left-radius:0; border-bottom-right-radius:0;
+    margin-bottom:0; border-bottom-color:transparent; }
+  details.section[open] > .group { border-top-left-radius:0; border-top-right-radius:0; margin:0 4px 8px; }
   /* a part that isn't wired yet: still usable, but clearly not doing anything */
   .tag { text-transform:none; letter-spacing:0; font-size:11px; font-weight:600; color:var(--faint);
          background:var(--surface2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
@@ -353,8 +369,8 @@
     </section>
 
     <!-- Boop -->
-    <section class="section">
-      <h2 class="section-title">Boop</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Boop</b><small>Snout sensor, how close counts, the shadow check and the boop face</small></span></summary>
       <div class="group" data-group="boopEna">
         <label class="row"><span class="row-text"><b>Boop</b><small>Change face when something touches the snout</small></span>
           <input type="checkbox" class="toggle" data-key="boopEna" data-label="Boop"></label>
@@ -398,11 +414,11 @@
           </div>
         </details>
       </div>
-    </section>
+    </details>
 
     <!-- Boop counter -->
-    <section class="section">
-      <h2 class="section-title">Boop counter</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Boop counter</b><small>The running total on the nose, and a special face every so many</small></span></summary>
       <div class="group" data-group="boopCountEna">
         <label class="row"><span class="row-text"><b>Show the count</b><small>Pops up on the nose after each boop</small></span>
           <input type="checkbox" class="toggle" data-key="boopCountEna" data-label="Boop counter"></label>
@@ -413,11 +429,11 @@
         <div class="row"><span class="row-text"><b>Milestone face</b></span>
           <select id="aMilestone" data-key="aMilestone" data-label="Milestone face" aria-label="Milestone face"></select></div>
       </div>
-    </section>
+    </details>
 
     <!-- Auto-brightness -->
-    <section class="section">
-      <h2 class="section-title">Auto-brightness</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Auto-brightness</b><small>Panels follow the room light, with dark and bright calibration points</small></span></summary>
       <div class="group" data-group="autoBriEna">
         <label class="row"><span class="row-text"><b>Auto-brightness</b><small>The light sensor sets the panel brightness</small></span>
           <input type="checkbox" class="toggle" data-key="autoBriEna" data-label="Auto-brightness"></label>
@@ -472,11 +488,11 @@
           </div>
         </details>
       </div>
-    </section>
+    </details>
 
     <!-- Status screen -->
-    <section class="section">
-      <h2 class="section-title">Status screen</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Status screen</b><small>The little screen inside: brightness, which way up, and the designer</small></span></summary>
       <div class="group" data-group="oledEna">
         <label class="row"><span class="row-text"><b>Status screen</b><small id="oledHint">0.96" SSD1306 OLED inside the helmet</small></span>
           <input type="checkbox" class="toggle" data-key="oledEna" data-label="Status screen"></label>
@@ -493,11 +509,11 @@
         <div class="row dep"><span class="row-text"><b>Screen designer</b><small>Choose what the screen shows</small></span>
           <a class="btn small" href="/screen.html">Open</a></div>
       </div>
-    </section>
+    </details>
 
     <!-- Microphone -->
-    <section class="section">
-      <h2 class="section-title">Microphone</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Microphone</b><small>Mouth moves with your voice: level meter, noise floor and range</small></span></summary>
       <div class="group" data-group="speechEna">
         <label class="row"><span class="row-text"><b>Speech</b><small>The mouth moves with your voice, from the mic on GPIO 4</small></span>
           <input type="checkbox" class="toggle" data-key="speechEna" data-label="Speech"></label>
@@ -536,11 +552,11 @@
           </div>
         </details>
       </div>
-    </section>
+    </details>
 
     <!-- Face changes -->
-    <section class="section">
-      <h2 class="section-title">Face changes</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Face changes</b><small>The dip between faces, and the mouth bob on whatever is showing</small></span></summary>
       <div class="group" data-group="transEna">
         <label class="row"><span class="row-text"><b>Transitions</b><small>Dim away and back when the face changes</small></span>
           <input type="checkbox" class="toggle" data-key="transEna" data-label="Transitions"></label>
@@ -553,11 +569,11 @@
         <label class="row"><span class="row-text"><b>Mouth bob</b><small>The mouth lifts a pixel every second or so</small></span>
           <input type="checkbox" class="toggle" data-key="bobEna" data-label="Mouth bob"></label>
       </div>
-    </section>
+    </details>
 
     <!-- Sleep -->
-    <section class="section">
-      <h2 class="section-title">Sleep</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Sleep and startup</b><small>Dozing off, deep sleep, the wake-up flicker and the loading bar</small></span></summary>
       <div class="group" data-group="sleepEna">
         <label class="row"><span class="row-text"><b>Auto sleep</b><small>Sleeping face when you've been still a while</small></span>
           <input type="checkbox" class="toggle" data-key="sleepEna" data-label="Auto sleep"></label>
@@ -593,11 +609,11 @@
         <div class="row dep"><span class="row-text"><b>Try it</b><small>Plays the warm-up now, without waiting for a sleep</small></span>
           <button class="btn small" type="button" onclick="tryWakeFlick()">Play</button></div>
       </div>
-    </section>
+    </details>
 
     <!-- Button -->
-    <section class="section">
-      <h2 class="section-title">Button</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Button</b><small>What a short press, a double press and a hold each do</small></span></summary>
       <div class="group">
         <div class="row"><span class="row-text"><b>Short press</b></span>
           <select id="btnShort" data-key="btnShort" data-label="Short press" aria-label="Short press" style="text-transform:none"></select></div>
@@ -623,11 +639,11 @@
           <div class="stepper" data-key="btnHoldMs" data-label="Hold for" data-min="300" data-max="5000" data-step="100" data-unit=" ms"><button type="button" aria-label="Less">−</button><output>1500 ms</output><button type="button" aria-label="More">+</button></div></div>
         <p class="hint" style="padding:0 16px 14px">The button is the one across GPIO 21 and 47. Setting Double press to anything makes a single press wait about a quarter of a second to see if a second one is coming; leave it off to keep the single press instant.</p>
       </div>
-    </section>
+    </details>
 
     <!-- Tilt -->
-    <section class="section">
-      <h2 class="section-title">Tilt</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Tilt</b><small>Faces for looking sideways and up. Also what stillness sleep uses.</small></span></summary>
       <div class="group" data-group="tiltEna">
         <label class="row"><span class="row-text"><b>Tilt faces</b><small>Change face when you tilt your head</small></span>
           <input type="checkbox" class="toggle" data-key="tiltEna" data-label="Tilt"></label>
@@ -660,11 +676,11 @@
           </form>
         </details>
       </div>
-    </section>
+    </details>
 
     <!-- WiFi -->
-    <section class="section">
-      <h2 class="section-title">The mask's own WiFi</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>The mask's own WiFi</b><small>The network the mask makes. Always on, so you cannot be locked out.</small></span></summary>
       <div class="group">
         <form class="wifi" id="wifiForm" autocomplete="off">
           <label>Network name<input type="text" id="wifiName" name="wifiName" minlength="9" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
@@ -673,11 +689,11 @@
           <button class="btn primary" type="submit">Save WiFi</button>
         </form>
       </div>
-    </section>
+    </details>
 
     <!-- Join a network -->
-    <section class="section">
-      <h2 class="section-title">Join a network</h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Join a network</b><small>Also connect to a hotspot or house WiFi, so your phone keeps its internet</small></span></summary>
       <div class="group" data-group="staEna">
         <label class="row"><span class="row-text"><b>Join a network</b><small>Also connect to your phone's hotspot or home WiFi, so your phone keeps its internet while it talks to the mask</small></span>
           <input type="checkbox" class="toggle" data-key="staEna" data-label="Join a network"></label>
@@ -690,11 +706,11 @@
           <button class="btn primary" type="submit">Save and join</button>
         </form></div>
       </div>
-    </section>
+    </details>
 
     <!-- Fan -->
-    <section class="section">
-      <h2 class="section-title">Fan <span class="tag">Not installed</span></h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Fan</b><small>Speed for a fan on GPIO 13</small></span><span class="tag">Not installed</span></summary>
       <div class="group notfitted">
         <div class="row stack">
           <div class="control-head"><label for="fanspeed"><b>Speed</b></label><output id="fanVal">100%</output></div>
@@ -702,17 +718,17 @@
         </div>
         <div class="row"><span class="row-text"><small>Nothing is wired to the fan pin (GPIO 13), so this changes nothing yet.</small></span></div>
       </div>
-    </section>
+    </details>
 
     <!-- Remote -->
-    <section class="section">
-      <h2 class="section-title">Remote <span class="tag">Not installed</span></h2>
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Remote</b><small>Bluetooth for the handheld remote, and phone control commands</small></span><span class="tag">Not installed</span></summary>
       <div class="group notfitted">
         <label class="row"><span class="row-text"><b>Remote (BLE)</b><small>ProtoESP's own wireless remote. Starts at the next restart.</small></span>
           <input type="checkbox" class="toggle" data-key="bleEna" data-label="Remote (BLE)"></label>
         <div class="row"><span class="row-text"><small>No remote is paired. If you fit one, switch this on and restart the mask.</small></span></div>
       </div>
-    </section>
+    </details>
   </div>
 
   <!-- ================= SYSTEM ================= -->
