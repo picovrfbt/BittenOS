@@ -12,7 +12,8 @@
 #define SCREEN_MAX_PAGES 8
 
 //When a page is shown. Order matches the designer's list.
-enum : uint8_t { PAGE_ALWAYS, PAGE_BOOPED, PAGE_NOTBOOPED, PAGE_SLEEPING, PAGE_AWAKE, PAGE_DISPLAYSOFF };
+enum : uint8_t { PAGE_ALWAYS, PAGE_BOOPED, PAGE_NOTBOOPED, PAGE_SLEEPING, PAGE_AWAKE, PAGE_DISPLAYSOFF,
+                 PAGE_SPEAKING, PAGE_NOTSPEAKING };
 
 //Everything a layout can show. Filled in by the caller each time the screen is drawn.
 struct ScreenData {
@@ -35,6 +36,9 @@ struct ScreenData {
   int clockMins = -1;   //minutes past midnight, or -1 when no phone has said what time it is
   bool clock24 = false; //24 hour or 12 hour, following the phone that set it
   String ip;            //address on the joined network, empty when it hasn't joined one
+  int micLevel = 0;     //0-100, how loud it is against the Speech range
+  int micTrig = 10;     //the level the mouth starts moving at, same 0-100 scale
+  bool speaking = false; //the mouth is moving right now
 };
 
 bool screenLoadLayout();          //reads /screen.json; false if there isn't a usable one

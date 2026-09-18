@@ -506,6 +506,8 @@ class Handler(BaseHTTPRequestHandler):
                 'boopCount': int(cfg.get('boopCount') or 0), 'wifi': cfg.get('wifiName'),
                 'boopThresh': int(cfg.get('boopThresh') or 15), 'boopShade': int(cfg.get('boopShade') or 30),
                 'ip': s['staIp'],
+                'mic': s['mic'], 'speaking': s['speaking'],
+                'spTrig': int(cfg.get('spTrig') or 10),
                 'wifiClients': s['wifiClients'], 'uptime': s['uptime'], 'tempC': s['tempC'],
                 'boopSig': s['boopSig'], 'shade': s['shade'], 'booping': s['booping'],
                 'tilt': s['tilt'], 'boop': s['boop'],
