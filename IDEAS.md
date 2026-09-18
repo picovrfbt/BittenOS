@@ -39,6 +39,32 @@ value-for-effort within each group.
 **Removed deliberately:** sleep easing (dim down before sleep, climb back on wake). It read as the
 mask dying rather than dozing off, so it came out on 2026-09-17. Deep sleep stayed.
 
+## Funnies — for the heck of it
+
+**The rule these are judged by:** a joke needs an audience, and the audience only ever sees the
+**visor**. The inside screen is the wearer's instrument panel, not a stage — a bouncing DVD logo on
+it was suggested and rejected on exactly that ground. Anything meant to be funny goes on the face.
+
+- [ ] **Boop sass** (~25 lines) — five boops inside ten seconds and it pulls `upset.json` at you.
+      The face and the boop timestamps both already exist.
+- [ ] **Boop rank announcements** (~35 lines) — at a milestone, "BOOP FIEND" scrolls across the maw.
+      Reuses `showPhrase()` unchanged: the face's own panels stay as the eyes, text scrolls the
+      mouth row. Ranks something like Novice at 10, Fiend at 500.
+- [ ] **Idle quirks** (~60 lines) — every few minutes it glances around or sneezes by itself. The
+      strongest "it's alive" trick available, and it is a timer plus faces that already exist.
+- [ ] **Fake boot sequence** (~50 lines) — a loading bar crawling across the maw at power-on before
+      the face snaps in. Hold this until the wake-up flicker has been seen at power-on a few times:
+      the two stacked could make starting up feel slow rather than funny.
+- [ ] **Chrome dino game** (~200 lines) — the big one. **The canvas finding that matters:** the
+      visor is a 10x3 grid of panel slots with only 14 filled, so there is no continuous strip to
+      run across. What there is: two **32x8** maw strips, one per side, with the noses between them.
+      Run the game on one maw and mirror it on the other, so it reads as deliberate. Dino about
+      5x7 px, cactus 2x5, ground on the bottom row. Jump on the **physical button** (instant, and
+      the double-press slot is free) as well as a phone button, since every phone tap is an HTTP
+      round trip. Needs a game-mode takeover in `setAllVisor()`, a jump endpoint and a jump button
+      action. Will need tuning on real hardware; 32x8 is unforgiving.
+- [ ] **Konami code** on the web page unlocks something silly (~20 lines).
+
 ## Software only — nothing to buy
 
 - [ ] **Per-face settings** — mouth bob, transition speed or brightness remembered per face,
