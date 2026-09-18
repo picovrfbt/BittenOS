@@ -56,6 +56,7 @@ SAVECONFIG_KEYS = {
     'sleepDeepEna': bool, 'sleepDeepMins': int,
     'staEna': bool, 'staName': str, 'staPass': str, 'mdnsName': str,
     'wakeFlickEna': bool, 'wakeFlickBoot': bool, 'wakeFlickStyle': str, 'wakeFlickMs': int, 'wakeFlickGlitch': int,
+    'bootBarEna': bool,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,

@@ -1300,6 +1300,7 @@ void startWiFiWeb() {
     if(cfg.getInt(request, "sleepDeepMins", cfg.sleepDeepMins)) cfg.sleepDeepMins = constrain(cfg.sleepDeepMins, 0, 240);
     cfg.getBool(request, "wakeFlickEna", cfg.wakeFlickEna);
     cfg.getBool(request, "wakeFlickBoot", cfg.wakeFlickBoot);
+    cfg.getBool(request, "bootBarEna", cfg.bootBarEna);
     if(cfg.getString(request, "wakeFlickStyle", cfg.wakeFlickStyle)) {
       if(cfg.wakeFlickStyle != "crt" && cfg.wakeFlickStyle != "tube") cfg.wakeFlickStyle = "crt";
     }
@@ -1846,6 +1847,81 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
   logPrint("[E] Button: unknown action " + action);
 }
 
+//--------------------------------//Fake boot sequence
+//A loading bar crawls the maw at startup, then the face snaps in. Built as an animation with a
+//"then" the same way quick phrases are, so it goes through loadAnim() like any face rather than
+//needing its own drawing path, and hands the mask back on its own when it finishes.
+//
+//It costs nothing to run alongside the wake-up warm-up: that drives the MAX7219 shutdown and
+//intensity registers while this is only picture, so the panels stutter to life revealing a bar
+//that is already filling. Nothing needed doing to make the two agree.
+//
+//Words are written as a padded 16-character hex string. loadAnim() reads them with strtoull, so
+//padding is safe - and it is safer than how showPhrase() writes them, which glues the two halves
+//together unpadded and would lose the low word of something like 0x0000000100000001. That is only
+//harmless there because scrolling text makes dense words; a bar makes sparse ones.
+void showBootBar() {
+  if(!cfg.bootBarEna || visorType != "MAX72XX") return;
+  if(!visorNow || numOfSegm == 0) return;
+
+  //The two maws in the order they sit on the face, not the order they are wired. data/visType.txt
+  //reads t11;t10;t9;t8;-;-;t5;t4;t3;t2 along the bottom row, so panels 8 and 5 are the ends nearest
+  //the nose and the bar grows outward from there on both sides at once. Hardcoded like the nose
+  //panels further up, because the firmware never reads visType.txt - the virtual tester does, and
+  //this layout was checked against what it draws rather than guessed at.
+  struct Strip { uint8_t panel[4]; bool mirrored; };
+  static const Strip strips[2] = {
+    {{8, 9, 10, 11}, true},   //left maw, nose end first: its columns count right to left
+    {{5, 4, 3,  2},  false},  //right maw, nose end first: its columns count left to right
+  };
+  const int LEN = 32;                      //four panels of eight columns
+  for(int t = 0; t < 2; t++)
+    for(int k = 0; k < 4; k++)
+      if(strips[t].panel[k] >= numOfSegm) return;   //not this mask's layout: leave startup alone
+
+  //A bar that jumps and pauses reads as something working; one that creeps smoothly reads as an
+  //animation of a bar. The last value repeats so the full bar is held a moment before the face.
+  static const uint8_t STUT[] = {0,3,3,7,7,7,12,12,16,16,16,16,21,25,25,25,27,27,30,30,30,30};
+  const int steps = sizeof(STUT) / sizeof(STUT[0]);
+
+  String out = "{\"ears\":{\"type\":\"none\"},\"visor\":{\"type\":\"custom\",\"isMouth\":[";
+  //every flag false: no speech wobble, and mouth bob leaves the bar alone rather than lifting it
+  for(int i = 0; i < numOfSegm; i++) out += (i ? ",false" : "false");
+  out += "],\"frames\":[";
+  for(int s = 0; s < steps; s++) {
+    uint64_t words[MATRIXESNUM];
+    for(int i = 0; i < MATRIXESNUM; i++) words[i] = 0;
+    for(int t = 0; t < 2; t++) {
+      for(int pos = 0; pos < LEN; pos++) {
+        uint8_t panel = strips[t].panel[pos / 8];
+        uint8_t col = strips[t].mirrored ? (uint8_t)(7 - (pos % 8)) : (uint8_t)(pos % 8);
+        words[panel] |= 1ULL << (1 * 8 + col);                //top rail of the frame
+        words[panel] |= 1ULL << (6 * 8 + col);                //bottom rail
+        if(pos == 0 || pos == LEN - 1)                        //end caps close the frame off
+          for(int r = 1; r <= 6; r++) words[panel] |= 1ULL << (r * 8 + col);
+        if(pos >= 2 && pos <= STUT[s])                        //the fill, inset a row from each rail
+          for(int r = 3; r <= 4; r++) words[panel] |= 1ULL << (r * 8 + col);
+      }
+    }
+    if(s) out += ",";
+    out += "{\"timespan\":70,\"leds\":[";
+    for(int p = 0; p < numOfSegm; p++) {
+      if(p) out += ",";
+      char hex[17];
+      snprintf(hex, sizeof(hex), "%08lX%08lX",
+               (unsigned long)(words[p] >> 32), (unsigned long)(words[p] & 0xFFFFFFFFUL));
+      out += "\"" + String(hex) + "\"";
+    }
+    out += "]}";
+  }
+  out += "],\"then\":\"default.json\"}}";   //the face the mask starts on
+
+  xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+  postAnimToLoad = out;
+  xSemaphoreGive(animQueueMutex);
+  logPrint(F("[I] Booting: loading bar"));
+}
+
 //--------------------------------//Waking up from deep sleep
 //Deep sleep leaves all fourteen panels shut down. Rather than handing them back all at once, each
 //panel stutters on in its own time, dim and unsteady before it settles, with the picture tearing
@@ -2135,6 +2211,7 @@ void setup() {
   
   while(millis()<2000) {yield();} //2s delay for the anim to load properly (idk why but it doesnt without this or with 1s)
   loadAnim("default.json","");
+  showBootBar();   //a loading bar first, if that is switched on; it hands back to the face itself
 
   logPrint("[I] Free heap: "+String(ESP.getFreeHeap()));
   logPrint("[I] Free PSRAM: "+String(ESP.getFreePsram()));
