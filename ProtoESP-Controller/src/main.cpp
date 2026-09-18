@@ -405,6 +405,8 @@ volatile bool oledFlipReq = false;       //set when Upside down is changed
 volatile bool wakeFlickReq = false;      //from /wakeflick: play the warm-up now
 bool bootFlickPending = false;           //switched on: warm up as soon as the first frame is drawn
 bool bootBarHandover = false;            //the startup bar is playing; arm the warm-up when it ends
+bool bootBarBlanked = false;             //panels held dark until the bar's own first frame is in them
+unsigned long bootBlankAt = 0;           //when that blanking started, so it cannot last forever
 //Dino game: the flags live up here because /dino and doButtonAction both sit above the game itself
 bool dinoActive = false;
 volatile bool dinoStartReq = false, dinoJumpReq = false, dinoStopReq = false;
@@ -1886,9 +1888,11 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
 //padding is safe - and it is safer than how showPhrase() writes them, which glues the two halves
 //together unpadded and would lose the low word of something like 0x0000000100000001. That is only
 //harmless there because scrolling text makes dense words; a bar makes sparse ones.
-void showBootBar() {
-  if(!cfg.bootBarEna || visorType != "MAX72XX") return;
-  if(!visorNow || numOfSegm == 0) return;
+//Builds and queues the bar. False means there is no bar to show, and the caller lights the panels
+//back up. Split in two because the cleanup cannot be reached by jumping past the locals below.
+static bool buildBootBar() {
+  if(!cfg.bootBarEna || visorType != "MAX72XX") return false;
+  if(!visorNow || numOfSegm == 0) return false;
 
   //The two maws in the order they sit on the face, not the order they are wired. data/visType.txt
   //reads t11;t10;t9;t8;-;-;t5;t4;t3;t2 along the bottom row, so panels 8 and 5 are the ends nearest
@@ -1903,7 +1907,7 @@ void showBootBar() {
   const int LEN = 32;                      //four panels of eight columns
   for(int t = 0; t < 2; t++)
     for(int k = 0; k < 4; k++)
-      if(strips[t].panel[k] >= numOfSegm) return;   //not this mask's layout: leave startup alone
+      if(strips[t].panel[k] >= numOfSegm) return false;  //not this mask's layout: leave startup alone
 
   //A bar that jumps and pauses reads as something working; one that creeps smoothly reads as an
   //animation of a bar. The last value repeats so the full bar is held a moment before the face.
@@ -1967,6 +1971,19 @@ void showBootBar() {
   xSemaphoreGive(animQueueMutex);
   bootBarHandover = (cfg.wakeFlickEna && cfg.wakeFlickBoot);    //warm up once the bar has finished
   logPrint("[I] Booting: loading bar over " + String(constrain(cfg.bootBarMs, 300, 8000)) + " ms");
+  return true;
+}
+
+void showBootBar() {
+  if(buildBootBar()) return;
+  //No bar after all. The panels were blanked ready for it, so hand them back rather than leave the
+  //mask dark, and let the warm-up do the reveal on its own.
+  if(bootBarBlanked) {
+    bootBarBlanked = false;
+    if(visorType == "MAX72XX")
+      for(int p = 0; p < MATRIXESNUM; p++) mx.control((uint8_t)p, MD_MAX72XX::SHUTDOWN, MD_MAX72XX::OFF);
+    if(cfg.wakeFlickEna && cfg.wakeFlickBoot) bootFlickPending = true;
+  }
 }
 
 //--------------------------------//Dino game on the maw
@@ -2326,14 +2343,21 @@ void setup() {
     ledController[0] = &FastLED.addLeds<WS2812B, DATA_PIN_VISOR, GRB>(visorLeds, visorLedsNum);
   } else if (visorType == "MAX72XX") {
     mx.begin();
-    //Startup runs in order: the loading bar fills on lit panels, then the warm-up stutters them
-    //back on to reveal the face. So the panels are only blacked out here when there is no bar to
-    //show - with one, blacking out would play the bar into dark panels. When the bar is running,
-    //the warm-up is armed later, at the moment the bar hands over to the face.
-    if(cfg.wakeFlickEna && cfg.wakeFlickBoot && !cfg.bootBarEna) {
+    //Startup runs in order: the loading bar fills, then the warm-up stutters the panels back on to
+    //reveal the face. Either way the panels start dark here.
+    //
+    //They have to. showBootBar() needs the face loaded before it can know which panels are the maw,
+    //so setup loads the face first and only then queues the bar - and the loop draws and flushes
+    //that face once before it picks the bar up off the queue. Leaving the panels lit meant that one
+    //frame showed: a split second of face before the bar appeared. Blanking here and lighting them
+    //only when the bar's own frame is in the chips removes it.
+    if(cfg.wakeFlickEna && cfg.wakeFlickBoot) bootFlickPending = true;
+    if(bootFlickPending || cfg.bootBarEna) {
       for(int p = 0; p < MATRIXESNUM; p++) mx.control((uint8_t)p, MD_MAX72XX::SHUTDOWN, MD_MAX72XX::ON);
-      bootFlickPending = true;
+      bootBarBlanked = cfg.bootBarEna;     //the bar lights them; without one the warm-up does
+      bootBlankAt = millis();
     }
+    if(cfg.bootBarEna) bootFlickPending = false;   //armed later, when the bar hands over
   }
   if(earPresent || blushPresent) { //RMT4 2 controller fix
     ledController[1] = &FastLED.addLeds<WS2812B, DATA_PIN_EARS, GRB>(c2Leds, earLedsNum+blushLedsNum);
@@ -3608,6 +3632,13 @@ void loop() {
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
         mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::OFF);
         FdisplayVisor = false;
+        //The startup bar's own frame is in the chips now, so it is safe to light the panels. Held
+        //dark until this point so the face that setup draws first is never seen. The timeout is a
+        //safety net: if the bar never starts - no maw panels, say - the mask must not stay dark.
+        if(bootBarBlanked && (currentAnim == "POSTAnimLoad" || millis() - bootBlankAt > 4000)) {
+          bootBarBlanked = false;
+          for(int p = 0; p < MATRIXESNUM; p++) mx.control((uint8_t)p, MD_MAX72XX::SHUTDOWN, MD_MAX72XX::OFF);
+        }
         if(bootFlickPending) { //the face is in the panels now: warm them up over the top of it
           bootFlickPending = false;
           wakeFlickBegin();
