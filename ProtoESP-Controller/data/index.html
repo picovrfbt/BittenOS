@@ -269,7 +269,11 @@
           <option value="still">None</option>
         </select>
       </div>
-      <p class="hint">Faces that animate themselves keep their own blinking, so this only appears for faces the mask can take over — this one, and anything you draw as a single frame. <b>Mask blinks</b> blinks at random gaps of 2.5 to 7 seconds instead of on a fixed cycle.</p>
+      <div class="row" style="padding:0">
+        <span class="row-text"><b>Double blink</b><small>How often a blink comes as a quick pair</small></span>
+        <div class="stepper" data-key="blinkDoublePct" data-label="Double blink" data-min="0" data-max="100" data-step="5" data-unit=" %"><button type="button" aria-label="Less">−</button><output>25 %</output><button type="button" aria-label="More">+</button></div>
+      </div>
+      <p class="hint">Faces that animate themselves keep their own blinking, so this only appears for faces the mask can take over — this one, and anything you draw as a single frame. <b>Mask blinks</b> blinks at random gaps of 2.5 to 7 seconds instead of on a fixed cycle, and takes about the same 450 ms the default face's own blink does. <b>Double blink</b> sets how many of those come as a quick pair — a second blink a tenth of a second behind the first, which is what stops it reading as a machine ticking. 0 turns pairs off.</p>
     </section>
 
     <section class="card">
@@ -1419,7 +1423,7 @@
   const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol'];
   const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, transMs: 80, sleepTol: 0.2, sleepMins: 5,
                     autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
-                    autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face',
+                    autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face', blinkDoublePct: 25,
                     btnShort: 'nextFace', btnDouble: 'none', btnHold: 'displays', btnHoldMs: 1500,
                     btnShortPhrase: 0, btnDoublePhrase: 0, btnHoldPhrase: 0,
                     sleepDeepEna: false, sleepDeepMins: 20,

@@ -44,6 +44,7 @@ SAVECONFIG_KEYS = {
     'autoBriEna': bool, 'autoBriMode': str, 'autoBriSecs': int, 'autoBriMin': int, 'autoBriMax': int,
     'autoBriDark': int, 'autoBriBright': int, 'oledFlip': bool,
     'mouthMode': str, 'boopMilestone': int, 'aMilestone': str, 'blinkMode': str,
+    'blinkDoublePct': int,
     'btnShort': str, 'btnDouble': str, 'btnHold': str,
     'btnShortFace': str, 'btnDoubleFace': str, 'btnHoldFace': str,
     'btnHoldMs': int, 'btnShortPhrase': int, 'btnDoublePhrase': int, 'btnHoldPhrase': int,
