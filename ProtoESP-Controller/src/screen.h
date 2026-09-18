@@ -13,7 +13,7 @@
 
 //When a page is shown. Order matches the designer's list.
 enum : uint8_t { PAGE_ALWAYS, PAGE_BOOPED, PAGE_NOTBOOPED, PAGE_SLEEPING, PAGE_AWAKE, PAGE_DISPLAYSOFF,
-                 PAGE_SPEAKING, PAGE_NOTSPEAKING };
+                 PAGE_SPEAKING, PAGE_NOTSPEAKING, PAGE_MILESTONE };
 
 //Everything a layout can show. Filled in by the caller each time the screen is drawn.
 struct ScreenData {
@@ -39,6 +39,7 @@ struct ScreenData {
   int micLevel = 0;     //0-100, how loud it is against the Speech range
   int micTrig = 10;     //the level the mouth starts moving at, same 0-100 scale
   bool speaking = false; //the mouth is moving right now
+  bool milestone = false; //this boop hit the milestone, and the celebration is still running
 };
 
 bool screenLoadLayout();          //reads /screen.json; false if there isn't a usable one

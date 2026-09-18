@@ -2524,6 +2524,10 @@ void screenTick() {
   d.micLevel = cfg.speechEna ? micVolume : 0;
   d.micTrig = cfg.spTrig;
   d.speaking = cfg.speechEna && speaking;   //speaking is what actually moves the mouth
+  //milestoneBoop stays set until the next ordinary boop, so on its own it would pin the page up
+  //forever. The counter pop is the celebration: bound it to that, and the page's own linger then
+  //carries it a moment further, the same way the boop page does.
+  d.milestone = milestoneBoop && boopPhase() >= 0;
   //Pick the page. A page with a condition wins while that condition holds, and keeps the screen for
   //its linger time afterwards, so a boop page does not vanish the instant the paw lifts.
   int page = -1;
@@ -2532,7 +2536,9 @@ void screenTick() {
     if(show == PAGE_ALWAYS) continue;
     bool on = (show == PAGE_BOOPED && d.booping) || (show == PAGE_NOTBOOPED && !d.booping) ||
               (show == PAGE_SLEEPING && d.sleeping) || (show == PAGE_AWAKE && !d.sleeping) ||
-              (show == PAGE_DISPLAYSOFF && !d.displayOn);
+              (show == PAGE_DISPLAYSOFF && !d.displayOn) ||
+              (show == PAGE_SPEAKING && d.speaking) || (show == PAGE_NOTSPEAKING && !d.speaking) ||
+              (show == PAGE_MILESTONE && d.milestone);
     if(on) {
       page = i;
       screenTakeoverPage = i;
