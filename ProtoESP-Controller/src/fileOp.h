@@ -48,8 +48,12 @@ public:
   int dinoBest;                       //best distance reached in the dino game on the maw
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
   int wakeFlickMs,wakeFlickGlitch;    //how long the warm-up runs, and how much the picture tears (0-2)
+  int boopConfirm;                    //readings in a row over the line before it counts as a boop
   float neutralX,neutralY,neutralZ,tiltX,tiltY,tiltZ,upX,upY,upZ,tiltTol,sleepTol;
-  String aTilt,aUp,aBoop,aSleep,visColorStr,wifiName = "ProtoWiFi",wifiPass = "Proto1234";
+  //Tilting the other way is a different reading, not the mirror of the first - one axis changes
+  //sign - so it gets its own taught position rather than being worked out from the other side.
+  float tilt2X,tilt2Y,tilt2Z;
+  String aTilt,aTilt2,aUp,aBoop,aSleep,visColorStr,wifiName = "ProtoWiFi",wifiPass = "Proto1234";
   unsigned long visColor;
   void setDefault();
   bool save();

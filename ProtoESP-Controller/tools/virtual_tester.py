@@ -64,6 +64,7 @@ SAVECONFIG_KEYS = {
     'tiltX': float, 'tiltY': float, 'tiltZ': float,
     'upX': float, 'upY': float, 'upZ': float, 'tiltTol': float,
     'visColor': str, 'wifiName': str, 'wifiPass': str, 'boopThresh': int, 'sleepMins': int,
+    'boopConfirm': int, 'aTilt2': str, 'tilt2X': float, 'tilt2Y': float, 'tilt2Z': float,
 }
 
 CONTENT_TYPES = {

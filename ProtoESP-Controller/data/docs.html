@@ -89,7 +89,7 @@
         <li>In normal light your hand should push <b class="k">Shadow</b> past its yellow line. If not, lower <b class="k">Shadow needed</b>.</li>
         <li>Switch <b class="k">Boop</b> on and pick the <b class="k">Boop face</b>.</li>
       </ol>
-      <p>A boop needs closeness over the line for five checks in a row, about 210 ms, plus a shadow within the last second. In the dark there's nothing to shade, so it falls back to closeness alone and the Shadow bar greys out.</p>
+      <p>A boop needs closeness over the line for <b class="k">Readings to confirm</b> checks in a row - five by default, about 210 ms - plus a shadow within the last second. Lower it for a quicker boop at the cost of the odd false one, raise it if the mask boops itself. In the dark there's nothing to shade, so it falls back to closeness alone and the Shadow bar greys out.</p>
       <p><b>Milestones:</b> every hundredth boop plays a face of your choosing instead of the usual one. Set the count and the face under Boop counter, or set the count to 0 to turn it off.</p>
       <div class="warn">If boops fire at random, check <b class="k">Confirm with light</b> is on. If real boops say "no shadow — ignored", lower Shadow needed.</div>
     </div>
@@ -213,6 +213,16 @@
       <p><b>Blinks</b> appears on the Mask tab only while a face the mask can blink is showing. Most faces are animations that blink themselves; the mask can only take over on a still face. In the face maker, tick <b class="k">The mask may blink this face</b> and you never need to draw blink frames.</p>
       <p>The mask's blink takes about 450 ms, the same as the blink the default face draws for itself, so the two read as the same gesture. <b>Double blink</b> sets how many blinks come as a quick pair instead of one on its own — a second blink a tenth of a second behind the first. A single blink on a timer reads as a machine ticking however random the gap; the occasional pair is what makes it look alive. Default is a quarter of them; 0 turns pairs off.</p>
       <div class="warn">Deleting or renaming a face that a setting points at leaves that setting pointing at nothing — the page warns you, so pick another.</div>
+    </div>
+  </details>
+
+  <details class="card">
+    <summary><span>Tilt<small>A face for each way you tilt your head</small></span></summary>
+    <div class="body">
+      <p>With <b class="k">Tilt faces</b> on, tipping your head plays a face and going back to normal puts the old one back. There are three positions besides idle: <b>sideways</b>, <b>the other way</b>, and <b>up</b>, each with its own face.</p>
+      <p><b>Teaching it:</b> open <b class="k">Calibrate positions</b>, hold your head in each position and press <b class="k">Read</b> beside it, then <b class="k">Save positions</b>. The Read buttons work even with Tilt switched off. Tilting the other way has to be taught separately rather than worked out from the first - one axis changes sign, so it is a different reading, not a mirror image.</p>
+      <p><b class="k">Tolerance</b> is how close your head has to be to a taught position. Too small and it never triggers; too large and two positions overlap and it picks whichever it tests first. If a tilt face sticks, it gives up after 8 seconds and goes back on its own.</p>
+      <p>This is also where stillness for auto sleep comes from, so the tilt sensor has to be found for sleep to work at all - even with tilt faces off.</p>
     </div>
   </details>
 
