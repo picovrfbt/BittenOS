@@ -59,12 +59,12 @@ SAVECONFIG_KEYS = {
     'bootBarEna': bool, 'bootBarMs': int, 'dinoBest': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
-    'aTilt': str, 'aUp': str, 'aBoop': str, 'aSleep': str,
+    'aTilt': str, 'aTilt2': str, 'aBoop': str, 'aSleep': str,
     'neutralX': float, 'neutralY': float, 'neutralZ': float,
     'tiltX': float, 'tiltY': float, 'tiltZ': float,
-    'upX': float, 'upY': float, 'upZ': float, 'tiltTol': float,
+    'tiltTrig': float,
     'visColor': str, 'wifiName': str, 'wifiPass': str, 'boopThresh': int, 'sleepMins': int,
-    'boopConfirm': int, 'aTilt2': str, 'tilt2X': float, 'tilt2Y': float, 'tilt2Z': float,
+    'boopConfirm': int, 'tilt2X': float, 'tilt2Y': float, 'tilt2Z': float,
 }
 
 CONTENT_TYPES = {
