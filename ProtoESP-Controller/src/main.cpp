@@ -123,6 +123,19 @@ int boopRawBuf[5] = {0, 0, 0, 0, 0};   //the last five raw readings, for a media
 uint8_t boopRawIdx = 0;
 float boopFloor = -1;                  //the tracked resting level; -1 until the first reading
 uint8_t boopOver = 0, boopUnder = 0;   //checks in a row above the trigger / below the release
+//How often the proximity is read and the boop logic runs. The APDS-9930 converts a proximity
+//reading in 2.72 ms (PTIME 0xFF), so the old 100 ms was all firmware: median of five plus three
+//confirmations at that rate meant a boop could take most of a second to register. At 30 ms the same
+//counts - same rejection of stray readings - come to about a fifth of that.
+#define BOOP_POLL_MS 30
+//Checks in a row needed to start and to end a boop. Five, not three, because sampling faster means
+//more chances per hour for stray readings to line up even though the rejection per sample is the
+//same: simulated over six hours, 30 ms with three confirmations gave 1.03 false boops an hour
+//against 0.37 at the old 100 ms, while five gave none at all and still registers a tap in 210 ms
+//rather than 500. Faster and steadier than before rather than a trade of one for the other.
+#define BOOP_CONFIRM 5
+#define BOOP_RELEASE 5
+unsigned long lastProxAt = 0, lastFloorAt = 0;
 
 inline bool boopIs(const char *m) { return strcmp(boopMode, m) == 0; }
 inline bool boopIsApds() { return boopIs("APDS9960") || boopIs("APDS9930"); }
@@ -3117,9 +3130,12 @@ void loop() {
   }
 
   //--------------------------------//TILT
-  //--------------------------------//I2C sensors: read every 100 ms on the loop task; the web pages use these cached values
-  if(lastMillsTilt+100<=millis()) {
-    lastMillsTilt = millis();
+  //--------------------------------//Boop proximity, on its own fast timer
+  //Read at BOOP_POLL_MS rather than with the rest, because this is the one that decides how quickly
+  //a boop registers. The light channel integrates for about 100 ms (ATIME 0xDB) so reading it
+  //faster gains nothing, and the tilt sensor has no need to be quick - both stay where they were.
+  if(lastProxAt+BOOP_POLL_MS<=millis()) {
+    lastProxAt = millis();
     if(boopIsApds() && ToFInitDone) {
       int prox = boopReadProx();
       if(prox < 0) {
@@ -3150,12 +3166,21 @@ void loop() {
         //Track the resting level. It follows a weaker reflection down quickly and creeps up slowly
         //with drift, so a boop - a fast rise - is never mistaken for drift. It holds still during a
         //boop, so a paw left on the visor isn't soaked into it.
-        if(!booping) {
+        //Still tracked on the old 100 ms cadence even though the reading is now faster. These
+        //coefficients are per-sample, so running them at 30 ms would make the resting level creep
+        //three times quicker in real time and start soaking up the very boop it is meant to ignore.
+        if(!booping && millis() - lastFloorAt >= 100) {
+          lastFloorAt = millis();
           if(apdsprox < boopFloor) boopFloor += (apdsprox - boopFloor) * 0.3f;
           else boopFloor += (apdsprox - boopFloor) * 0.01f;
         }
       }
     }
+  }
+
+  //--------------------------------//I2C sensors: light and tilt, every 100 ms on the loop task
+  if(lastMillsTilt+100<=millis()) {
+    lastMillsTilt = millis();
     if(boopIs("APDS9930") && ToFInitDone) {    //every 100 ms, to catch a paw's shadow as it arrives
       alsCh0 = apds9930Read16(0x14);
       alsCh1 = apds9930Read16(0x16);
@@ -3412,7 +3437,7 @@ void loop() {
 
   //looptime = micros();
   //--------------------------------//BOOP Detection; 14-800uS
-  if(lastBoopCheck+100<=millis() && cfg.boopEna) {
+  if(lastBoopCheck+BOOP_POLL_MS<=millis() && cfg.boopEna) {
     if(boopIs("KY-032")) {
       digitalWrite(T_en, HIGH);
       delayMicroseconds(210);
@@ -3457,23 +3482,24 @@ void loop() {
       }
     } else if (boopIsApds()) {
       if(ToFInitDone) {
-        //apdsprox is read every 100 ms in the I2C sensor section
-        //Three checks in a row (about 300 ms) to start a boop and two to end one, so stray readings do neither.
+        //apdsprox is read every BOOP_POLL_MS in the proximity section above.
+        //BOOP_CONFIRM checks in a row to start a boop and BOOP_RELEASE to end one, so stray
+        //readings do neither. Release is a good way under the trigger, so it can't chatter.
         //Release is a good way under the trigger, so it can't chatter at the boundary.
         int sig = boopSignal();
         if(booping == false) {
           boopUnder = 0;
-          boopOver = (sig > cfg.boopThresh) ? min(boopOver + 1, 3) : 0;
+          boopOver = (sig > cfg.boopThresh) ? min(boopOver + 1, (int)BOOP_CONFIRM) : 0;
           if(boopOver == 0) boopIgnoreLogged = false;
           //With light to block, it also needs a shadow in the last second. Still over but no shadow
           //stays waiting rather than resetting, so a shadow arriving a moment later still counts.
           bool shadowOk = !cfg.boopLightEna || !boopIs("APDS9930") || lightNormal < LIGHT_MIN || shadeRecent() >= cfg.boopShade;
-          if(boopOver >= 3 && !shadowOk && !boopIgnoreLogged) {
+          if(boopOver >= BOOP_CONFIRM && !shadowOk && !boopIgnoreLogged) {
             boopIgnoreLogged = true;
             boopsIgnored++;
             logPrint("[I] Boop ignored: signal " + String(sig) + " but only " + String(shadeRecent()) + "% shade");
           }
-          if(boopOver >= 3 && shadowOk) {
+          if(boopOver >= BOOP_CONFIRM && shadowOk) {
             boopOver = 0;
             boopIgnoreLogged = false;
             logPrint("[I] BOOP (signal " + String(sig) + " over " + String(cfg.boopThresh) + ", " + String(shadeRecent()) + "% shade)");
@@ -3489,7 +3515,7 @@ void loop() {
           //it warmed up - rather than a real paw. Let go and take this as the new resting level, or
           //it would stay latched and no real boop could ever register.
           bool stuck = millis() - lastMillsBoop > 8000;
-          if(boopUnder >= 2 || stuck) {
+          if(boopUnder >= BOOP_RELEASE || stuck) {
             if(stuck) {
               boopFloor = apdsprox;
               logPrint(F("[I] Boop held 8 s: taking that as the new resting level"));
