@@ -390,6 +390,9 @@
         <div class="row dep"><span class="row-text"><b>Boop distance</b><small>How close counts. The yellow line on Closeness.</small></span>
           <div class="stepper" data-key="boopThresh" data-label="Boop distance" data-min="1" data-max="250" data-step="1"><button type="button" aria-label="Less">−</button><output>15</output><button type="button" aria-label="More">+</button></div></div>
 
+        <div class="row dep"><span class="row-text"><b>Readings to confirm</b><small>How many in a row over the line before it counts. Lower is quicker, higher is steadier.</small></span>
+          <div class="stepper" data-key="boopConfirm" data-label="Readings to confirm" data-min="2" data-max="10" data-step="1"><button type="button" aria-label="Less">&minus;</button><output>5</output><button type="button" aria-label="More">+</button></div></div>
+
         <label class="row dep"><span class="row-text"><b>Confirm with light</b><small>A boop must also shade the sensor. Stops random boops.</small></span>
           <input type="checkbox" class="toggle" data-key="boopLightEna" data-label="Confirm with light" data-master="boopLightEna"></label>
 
@@ -643,12 +646,14 @@
 
     <!-- Tilt -->
     <details class="section">
-      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Tilt</b><small>Faces for looking sideways and up. Also what stillness sleep uses.</small></span></summary>
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Tilt</b><small>A face for each way you tilt your head. Also what stillness sleep uses.</small></span></summary>
       <div class="group" data-group="tiltEna">
         <label class="row"><span class="row-text"><b>Tilt faces</b><small>Change face when you tilt your head</small></span>
           <input type="checkbox" class="toggle" data-key="tiltEna" data-label="Tilt"></label>
         <div class="row dep"><span class="row-text"><b>Head tilted sideways</b></span>
           <select id="aTilt" data-key="aTilt" data-label="Sideways face" aria-label="Sideways face"></select></div>
+        <div class="row dep"><span class="row-text"><b>Head tilted the other way</b></span>
+          <select id="aTilt2" data-key="aTilt2" data-label="Other side face" aria-label="Other side face"></select></div>
         <div class="row dep"><span class="row-text"><b>Head tilted up</b></span>
           <select id="aUp" data-key="aUp" data-label="Tilt-up face" aria-label="Tilt-up face"></select></div>
         <details class="sub dep">
@@ -665,6 +670,11 @@
               <input type="number" name="tiltY" step="any" min="-1" max="1" placeholder="Y" aria-label="Sideways Y">
               <input type="number" name="tiltZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Sideways Z">
               <button class="btn small" type="button" onclick="pullFor('Tilt')">Read</button></div>
+            <div class="xyz"><span>Other side</span>
+              <input type="number" name="tilt2X" step="any" min="-1" max="1" placeholder="X" aria-label="Other side X">
+              <input type="number" name="tilt2Y" step="any" min="-1" max="1" placeholder="Y" aria-label="Other side Y">
+              <input type="number" name="tilt2Z" step="any" min="-1" max="1" placeholder="Z" aria-label="Other side Z">
+              <button class="btn small" type="button" onclick="pullFor('Tilt2')">Read</button></div>
             <div class="xyz"><span>Up</span>
               <input type="number" name="upX" step="any" min="-1" max="1" placeholder="X" aria-label="Up X">
               <input type="number" name="upY" step="any" min="-1" max="1" placeholder="Y" aria-label="Up Y">
@@ -866,7 +876,7 @@
     if (ok) $('blinkFaceName').textContent = name.replace(/\.json$/, '');
   }
 
-  const FACE_PICKERS = ['aTilt', 'aUp', 'aBoop', 'aSleep', 'aMilestone',
+  const FACE_PICKERS = ['aTilt', 'aTilt2', 'aUp', 'aBoop', 'aSleep', 'aMilestone',
                         'btnShortFace', 'btnDoubleFace', 'btnHoldFace'];
 
   async function loadFiles() {
@@ -1448,8 +1458,9 @@
     }
   }
 
-  const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ', 'upX', 'upY', 'upZ', 'tiltTol'];
-  const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, transMs: 80, sleepTol: 0.2, sleepMins: 5,
+  const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ',
+                     'tilt2X', 'tilt2Y', 'tilt2Z', 'upX', 'upY', 'upZ', 'tiltTol'];
+  const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, boopConfirm: 5, transMs: 80, sleepTol: 0.2, sleepMins: 5,
                     autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
                     autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face', blinkDoublePct: 25,
                     btnShort: 'nextFace', btnDouble: 'none', btnHold: 'displays', btnHoldMs: 1500,
@@ -1822,13 +1833,13 @@
   });
 
   async function pullFor(what) {
-    const prefix = {Neutral: 'neutral', Tilt: 'tilt', Up: 'up'}[what];
+    const prefix = {Neutral: 'neutral', Tilt: 'tilt', Tilt2: 'tilt2', Up: 'up'}[what];
     try {
       const text = (await (await fetch('/gyro', NO_CACHE)).text()).trim();
       const xyz = text.split(';').map(parseFloat);
       if (xyz.length !== 3 || xyz.some(isNaN)) { toast(text, true); return; }   // e.g. "Tilt sensor (BMI270) not found"
       ['X', 'Y', 'Z'].forEach((axis, i) => { byName(prefix + axis).value = xyz[i].toFixed(2); });
-      toast({Neutral: 'Idle', Tilt: 'Sideways', Up: 'Up'}[what] + ' position read');
+      toast({Neutral: 'Idle', Tilt: 'Sideways', Tilt2: 'Other side', Up: 'Up'}[what] + ' position read');
     } catch (e) { toast('Could not read the tilt sensor', true); }
   }
 

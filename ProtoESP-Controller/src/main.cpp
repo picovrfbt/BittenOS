@@ -128,12 +128,12 @@ uint8_t boopOver = 0, boopUnder = 0;   //checks in a row above the trigger / bel
 //confirmations at that rate meant a boop could take most of a second to register. At 30 ms the same
 //counts - same rejection of stray readings - come to about a fifth of that.
 #define BOOP_POLL_MS 30
-//Checks in a row needed to start and to end a boop. Five, not three, because sampling faster means
-//more chances per hour for stray readings to line up even though the rejection per sample is the
-//same: simulated over six hours, 30 ms with three confirmations gave 1.03 false boops an hour
-//against 0.37 at the old 100 ms, while five gave none at all and still registers a tap in 210 ms
-//rather than 500. Faster and steadier than before rather than a trade of one for the other.
-#define BOOP_CONFIRM 5
+//How many readings in a row end a boop. Starting one is cfg.boopConfirm, set on the page, and
+//five is the default for a reason: sampling faster means more chances per hour for stray readings
+//to line up even though the rejection per sample is unchanged. Simulated over six hours, 30 ms
+//with three gave 1.03 false boops an hour against 0.37 at the old 100 ms, while five gave none and
+//still registers a tap in about 210 ms rather than 500. Lower it for a quicker boop at the cost of
+//the odd false one; raise it if the mask boops itself.
 #define BOOP_RELEASE 5
 unsigned long lastProxAt = 0, lastFloorAt = 0;
 
@@ -1298,6 +1298,7 @@ void startWiFiWeb() {
     cfg.getInt(request, "spTrig", cfg.spTrig);
     //tilt animations
     cfg.getString(request, "aTilt", cfg.aTilt);
+    cfg.getString(request, "aTilt2", cfg.aTilt2);
     cfg.getString(request, "aUp", cfg.aUp);
     cfg.getString(request, "aBoop", cfg.aBoop);
     cfg.getString(request, "aSleep", cfg.aSleep);
@@ -1348,6 +1349,9 @@ void startWiFiWeb() {
     cfg.getFloat(request, "neutralZ", cfg.neutralZ);
     //tilt triggers
     cfg.getFloat(request, "tiltX", cfg.tiltX);
+    cfg.getFloat(request, "tilt2X", cfg.tilt2X);
+    cfg.getFloat(request, "tilt2Y", cfg.tilt2Y);
+    cfg.getFloat(request, "tilt2Z", cfg.tilt2Z);
     cfg.getFloat(request, "tiltY", cfg.tiltY);
     cfg.getFloat(request, "tiltZ", cfg.tiltZ);
     cfg.getFloat(request, "upX", cfg.upX);
@@ -1375,6 +1379,7 @@ void startWiFiWeb() {
     }
     //boop threshold
     cfg.getInt(request, "boopThresh", cfg.boopThresh);
+    if(cfg.getInt(request, "boopConfirm", cfg.boopConfirm)) cfg.boopConfirm = constrain(cfg.boopConfirm, 2, 10);
     cfg.getInt(request, "sleepMins", cfg.sleepMins);
     delay(25);
     if(cfg.save()) {
@@ -3242,6 +3247,12 @@ void loop() {
           oldanim = currentAnim;
           tiltChange = millis();
           loadAnim(cfg.aTilt,"");
+        } else if (isApproxEqual(accelX,accelY,accelZ,cfg.tilt2X,cfg.tilt2Y,cfg.tilt2Z,cfg.tiltTol) && !wasTilt) {
+          logPrint(F("[I] Tilt: Other side!"));
+          wasTilt = true;
+          oldanim = currentAnim;
+          tiltChange = millis();
+          loadAnim(cfg.aTilt2,"");
         } else if ((tiltChange+revertTilt<millis() || isApproxEqual(accelX,accelY,accelZ,cfg.neutralX,cfg.neutralY,cfg.neutralZ,cfg.tiltTol)) && wasTilt) {
           logPrint(F("[I] Tilt: Neutral!"));
           wasTilt = false;
@@ -3483,23 +3494,23 @@ void loop() {
     } else if (boopIsApds()) {
       if(ToFInitDone) {
         //apdsprox is read every BOOP_POLL_MS in the proximity section above.
-        //BOOP_CONFIRM checks in a row to start a boop and BOOP_RELEASE to end one, so stray
+        //cfg.boopConfirm checks in a row to start a boop and BOOP_RELEASE to end one, so stray
         //readings do neither. Release is a good way under the trigger, so it can't chatter.
         //Release is a good way under the trigger, so it can't chatter at the boundary.
         int sig = boopSignal();
         if(booping == false) {
           boopUnder = 0;
-          boopOver = (sig > cfg.boopThresh) ? min(boopOver + 1, (int)BOOP_CONFIRM) : 0;
+          boopOver = (sig > cfg.boopThresh) ? min(boopOver + 1, cfg.boopConfirm) : 0;
           if(boopOver == 0) boopIgnoreLogged = false;
           //With light to block, it also needs a shadow in the last second. Still over but no shadow
           //stays waiting rather than resetting, so a shadow arriving a moment later still counts.
           bool shadowOk = !cfg.boopLightEna || !boopIs("APDS9930") || lightNormal < LIGHT_MIN || shadeRecent() >= cfg.boopShade;
-          if(boopOver >= BOOP_CONFIRM && !shadowOk && !boopIgnoreLogged) {
+          if(boopOver >= cfg.boopConfirm && !shadowOk && !boopIgnoreLogged) {
             boopIgnoreLogged = true;
             boopsIgnored++;
             logPrint("[I] Boop ignored: signal " + String(sig) + " but only " + String(shadeRecent()) + "% shade");
           }
-          if(boopOver >= BOOP_CONFIRM && shadowOk) {
+          if(boopOver >= cfg.boopConfirm && shadowOk) {
             boopOver = 0;
             boopIgnoreLogged = false;
             logPrint("[I] BOOP (signal " + String(sig) + " over " + String(cfg.boopThresh) + ", " + String(shadeRecent()) + "% shade)");
