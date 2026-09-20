@@ -213,6 +213,12 @@
   .stat.warn .bar > i { background:var(--warn); }
 
   /* tilt positions */
+  /* teaching a tilt position: one button each, showing what it currently holds */
+  .teach { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .teach .btn { display:flex; flex-direction:column; align-items:center; justify-content:center;
+                min-height:58px; line-height:1.2; padding:8px 6px; }
+  .teach .btn i { font-style:normal; font-size:11px; color:var(--faint); margin-top:3px;
+                  font-variant-numeric:tabular-nums; letter-spacing:-.2px; }
   .xyz { display:grid; grid-template-columns:44px 1fr 1fr 1fr auto; gap:8px; align-items:center; }
   .xyz + .xyz { margin-top:10px; }
   .xyz > span { font-size:13px; font-weight:600; color:var(--dim); }
@@ -656,28 +662,14 @@
           <select id="aTilt" data-key="aTilt" data-label="Sideways face" aria-label="Sideways face"></select></div>
         <div class="row dep"><span class="row-text"><b>Head tilted the other way</b></span>
           <select id="aTilt2" data-key="aTilt2" data-label="Other side face" aria-label="Other side face"></select></div>
-        <details class="sub dep">
-          <summary><span>Calibrate positions<small>Teach it how your head sits</small></span></summary>
-          <form id="tiltForm" class="sub-body">
-            <p class="hint">Hold your head in each position and press Read.</p>
-            <div class="xyz" style="margin-top:12px"><span>Idle</span>
-              <input type="number" name="neutralX" step="any" min="-1" max="1" placeholder="X" aria-label="Idle X">
-              <input type="number" name="neutralY" step="any" min="-1" max="1" placeholder="Y" aria-label="Idle Y">
-              <input type="number" name="neutralZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Idle Z">
-              <button class="btn small" type="button" onclick="pullFor('Neutral')">Read</button></div>
-            <div class="xyz"><span>Side</span>
-              <input type="number" name="tiltX" step="any" min="-1" max="1" placeholder="X" aria-label="Sideways X">
-              <input type="number" name="tiltY" step="any" min="-1" max="1" placeholder="Y" aria-label="Sideways Y">
-              <input type="number" name="tiltZ" step="any" min="-1" max="1" placeholder="Z" aria-label="Sideways Z">
-              <button class="btn small" type="button" onclick="pullFor('Tilt')">Read</button></div>
-            <div class="xyz"><span>Other side</span>
-              <input type="number" name="tilt2X" step="any" min="-1" max="1" placeholder="X" aria-label="Other side X">
-              <input type="number" name="tilt2Y" step="any" min="-1" max="1" placeholder="Y" aria-label="Other side Y">
-              <input type="number" name="tilt2Z" step="any" min="-1" max="1" placeholder="Z" aria-label="Other side Z">
-              <button class="btn small" type="button" onclick="pullFor('Tilt2')">Read</button></div>
-            <button class="btn primary" type="submit" style="width:100%;margin-top:14px">Save positions</button>
-          </form>
-        </details>
+        <div class="row stack dep">
+          <div class="control-head"><b>Teach positions</b><small>Hold your head still and press. Saves straight away.</small></div>
+          <div class="teach">
+            <button class="btn small" type="button" onclick="teach('Neutral')">Idle<i id="tNeutral">not set</i></button>
+            <button class="btn small" type="button" onclick="teach('Tilt')">Side<i id="tTilt">not set</i></button>
+            <button class="btn small" type="button" onclick="teach('Tilt2')">Other side<i id="tTilt2">not set</i></button>
+          </div>
+        </div>
       </div>
     </details>
 
@@ -1771,7 +1763,9 @@
       const v = o[key] !== undefined ? o[key] : DEFAULTS[key];
       if (v !== undefined) setControl(el, v);
     }
-    for (const k of TILT_KEYS.concat(['wifiName', 'wifiPass'])) if (o[k] !== undefined) byName(k).value = o[k];
+    for (const k of ['wifiName', 'wifiPass']) if (o[k] !== undefined) byName(k).value = o[k];
+    for (const k of TILT_KEYS) if (typeof o[k] === 'number') tiltPos[k] = o[k];
+    showTaught();
     for (const k of ['staName', 'staPass', 'mdnsName']) if (o[k] !== undefined && $(k)) $(k).value = o[k];
     if ($('mdnsHint')) $('mdnsHint').textContent = (o.mdnsName || 'protogen') + '.local';
     updateButtonRows();
@@ -1788,10 +1782,6 @@
     loadIntoInputs(await (await fetch('/config.json', NO_CACHE)).json());
   }
 
-  $('tiltForm').addEventListener('submit', e => {
-    e.preventDefault();
-    saveParams(new URLSearchParams(new FormData(e.target)).toString(), 'Tilt positions saved');
-  });
 
   // Joining a network: saved without a restart, so the status line can say what happened
   $('staForm').addEventListener('submit', async e => {
@@ -1825,14 +1815,32 @@
     saveParams(new URLSearchParams({wifiName: name, wifiPass: pass}).toString(), 'WiFi saved');
   });
 
-  async function pullFor(what) {
-    const prefix = {Neutral: 'neutral', Tilt: 'tilt', Tilt2: 'tilt2'}[what];
+  // Teaching a tilt position: read the sensor and save it in one press. The raw numbers are shown
+  // under each button rather than typed into boxes - they are worth seeing, not worth editing.
+  const TEACH = {Neutral: ['neutral', 'Idle', 'tNeutral'],
+                 Tilt:    ['tilt',    'Side', 'tTilt'],
+                 Tilt2:   ['tilt2',   'Other side', 'tTilt2']};
+  let tiltPos = {};
+
+  function showTaught() {
+    for (const [prefix, , id] of Object.values(TEACH)) {
+      const el = $(id);
+      if (!el) continue;
+      const v = ['X', 'Y', 'Z'].map(a => tiltPos[prefix + a]);
+      el.textContent = v.every(n => typeof n === 'number') ? v.map(n => n.toFixed(2)).join(' ') : 'not set';
+    }
+  }
+
+  async function teach(what) {
+    const [prefix, label] = TEACH[what];
     try {
       const text = (await (await fetch('/gyro', NO_CACHE)).text()).trim();
       const xyz = text.split(';').map(parseFloat);
       if (xyz.length !== 3 || xyz.some(isNaN)) { toast(text, true); return; }   // e.g. "Tilt sensor (BMI270) not found"
-      ['X', 'Y', 'Z'].forEach((axis, i) => { byName(prefix + axis).value = xyz[i].toFixed(2); });
-      toast({Neutral: 'Idle', Tilt: 'Sideways', Tilt2: 'Other side'}[what] + ' position read');
+      const p = new URLSearchParams();
+      ['X', 'Y', 'Z'].forEach((axis, i) => { tiltPos[prefix + axis] = xyz[i]; p.set(prefix + axis, xyz[i].toFixed(3)); });
+      showTaught();
+      await saveParams(p.toString(), label + ' taught');
     } catch (e) { toast('Could not read the tilt sensor', true); }
   }
 
