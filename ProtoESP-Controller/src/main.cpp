@@ -3244,8 +3244,11 @@ void loop() {
         float gSide  = tiltAlign(accelX,accelY,accelZ, cfg.tiltX,cfg.tiltY,cfg.tiltZ,   cfg.neutralX,cfg.neutralY,cfg.neutralZ);
         float gSide2 = tiltAlign(accelX,accelY,accelZ, cfg.tilt2X,cfg.tilt2Y,cfg.tilt2Z, cfg.neutralX,cfg.neutralY,cfg.neutralZ);
         float align = gSide, best = fSide;
-        String face = cfg.aTilt, which = F("side");
-        if(gSide2 > align) { align = gSide2; best = fSide2; face = cfg.aTilt2; which = F("other side"); }
+        //aTilt/tilt* is the left lean and aTilt2/tilt2* the right, named that way on the page.
+        //Which is which is only ever decided by the position you teach each button, so the
+        //stored keys keep their old names rather than churning every config file.
+        String face = cfg.aTilt, which = F("left");
+        if(gSide2 > align) { align = gSide2; best = fSide2; face = cfg.aTilt2; which = F("right"); }
         //Leaning somewhere nothing was taught should do nothing rather than pick the nearest guess
         if(!wasTilt && align >= 0.5f && best >= cfg.tiltTrig) {
           logPrint("[I] Tilt: " + which + " (" + String((int)(best * 100)) + "% of the way)");

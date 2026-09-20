@@ -652,22 +652,22 @@
 
     <!-- Tilt -->
     <details class="section">
-      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Tilt</b><small>A face for tilting each way. Also what stillness sleep uses.</small></span></summary>
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Tilt</b><small>A face for tilting left and one for right. Also what stillness sleep uses.</small></span></summary>
       <div class="group" data-group="tiltEna">
         <label class="row"><span class="row-text"><b>Tilt faces</b><small>Change face when you tilt your head</small></span>
           <input type="checkbox" class="toggle" data-key="tiltEna" data-label="Tilt"></label>
         <div class="row dep"><span class="row-text"><b>How far to tilt</b><small>How far to lean before it counts. 1.0 is as far as you taught it; lower triggers sooner.</small></span>
           <div class="stepper" data-key="tiltTrig" data-label="How far to tilt" data-min="0.2" data-max="1.5" data-step="0.05"><button type="button" aria-label="Less">&minus;</button><output>0.60</output><button type="button" aria-label="More">+</button></div></div>
-        <div class="row dep"><span class="row-text"><b>Head tilted sideways</b></span>
-          <select id="aTilt" data-key="aTilt" data-label="Sideways face" aria-label="Sideways face"></select></div>
-        <div class="row dep"><span class="row-text"><b>Head tilted the other way</b></span>
-          <select id="aTilt2" data-key="aTilt2" data-label="Other side face" aria-label="Other side face"></select></div>
+        <div class="row dep"><span class="row-text"><b>Head tilted left</b><small>Your left, wearing it</small></span>
+          <select id="aTilt" data-key="aTilt" data-label="Left tilt face" aria-label="Left tilt face"></select></div>
+        <div class="row dep"><span class="row-text"><b>Head tilted right</b></span>
+          <select id="aTilt2" data-key="aTilt2" data-label="Right tilt face" aria-label="Right tilt face"></select></div>
         <div class="row stack dep">
-          <div class="control-head"><b>Teach positions</b><small>Hold your head still and press. Saves straight away.</small></div>
+          <div class="control-head"><b>Teach positions</b><small>Tilt your head that way, hold still, and press. Left and right are yours, wearing it. Saves straight away.</small></div>
           <div class="teach">
             <button class="btn small" type="button" onclick="teach('Neutral')">Idle<i id="tNeutral">not set</i></button>
-            <button class="btn small" type="button" onclick="teach('Tilt')">Side<i id="tTilt">not set</i></button>
-            <button class="btn small" type="button" onclick="teach('Tilt2')">Other side<i id="tTilt2">not set</i></button>
+            <button class="btn small" type="button" onclick="teach('Tilt')">Left<i id="tTilt">not set</i></button>
+            <button class="btn small" type="button" onclick="teach('Tilt2')">Right<i id="tTilt2">not set</i></button>
           </div>
         </div>
       </div>
@@ -1818,8 +1818,8 @@
   // Teaching a tilt position: read the sensor and save it in one press. The raw numbers are shown
   // under each button rather than typed into boxes - they are worth seeing, not worth editing.
   const TEACH = {Neutral: ['neutral', 'Idle', 'tNeutral'],
-                 Tilt:    ['tilt',    'Side', 'tTilt'],
-                 Tilt2:   ['tilt2',   'Other side', 'tTilt2']};
+                 Tilt:    ['tilt',    'Left', 'tTilt'],
+                 Tilt2:   ['tilt2',   'Right', 'tTilt2']};
   let tiltPos = {};
 
   function showTaught() {
