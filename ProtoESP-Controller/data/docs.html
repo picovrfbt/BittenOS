@@ -219,9 +219,10 @@
   <details class="card">
     <summary><span>Tilt<small>A face for each way you tilt your head</small></span></summary>
     <div class="body">
-      <p>With <b class="k">Tilt faces</b> on, tipping your head plays a face and going back to normal puts the old one back. There are three positions besides idle: <b>sideways</b>, <b>the other way</b>, and <b>up</b>, each with its own face.</p>
+      <p>With <b class="k">Tilt faces</b> on, tipping your head plays a face and going back to normal puts the old one back. There are two positions besides idle: <b>sideways</b> and <b>the other way</b>, each with its own face.</p>
       <p><b>Teaching it:</b> open <b class="k">Calibrate positions</b>, hold your head in each position and press <b class="k">Read</b> beside it, then <b class="k">Save positions</b>. The Read buttons work even with Tilt switched off. Tilting the other way has to be taught separately rather than worked out from the first - one axis changes sign, so it is a different reading, not a mirror image.</p>
-      <p><b class="k">Tolerance</b> is how close your head has to be to a taught position. Too small and it never triggers; too large and two positions overlap and it picks whichever it tests first. If a tilt face sticks, it gives up after 8 seconds and goes back on its own.</p>
+      <p><b class="k">How far to tilt</b> is how far you have to lean before it counts, measured against the position you taught: <b class="k">1.0</b> is exactly as far as you taught it, and <b class="k">0.6</b> - the default - fires at a bit over halfway. Leaning <em>further</em> keeps it on rather than cancelling it, and it lets go a good way back so a wobbling head cannot flicker the face on and off. If a tilt face ever sticks, it gives up after 8 seconds by itself.</p>
+      <p>Which face you get is decided by the direction you lean, not by how big the reading is, so two taught positions can sit fairly close together without stealing each other. Lean somewhere nothing was taught and nothing happens.</p>
       <p>This is also where stillness for auto sleep comes from, so the tilt sensor has to be found for sleep to work at all - even with tilt faces off.</p>
     </div>
   </details>

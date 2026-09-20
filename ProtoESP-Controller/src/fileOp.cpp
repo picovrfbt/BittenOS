@@ -36,7 +36,6 @@ void Config::setDefault() {
   spTrig = 10;
   aTilt = "confused.json";
   aTilt2 = "surprise.json";   //tilting the other way
-  aUp = "sad.json";
   aBoop = "boop.json",
   neutralX = 0.3;
   neutralY = 0.92;
@@ -47,10 +46,7 @@ void Config::setDefault() {
   tilt2Z = -0.73;
   tiltY = 0.7;
   tiltZ = 0.73;
-  upX = -0.17;
-  upY = 0.99;
-  upZ = 0.11;
-  tiltTol = 0.1;
+  tiltTrig = 0.6;  //lean 60% of the way to a taught position and it counts
   visColorStr = "#ff0000";
   visColor = strtol(visColorStr.c_str()+1, NULL, 16);
   wifiName = "ProtoWiFi";
@@ -133,7 +129,6 @@ bool Config::save() {
   doc["spTrig"] = spTrig;
   doc["aTilt"] = aTilt;
   doc["aTilt2"] = aTilt2;
-  doc["aUp"] = aUp;
   doc["aBoop"] = aBoop;
   doc["neutralX"] = neutralX;
   doc["neutralY"] = neutralY;
@@ -144,10 +139,7 @@ bool Config::save() {
   doc["tilt2Z"] = tilt2Z;
   doc["tiltY"] = tiltY;
   doc["tiltZ"] = tiltZ;
-  doc["upX"] = upX;
-  doc["upY"] = upY;
-  doc["upZ"] = upZ;
-  doc["tiltTol"] = tiltTol;
+  doc["tiltTrig"] = tiltTrig;
   doc["visColor"] = visColorStr;
   doc["wifiName"] = wifiName;
   doc["wifiPass"] = wifiPass;
@@ -294,7 +286,6 @@ bool Config::load() {
   spTrig = doc["spTrig"].as<int>();
   aTilt = doc["aTilt"].as<String>();
   aTilt2 = doc["aTilt2"] | "surprise.json";
-  aUp = doc["aUp"].as<String>();
   aBoop = doc["aBoop"].as<String>();
   neutralX = doc["neutralX"].as<float>();
   neutralY = doc["neutralY"].as<float>();
@@ -305,10 +296,7 @@ bool Config::load() {
   tilt2Z = doc["tilt2Z"] | -0.73f;
   tiltY = doc["tiltY"].as<float>();
   tiltZ = doc["tiltZ"].as<float>();
-  upX = doc["upX"].as<float>();
-  upY = doc["upY"].as<float>();
-  upZ = doc["upZ"].as<float>();
-  tiltTol = doc["tiltTol"].as<float>();
+  tiltTrig = doc["tiltTrig"] | 0.6f;
   visColorStr = doc["visColor"].as<String>();
   visColor = strtol(visColorStr.c_str()+1, NULL, 16);
   wifiName = doc["wifiName"].as<String>();

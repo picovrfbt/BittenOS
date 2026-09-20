@@ -4,6 +4,29 @@ bool isApproxEqual(const float ax, const float ay, const float az, const float b
   return (fabs(ax-bx) < tiltTol && fabs(ay-by) < tiltTol && fabs(az-bz) < tiltTol);
 }
 
+//Projects where the head is onto the line from neutral to a taught position. Matching a point
+//inside a tolerance box meant leaning further than taught fell back out of the box and cancelled
+//the face; a projection just keeps counting up, so leaning harder can only hold the tilt.
+float tiltFraction(const float ax, const float ay, const float az,
+                   const float px, const float py, const float pz,
+                   const float nx, const float ny, const float nz) {
+  const float dx = px - nx, dy = py - ny, dz = pz - nz;   //neutral -> the taught position
+  const float len2 = dx*dx + dy*dy + dz*dz;
+  if(len2 < 0.000001f) return 0;                          //taught on top of neutral: unusable
+  const float ex = ax - nx, ey = ay - ny, ez = az - nz;   //neutral -> where the head is now
+  return (ex*dx + ey*dy + ez*dz) / len2;
+}
+
+float tiltAlign(const float ax, const float ay, const float az,
+                const float px, const float py, const float pz,
+                const float nx, const float ny, const float nz) {
+  const float dx = px - nx, dy = py - ny, dz = pz - nz;
+  const float ex = ax - nx, ey = ay - ny, ez = az - nz;
+  const float dl = sqrtf(dx*dx + dy*dy + dz*dz), el = sqrtf(ex*ex + ey*ey + ez*ez);
+  if(dl < 0.001f || el < 0.001f) return 0;   //nothing taught, or the head is sitting at neutral
+  return (ex*dx + ey*dy + ez*dz) / (dl * el);
+}
+
 float mapfloat(float x, float in_min, float in_max, float out_min, float out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }

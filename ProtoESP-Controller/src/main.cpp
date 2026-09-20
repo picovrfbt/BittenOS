@@ -1299,7 +1299,6 @@ void startWiFiWeb() {
     //tilt animations
     cfg.getString(request, "aTilt", cfg.aTilt);
     cfg.getString(request, "aTilt2", cfg.aTilt2);
-    cfg.getString(request, "aUp", cfg.aUp);
     cfg.getString(request, "aBoop", cfg.aBoop);
     cfg.getString(request, "aSleep", cfg.aSleep);
     cfg.getString(request, "aMilestone", cfg.aMilestone);
@@ -1354,10 +1353,7 @@ void startWiFiWeb() {
     cfg.getFloat(request, "tilt2Z", cfg.tilt2Z);
     cfg.getFloat(request, "tiltY", cfg.tiltY);
     cfg.getFloat(request, "tiltZ", cfg.tiltZ);
-    cfg.getFloat(request, "upX", cfg.upX);
-    cfg.getFloat(request, "upY", cfg.upY);
-    cfg.getFloat(request, "upZ", cfg.upZ);
-    cfg.getFloat(request, "tiltTol", cfg.tiltTol);
+    if(cfg.getFloat(request, "tiltTrig", cfg.tiltTrig)) cfg.tiltTrig = constrain(cfg.tiltTrig, 0.2f, 1.5f);
     //RGB visor color
     if(cfg.getString(request, "visColor", cfg.visColorStr))
         cfg.visColor = strtol(cfg.visColorStr.c_str() + 1, NULL, 16);
@@ -3235,26 +3231,32 @@ void loop() {
         stillSince = millis();
       }
       if(cfg.tiltEna) {
-        if(isApproxEqual(accelX,accelY,accelZ,cfg.upX,cfg.upY,cfg.upZ,cfg.tiltTol) && !wasTilt) {
-          logPrint(F("[I] Tilt: UP!"));
+        //How far the head has leaned along each taught direction, as a fraction of the way to it.
+        //This used to match the reading against each taught point inside a tolerance box, which
+        //meant leaning FURTHER than taught fell out of the box and cancelled the face. A projection
+        //keeps rising as you lean, so leaning harder can only ever hold the tilt.
+        float fSide  = tiltFraction(accelX,accelY,accelZ, cfg.tiltX,cfg.tiltY,cfg.tiltZ,   cfg.neutralX,cfg.neutralY,cfg.neutralZ);
+        float fSide2 = tiltFraction(accelX,accelY,accelZ, cfg.tilt2X,cfg.tilt2Y,cfg.tilt2Z, cfg.neutralX,cfg.neutralY,cfg.neutralZ);
+        //Which way the head is actually leaning decides the face; how far along decides whether it
+        //counts. Picking on the fraction alone got this wrong: each fraction is measured against
+        //its own taught distance, so a short taught direction scores high from a big lean in a
+        //roughly similar one, and leaning to one side fired the up face.
+        float gSide  = tiltAlign(accelX,accelY,accelZ, cfg.tiltX,cfg.tiltY,cfg.tiltZ,   cfg.neutralX,cfg.neutralY,cfg.neutralZ);
+        float gSide2 = tiltAlign(accelX,accelY,accelZ, cfg.tilt2X,cfg.tilt2Y,cfg.tilt2Z, cfg.neutralX,cfg.neutralY,cfg.neutralZ);
+        float align = gSide, best = fSide;
+        String face = cfg.aTilt, which = F("side");
+        if(gSide2 > align) { align = gSide2; best = fSide2; face = cfg.aTilt2; which = F("other side"); }
+        //Leaning somewhere nothing was taught should do nothing rather than pick the nearest guess
+        if(!wasTilt && align >= 0.5f && best >= cfg.tiltTrig) {
+          logPrint("[I] Tilt: " + which + " (" + String((int)(best * 100)) + "% of the way)");
           wasTilt = true;
           oldanim = currentAnim;
           tiltChange = millis();
-          loadAnim(cfg.aUp,"");
-        } else if (isApproxEqual(accelX,accelY,accelZ,cfg.tiltX,cfg.tiltY,cfg.tiltZ,cfg.tiltTol) && !wasTilt) {
-          logPrint(F("[I] Tilt: Side!"));
-          wasTilt = true;
-          oldanim = currentAnim;
-          tiltChange = millis();
-          loadAnim(cfg.aTilt,"");
-        } else if (isApproxEqual(accelX,accelY,accelZ,cfg.tilt2X,cfg.tilt2Y,cfg.tilt2Z,cfg.tiltTol) && !wasTilt) {
-          logPrint(F("[I] Tilt: Other side!"));
-          wasTilt = true;
-          oldanim = currentAnim;
-          tiltChange = millis();
-          loadAnim(cfg.aTilt2,"");
-        } else if ((tiltChange+revertTilt<millis() || isApproxEqual(accelX,accelY,accelZ,cfg.neutralX,cfg.neutralY,cfg.neutralZ,cfg.tiltTol)) && wasTilt) {
-          logPrint(F("[I] Tilt: Neutral!"));
+          loadAnim(face,"");
+        //Lets go a good way below the trigger so it cannot chatter on the boundary, and still
+        //gives up after revertTilt in case the sensor or the taught positions have drifted.
+        } else if (wasTilt && (best < cfg.tiltTrig * 0.7f || tiltChange+revertTilt<millis())) {
+          logPrint(F("[I] Tilt: back to neutral"));
           wasTilt = false;
           loadAnim(oldanim,"");
         }
