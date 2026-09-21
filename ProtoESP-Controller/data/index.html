@@ -123,6 +123,8 @@
   .btn.danger { color:var(--bad); }
   .btn:disabled { opacity:.6; cursor:wait; }
   .tools { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
+  .eggs { display:flex; gap:8px; }
+  .eggs .btn { flex:1 1 0; min-width:0; }
 
   input[type=text], input[type=number], select { width:100%; min-height:46px; background:var(--bg); color:var(--text);
     border:1px solid var(--line); border-radius:10px; padding:10px 12px; font:inherit; }
@@ -646,6 +648,13 @@
           <select id="btnHoldPhrase" data-key="btnHoldPhrase" data-label="Hold phrase" aria-label="Hold phrase" style="text-transform:none"></select></div>
         <div class="row"><span class="row-text"><b>Hold for</b><small>How long counts as a hold</small></span>
           <div class="stepper" data-key="btnHoldMs" data-label="Hold for" data-min="300" data-max="5000" data-step="100" data-unit=" ms"><button type="button" aria-label="Less">−</button><output>1500 ms</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row"><span class="row-text"><b>Quick presses start</b><small>Press the button this many times in a row, quickly, to set off an easter egg</small></span>
+          <select id="eggAction" data-key="eggAction" data-label="Quick presses start" aria-label="Quick presses start" style="text-transform:none">
+            <option value="slots">The slot machine</option>
+            <option value="dino">The dino game</option>
+            <option value="none">Nothing</option></select></div>
+        <div class="row" id="eggPressesRow"><span class="row-text"><b>How many presses</b><small>Each one has to land within about half a second of the last</small></span>
+          <div class="stepper" data-key="eggPresses" data-label="How many presses" data-min="3" data-max="10" data-step="1"><button type="button" aria-label="Less">&minus;</button><output>6</output><button type="button" aria-label="More">+</button></div></div>
         <p class="hint" style="padding:0 16px 14px">The button is the one across GPIO 21 and 47. Setting Double press to anything makes a single press wait about a quarter of a second to see if a second one is coming; leave it off to keep the single press instant.</p>
       </div>
     </details>
@@ -750,10 +759,14 @@
     </section>
 
     <section class="card">
-      <h2>Dino</h2>
-      <div class="row"><span class="row-text"><b>A game on the maw</b><small>Both maws become a playfield. While it runs, the mask's own button jumps.</small></span>
-        <button class="btn small" type="button" id="dinoBtn" onclick="dinoToggle()">Start</button></div>
-      <div class="row"><span class="row-text"><b>Score</b></span><b id="dinoScore">—</b></div>
+      <h2>Easter eggs</h2>
+      <p class="hint" style="padding:0 0 10px">Both play across the maw. Either also starts from the mask itself, with a quick run of button presses — set which one under Settings, Button.</p>
+      <div class="eggs">
+        <button class="btn" type="button" id="slotBtn" onclick="slotToggle()">Slot machine</button>
+        <button class="btn" type="button" id="dinoBtn" onclick="dinoToggle()">Dino game</button>
+      </div>
+      <div class="row"><span class="row-text"><b>Slots</b><small>One spin in three lands on triple sevens. The reels show on the inside screen too.</small></span><b id="slotScore">—</b></div>
+      <div class="row"><span class="row-text"><b>Dino score</b><small>While it runs, the mask's own button jumps.</small></span><b id="dinoScore">—</b></div>
       <div style="margin-top:10px"><button class="btn wide" type="button" id="dinoJump" onclick="dinoJump()" hidden>Jump</button></div>
     </section>
 
@@ -1445,7 +1458,7 @@
 
   const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ',
                      'tilt2X', 'tilt2Y', 'tilt2Z'];
-  const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, boopConfirm: 5, tiltTrig: 0.6, transMs: 80, sleepTol: 0.2, sleepMins: 5,
+  const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, boopConfirm: 5, tiltTrig: 0.6, eggPresses: 6, eggAction: 'slots', transMs: 80, sleepTol: 0.2, sleepMins: 5,
                     autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
                     autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face', blinkDoublePct: 25,
                     btnShort: 'nextFace', btnDouble: 'none', btnHold: 'displays', btnHoldMs: 1500,
@@ -1616,8 +1629,10 @@
     $('btnDoubleHint').textContent = $('btnDouble').value === 'none'
       ? 'Off, so a single press acts the moment you let go'
       : 'On, so a single press waits a moment to see if a second follows';
+    $('eggPressesRow').hidden = $('eggAction').value === 'none';
   }
   BTN_SLOTS.forEach(id => $(id).addEventListener('change', updateButtonRows));
+  $('eggAction').addEventListener('change', updateButtonRows);
 
   /* ---------- quick phrases ---------- */
   let phrases = Array.from({length: 6}, () => ({text: '', speed: 55, once: false}));
@@ -1856,6 +1871,25 @@
       toast(t === 'ok' ? 'Warming up…' : t, t !== 'ok');
     } catch (e) { toast('Could not reach the mask', true); }
   }
+
+  /* ---------- slot machine ---------- */
+  let slotOn = false, slotPoll = null;
+  function showSlots(s) {
+    slotOn = !!(s && s.on);
+    $('slotBtn').textContent = slotOn ? 'Stop' : 'Slot machine';
+    $('slotScore').textContent = s && s.spins
+      ? (s.on && s.outcome < 0 ? 'spinning…'
+        : (s.outcome === 1 ? 'triple sevens! ' : '') + 'won ' + s.wins + ' of ' + s.spins)
+      : '—';
+    if (slotOn && !slotPoll) slotPoll = setInterval(() => slotSend(''), 500);
+    if (!slotOn && slotPoll) { clearInterval(slotPoll); slotPoll = null; }
+  }
+  async function slotSend(q) {
+    try { showSlots(await (await fetch('/slots' + (q ? '?' + q : ''), NO_CACHE)).json()); }
+    catch (e) { showSlots(null); }
+  }
+  function slotToggle() { slotSend(slotOn ? 'stop=1' : 'go=1'); }
+  slotSend('');                           // so the tally is there before anyone plays
 
   /* ---------- dino ---------- */
   let dinoOn = false, dinoPoll = null;

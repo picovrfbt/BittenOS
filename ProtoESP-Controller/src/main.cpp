@@ -420,10 +420,22 @@ bool bootFlickPending = false;           //switched on: warm up as soon as the f
 bool bootBarHandover = false;            //the startup bar is playing; arm the warm-up when it ends
 bool bootBarBlanked = false;             //panels held dark until the bar's own first frame is in them
 unsigned long bootBlankAt = 0;           //when that blanking started, so it cannot last forever
+#define EGG_GAP_MS 450               //longer than this between presses and the burst starts over
 //Dino game: the flags live up here because /dino and doButtonAction both sit above the game itself
 bool dinoActive = false;
 volatile bool dinoStartReq = false, dinoJumpReq = false, dinoStopReq = false;
 int dinoScore = 0;
+
+//Slot machine easter egg: same reason, /slots and the button both sit above the machine itself
+bool slotActive = false;
+volatile bool slotStartReq = false, slotStopReq = false;
+int8_t slotOutcome = -1;            //-1 still spinning, 0 no luck, 1 triple sevens
+uint8_t slotPos[3] = {0, 0, 0};     //where each reel sits, in pixels down its loop of symbols
+//A rapid burst of presses starts an easter egg. The face to come back to is remembered from the
+//first press of the burst, not the last, so the faces the burst flicked through are undone too.
+uint8_t eggPressCount = 0;
+unsigned long eggLastPress = 0;
+String eggBackTo = "";
 volatile bool oledBrightReq = false;     //set when Screen brightness is changed
 void screenTick();
 inline bool oledLegacy(); //the old screen writes, only when no layout is loaded
@@ -1376,6 +1388,8 @@ void startWiFiWeb() {
     //boop threshold
     cfg.getInt(request, "boopThresh", cfg.boopThresh);
     if(cfg.getInt(request, "boopConfirm", cfg.boopConfirm)) cfg.boopConfirm = constrain(cfg.boopConfirm, 2, 10);
+    if(cfg.getInt(request, "eggPresses", cfg.eggPresses)) cfg.eggPresses = constrain(cfg.eggPresses, 3, 10);
+    cfg.getString(request, "eggAction", cfg.eggAction);
     cfg.getInt(request, "sleepMins", cfg.sleepMins);
     delay(25);
     if(cfg.save()) {
@@ -1666,6 +1680,20 @@ void startWiFiWeb() {
     request->send(200, "application/json", out);
   });
 
+  server.on("/slots", HTTP_GET, [](AsyncWebServerRequest *request){ //the slot machine on the maw
+    if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels")); return; }
+    if(request->hasParam("go")) slotStartReq = true;
+    else if(request->hasParam("stop")) slotStopReq = true;
+    JsonDocument d;                         //the page follows along while the reels spin
+    d["on"] = slotActive;
+    d["outcome"] = slotOutcome;             //-1 spinning, 0 no luck, 1 triple sevens
+    d["wins"] = cfg.slotWins;
+    d["spins"] = cfg.slotSpins;
+    String out;
+    serializeJson(d, out);
+    request->send(200, "application/json", out);
+  });
+
   server.on("/wakeflick", HTTP_GET, [](AsyncWebServerRequest *request){ //play the wake-up warm-up without waiting for a deep sleep
     if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels flicker")); return; }
     if(!cfg.wakeFlickEna) { request->send(200, "text/plain", F("Wake-up flicker is switched off")); return; }
@@ -1838,6 +1866,7 @@ void showPhrase(int slot) {
 
 void doButtonAction(const String &action, const String &face, int phraseSlot) {
   if(dinoActive) { dinoJumpReq = true; return; }   //while a game runs the button jumps, whatever it is set to
+  if(slotActive) return;                           //the reels spin on their own: nothing to press
   if(action == "none" || action == "") return;
   if(action == "nextFace" || action == "prevFace") {
     if(totalAnims <= 0) return;
@@ -2034,8 +2063,9 @@ static const char *const DINO_SPRITE[] = {".###", ".#.#", "####", ".#.#"};   //4
 #define DINO_BOX_HI (DINO_X + DINO_W - 1)
 
 //The two maws in the order they sit on the face, exactly as the loading bar uses them.
-struct DinoStrip { uint8_t panel[4]; bool mirrored; };
-static const DinoStrip dinoStrips[2] = {
+//Shared by everything that draws across the maw: the dino game and the slot machine.
+struct MawStrip { uint8_t panel[4]; bool mirrored; };
+static const MawStrip mawStrips[2] = {
   {{8, 9, 10, 11}, true},           //left maw, nose end first
   {{5, 4, 3,  2},  false},          //right maw, nose end first
 };
@@ -2043,7 +2073,7 @@ static const DinoStrip dinoStrips[2] = {
 static inline uint8_t dinoLift() { return dinoArcAt == 0 ? 0 : DINO_ARC[dinoArcAt - 1]; }
 
 //Draws straight to the panels, the same way setAllVisor() ends, since there is no face to build
-static void dinoPush(const uint64_t *words) {
+static void mawPush(const uint64_t *words) {
   if(visorType != "MAX72XX") return;
   for(int y = 0; y < numOfSegm; y++) {
     for(int i = 0; i < 8; i++) {
@@ -2061,8 +2091,8 @@ static void dinoRender(bool crashed) {
   auto plot = [&](int pos, int r) {
     if(pos < 0 || pos >= DINO_LEN || r < 0 || r > 7) return;
     for(int t = 0; t < 2; t++) {
-      uint8_t panel = dinoStrips[t].panel[pos / 8];
-      uint8_t col = dinoStrips[t].mirrored ? (uint8_t)(7 - (pos % 8)) : (uint8_t)(pos % 8);
+      uint8_t panel = mawStrips[t].panel[pos / 8];
+      uint8_t col = mawStrips[t].mirrored ? (uint8_t)(7 - (pos % 8)) : (uint8_t)(pos % 8);
       words[panel] |= 1ULL << (r * 8 + col);
     }
   };
@@ -2079,14 +2109,14 @@ static void dinoRender(bool crashed) {
     for(int i = 0; i < MATRIXESNUM; i++) words[i] = 0;
     for(int pos = 0; pos < DINO_LEN; pos++) plot(pos, 7);
   }
-  dinoPush(words);
+  mawPush(words);
 }
 
 void dinoStart() {
   if(visorType != "MAX72XX" || !visorNow || numOfSegm == 0) return;
   for(int t = 0; t < 2; t++)
     for(int k = 0; k < 4; k++)
-      if(dinoStrips[t].panel[k] >= numOfSegm) return;            //not this mask's layout
+      if(mawStrips[t].panel[k] >= numOfSegm) return;            //not this mask's layout
   dinoBackTo = currentAnim;
   dinoActive = true;
   dinoArcAt = 0;
@@ -2150,6 +2180,221 @@ void dinoStep() {
     if(acrossX && acrossY) { dinoOverAt = millis(); dinoRender(true); return; }
   }
   dinoRender(false);
+}
+
+//--------------------------------//Slot machine on the maw
+//An easter egg: three reels spin across both maws and stop one after another, left to right. One
+//spin in three lands on triple sevens. The wearer cannot see their own face, so the same three
+//reels are mirrored onto the inside screen - that is the only way to know whether the person in
+//front of you just won.
+//
+//Reels are drawn from a loop of five symbols, each six wide and six tall, sitting in an eight-row
+//cell so there is a one-row gap above and below. The maw window is exactly eight rows, so a reel
+//stopped on a whole cell frames its symbol perfectly, and anything in between shows the tail of
+//one symbol and the head of the next - which is what makes it read as a spin rather than a
+//flicker between pictures.
+#define SLOT_SYMS 5
+#define SLOT_SPAN (SLOT_SYMS * 8)           //the reel loop, in pixels
+#define SLOT_SEVEN 0                        //symbol 0 is the jackpot, so a win is three zeroes
+
+//Six rows a symbol, six bits a row, bit 5 leftmost.
+static const uint8_t SLOT_GLYPH[SLOT_SYMS][6] = {
+  {0b111111, 0b000010, 0b000100, 0b001100, 0b001000, 0b001000},   //seven
+  {0b011110, 0b100001, 0b100001, 0b100001, 0b100001, 0b011110},   //ring
+  {0b001100, 0b011110, 0b111111, 0b111111, 0b011110, 0b001100},   //diamond
+  {0b100001, 0b010010, 0b001100, 0b001100, 0b010010, 0b100001},   //cross
+  {0b111111, 0b111111, 0b000000, 0b000000, 0b111111, 0b111111},   //bars
+};
+
+//Where things sit across the 32 columns of a maw: a reel window is eight wide with the six-wide
+//symbol centred in it, and a solid divider stands between neighbouring reels.
+static const uint8_t SLOT_REEL_X[3] = {2, 13, 24};   //leftmost column of each symbol
+static const uint8_t SLOT_DIV_X[2] = {10, 21};
+
+static unsigned long slotNextAt[3], slotStopAt[3], slotDoneAt = 0;
+//The panels are quick to write but the screen is a 1024-byte push down a shared I2C bus, about
+//30 ms of it. Drawing either one every time round the loop would spend the whole spin talking
+//to displays, so each gets its own floor: fast enough that nothing looks stepped, no faster.
+static unsigned long slotDrewAt = 0, slotScreenAt = 0;
+#define SLOT_MAW_MS 12                 //the maw, comfortably ahead of the fastest reel
+#define SLOT_SCREEN_MS 80              //the inside screen, two frames to a blink beat
+static uint16_t slotPace[3];               //ms a pixel, climbing as a reel winds down
+static int16_t slotLeft[3], slotRun[3];    //pixels left in the wind-down, and how long it is
+static bool slotWinding[3], slotStopped[3];
+static uint8_t slotTarget[3];
+static String slotBackTo = "";
+
+//True while a win is in its dark beat, so the maw and the screen blink together
+static inline bool slotBlinkOff() {
+  return slotOutcome == 1 && slotDoneAt && ((millis() - slotDoneAt) / 160) % 2 == 1;
+}
+
+static void slotRender() {
+  uint64_t words[MATRIXESNUM];
+  for(int i = 0; i < MATRIXESNUM; i++) words[i] = 0;
+  //one plot lands on both maws at once, mirrored, exactly as the dino does it
+  auto plot = [&](int pos, int r) {
+    if(pos < 0 || pos >= 32 || r < 0 || r > 7) return;
+    for(int t = 0; t < 2; t++) {
+      uint8_t panel = mawStrips[t].panel[pos / 8];
+      uint8_t col = mawStrips[t].mirrored ? (uint8_t)(7 - (pos % 8)) : (uint8_t)(pos % 8);
+      words[panel] |= 1ULL << (r * 8 + col);
+    }
+  };
+  for(int d = 0; d < 2; d++) for(int r = 0; r < 8; r++) plot(SLOT_DIV_X[d], r);
+  if(!slotBlinkOff())
+    for(int reel = 0; reel < 3; reel++)
+      for(int y = 0; y < 8; y++) {
+        int sr = (slotPos[reel] + y) % SLOT_SPAN;    //the row of the reel strip showing here
+        int cell = sr % 8;
+        if(cell < 1 || cell > 6) continue;           //the gap between one symbol and the next
+        uint8_t row = SLOT_GLYPH[sr / 8][cell - 1];
+        for(int c = 0; c < 6; c++) if((row >> (5 - c)) & 1) plot(SLOT_REEL_X[reel] + c, y);
+      }
+  mawPush(words);
+}
+
+//The wearer's view. Drawn straight into the screen buffer rather than through a designed layout,
+//so the egg works on any mask without anyone having to add elements for it in the designer.
+static void slotScreen() {
+  if(!cfg.oledEna || !oledInitDone) return;
+  memset(screenBuf, 0, 128 * 8);
+  auto px = [&](int x, int y) {
+    if(x < 0 || x > 127 || y < 0 || y > 63) return;
+    screenBuf[(y >> 3) * 128 + x] |= (uint8_t)(1 << (y & 7));
+  };
+  String cap = (slotOutcome < 0) ? F("SPINNING") : (slotOutcome == 1 ? F("TRIPLE SEVENS!") : F("NO LUCK"));
+  screenDrawText(screenBuf, cap, (128 - screenTextWidth(cap, 1)) / 2, 2, 1);
+  bool dark = slotBlinkOff();
+  for(int reel = 0; reel < 3; reel++) {
+    const int bx = 8 + reel * 43, by = 14, bw = 26, bh = 34;   //a framed window a symbol at 4x fits
+    for(int x = bx; x < bx + bw; x++) { px(x, by); px(x, by + bh - 1); }
+    for(int y = by; y < by + bh; y++) { px(bx, y); px(bx + bw - 1, y); }
+    if(dark) continue;
+    for(int y = 0; y < 8; y++) {
+      int sr = (slotPos[reel] + y) % SLOT_SPAN;
+      int cell = sr % 8;
+      if(cell < 1 || cell > 6) continue;
+      uint8_t row = SLOT_GLYPH[sr / 8][cell - 1];
+      for(int c = 0; c < 6; c++) {
+        if(!((row >> (5 - c)) & 1)) continue;
+        for(int sy = 0; sy < 4; sy++)
+          for(int sx = 0; sx < 4; sx++) px(bx + 1 + c * 4 + sx, by + 1 + y * 4 + sy);
+      }
+    }
+  }
+  if(slotOutcome >= 0) {
+    String tally = "won " + String(cfg.slotWins + (slotOutcome == 1 ? 1 : 0)) +
+                   " of " + String(cfg.slotSpins);
+    screenDrawText(screenBuf, tally, (128 - screenTextWidth(tally, 1)) / 2, 52, 1);
+  }
+  oled.blit(screenBuf);
+  screenPrevValid = false;                 //the layout has to redraw from scratch afterwards
+}
+
+//backTo is the face to return to, which for a button burst is the one from before the burst
+void slotStart(const String &backTo) {
+  if(visorType != "MAX72XX" || !visorNow || numOfSegm == 0) return;
+  for(int t = 0; t < 2; t++)
+    for(int k = 0; k < 4; k++)
+      if(mawStrips[t].panel[k] >= numOfSegm) return;           //not this mask's layout
+  slotBackTo = (backTo != "") ? backTo : currentAnim;
+  slotActive = true;
+  slotOutcome = -1;
+  slotDoneAt = 0;
+  //One spin in three is the jackpot. The rest are drawn so they cannot accidentally be three
+  //sevens as well, and a third of those are near misses - two sevens and something else - because
+  //a machine that only ever loses flatly is a machine nobody watches to the end.
+  if(random(0, 3) == 0) {
+    slotTarget[0] = slotTarget[1] = slotTarget[2] = SLOT_SEVEN;
+  } else if(random(0, 3) == 0) {
+    slotTarget[0] = slotTarget[1] = SLOT_SEVEN;
+    slotTarget[2] = (uint8_t)random(1, SLOT_SYMS);
+  } else {
+    do { for(int r = 0; r < 3; r++) slotTarget[r] = (uint8_t)random(0, SLOT_SYMS); }
+    while(slotTarget[0] == SLOT_SEVEN && slotTarget[1] == SLOT_SEVEN && slotTarget[2] == SLOT_SEVEN);
+  }
+  unsigned long now = millis();
+  for(int r = 0; r < 3; r++) {
+    slotPos[r] = (uint8_t)random(0, SLOT_SPAN);
+    slotPace[r] = 16;
+    slotNextAt[r] = now;
+    slotStopAt[r] = now + 400 + r * 250;   //the earliest each may begin winding down
+    slotWinding[r] = false;
+    slotStopped[r] = false;
+    slotLeft[r] = 0;
+    slotRun[r] = 1;
+  }
+  slotDrewAt = 0;
+  slotScreenAt = 0;
+  cfg.slotSpins++;
+  logPrint(F("[I] Slots: spinning"));
+}
+
+void slotEnd() {
+  if(!slotActive) return;
+  slotActive = false;
+  if(slotOutcome == 1) cfg.slotWins++;
+  cfg.save();                              //a spin is a deliberate act and rare, unlike a boop
+  logPrint("[I] Slots: " + String(slotOutcome == 1 ? "won" : "lost") + ", " +
+           String(cfg.slotWins) + " of " + String(cfg.slotSpins));
+  if(slotBackTo != "" && slotBackTo != "POSTAnimLoad") loadAnim(slotBackTo, "");
+  slotBackTo = "";
+  instantReload = true;
+  screenPrevValid = false;
+}
+
+void slotTick() {
+  if(slotStartReq) { slotStartReq = false; if(!slotActive && !dinoActive) slotStart(""); }
+  if(slotStopReq)  { slotStopReq = false; if(slotActive) slotEnd(); }
+  if(!slotActive) return;
+  unsigned long now = millis();
+  bool moved = false;
+  int resting = 0;
+  for(int r = 0; r < 3; r++) {
+    if(slotStopped[r]) { resting++; continue; }
+    if(now < slotNextAt[r]) continue;
+    slotPos[r] = (uint8_t)((slotPos[r] + 1) % SLOT_SPAN);
+    moved = true;
+    //A reel only begins winding down once the one to its left has come to rest. Timing it by
+    //the clock alone does not hold the order: the run-in to a stop is however far the reel
+    //happens to be from its symbol, so a short one overtakes a long one and the reels land out
+    //of sequence. Waiting on the neighbour makes left-to-right the one thing that cannot drift.
+    if(!slotWinding[r] && now >= slotStopAt[r] && (r == 0 || slotStopped[r - 1])) {
+      //Spread the slowing down over exactly the pixels left to the target, so the reel eases to
+      //a stop on its symbol instead of snapping onto it.
+      slotWinding[r] = true;
+      int d = ((int)slotTarget[r] * 8 - (int)slotPos[r] + SLOT_SPAN) % SLOT_SPAN;
+      if(d < 8) d += SLOT_SPAN;            //too close to be seen slowing: go round once more
+      slotRun[r] = d;
+      slotLeft[r] = d;
+    } else if(slotWinding[r]) {
+      slotLeft[r]--;
+      if(slotLeft[r] <= 0) {
+        slotStopped[r] = true;
+        slotPos[r] = slotTarget[r] * 8;
+        resting++;
+        continue;
+      }
+      slotPace[r] = (uint16_t)(16 + (28L * (slotRun[r] - slotLeft[r])) / slotRun[r]);
+    }
+    slotNextAt[r] = now + slotPace[r];
+  }
+  if(resting == 3 && slotDoneAt == 0) {
+    slotDoneAt = now;
+    slotOutcome = (slotTarget[0] == SLOT_SEVEN && slotTarget[1] == SLOT_SEVEN &&
+                   slotTarget[2] == SLOT_SEVEN) ? 1 : 0;
+    logPrint(slotOutcome == 1 ? F("[I] Slots: triple sevens") : F("[I] Slots: no luck"));
+    moved = true;
+  }
+  if(slotDoneAt) {                         //a win blinks, so this has to keep drawing
+    if(now - slotDrewAt >= SLOT_MAW_MS) { slotDrewAt = now; slotRender(); }
+    if(now - slotScreenAt >= SLOT_SCREEN_MS) { slotScreenAt = now; slotScreen(); }
+    if(now - slotDoneAt > (unsigned long)(slotOutcome == 1 ? 2200 : 1300)) slotEnd();
+    return;
+  }
+  if(moved && now - slotDrewAt >= SLOT_MAW_MS) { slotDrewAt = now; slotRender(); }
+  if(moved && now - slotScreenAt >= SLOT_SCREEN_MS) { slotScreenAt = now; slotScreen(); }
 }
 
 //--------------------------------//Waking up from deep sleep
@@ -2840,6 +3085,7 @@ void autoBrightnessStep() {
 inline bool oledLegacy() { return cfg.oledEna && oledInitDone && !screenHasLayout(); }
 
 void screenTick() {
+  if(slotActive) return;                   //the slot machine draws the screen itself while it spins
   if(screenReloadReq) {                    //a new layout was just saved from the designer
     screenReloadReq = false;
     screenLoadLayout();
@@ -3080,7 +3326,8 @@ void loop() {
 
   //--------------------------------//VISOR+BLUSH Leds render
   dinoStep();                              //while a game is running it owns the panels
-  if(!dinoActive && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) { //custom
+  slotTick();                              //as does the slot machine
+  if(!dinoActive && !slotActive && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) { //custom
     if(blinkHoldsFace()) {                 //the mask is doing the blinking: sit on the resting frame
       if(currentVisorFrame != blinkRestFrame || instantReload) {
         currentVisorFrame = blinkRestFrame;
@@ -3430,7 +3677,25 @@ void loop() {
   if(hwBtn.isReleased()) {
     btnHeld = false;
     if(!btnLongDone) {
-      if(cfg.btnDouble == "none") {
+      //A burst of quick presses is the easter egg. It is counted here rather than made to wait,
+      //so every press still does its normal job the instant you let go - the button stays as
+      //sharp as it was. The face the burst flicked through is undone when the egg ends, because
+      //the face remembered is the one from before the first press of the burst.
+      bool eggFired = false;
+      if(!dinoActive && !slotActive) {
+        if(millis() - eggLastPress > EGG_GAP_MS) { eggPressCount = 0; eggBackTo = currentAnim; }
+        eggLastPress = millis();
+        eggPressCount++;
+        if(cfg.eggAction != "none" && cfg.eggPresses >= 2 && eggPressCount >= cfg.eggPresses) {
+          eggPressCount = 0;
+          btnWaitingSingle = false;        //whatever this press was for, the egg takes it
+          eggFired = true;
+          if(cfg.eggAction == "dino") { dinoStartReq = true; logPrint(F("[I] Easter egg: dino")); }
+          else slotStart(eggBackTo);
+        }
+      }
+      if(eggFired) {
+      } else if(cfg.btnDouble == "none") {
         doButtonAction(cfg.btnShort, cfg.btnShortFace, cfg.btnShortPhrase); //nothing to wait for
       } else if(btnWaitingSingle && millis() - btnFirstRelease <= BTN_DOUBLE_MS) {
         btnWaitingSingle = false;          //second press inside the window
@@ -3639,7 +3904,7 @@ void loop() {
   //Serial.println(">BP:"+String(micros()-looptime));
 
   //--------------------------------//OLED routine, ~~10ms qwq~~, 1-5ms.. eh better
-  if(oledLegacy() && vaStatLast+1000<millis()) {
+  if(oledLegacy() && !slotActive && vaStatLast+1000<millis()) {
     //looptime = micros();
     if(INApresent) {
       oled.writeINA(ina219.getBusVoltage_V(),ina219.getCurrent_mA());

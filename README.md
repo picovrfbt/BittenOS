@@ -33,6 +33,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - Boops from an APDS-9930, using both its proximity sensor and its light sensor: a boop has to come close *and* cast a shadow, so stray readings don't count
 - Auto-brightness from the same light sensor, with three ways of keeping the panels' own glow out of the reading (blank, hybrid, live), a check interval, and low/high clamps
 - A boop counter that pops up on the nose panels once the paw moves away
+- Easter eggs on the maw: a slot machine and a dino game, from the page or a quick burst of button presses
 - The I2C bus is checked every 10 seconds, and a sensor that drops out reconnects by itself without restarting the mask
 
 **Updates**

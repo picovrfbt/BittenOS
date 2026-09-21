@@ -46,6 +46,11 @@ public:
   bool bootBarEna;                    //a loading bar fills the maw at startup, before the warm-up
   int bootBarMs;                      //how long that bar takes, tuned separately from the warm-up
   int dinoBest;                       //best distance reached in the dino game on the maw
+  //Easter eggs: pressing the button this many times in quick succession starts one of them.
+  //eggAction is slots, dino or none.
+  int eggPresses;
+  String eggAction;
+  int slotWins, slotSpins;            //how the slot machine has treated you so far
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
   int wakeFlickMs,wakeFlickGlitch;    //how long the warm-up runs, and how much the picture tears (0-2)
   int boopConfirm;                    //readings in a row over the line before it counts as a boop

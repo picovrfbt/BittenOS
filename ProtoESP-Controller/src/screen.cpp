@@ -157,6 +157,10 @@ static void drawText(uint8_t *buf, const String &s, int x, int y, uint8_t size) 
   }
 }
 
+//Wrappers so the slot machine can caption its own screen without a second copy of the font
+void screenDrawText(uint8_t *buf, const String &s, int x, int y, uint8_t size) { drawText(buf, s, x, y, size); }
+int screenTextWidth(const String &s, uint8_t size) { return textWidth(s, size); }
+
 static String fmtUptime(unsigned long s) {
   unsigned long d = s / 86400, h = (s % 86400) / 3600, m = (s % 3600) / 60;
   if(d) return String(d) + "d" + String(h) + "h";

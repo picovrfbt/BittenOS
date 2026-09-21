@@ -19,6 +19,7 @@ import email.parser
 import email.policy
 import json
 import os
+import random
 import re
 import shutil
 import threading
@@ -57,6 +58,7 @@ SAVECONFIG_KEYS = {
     'staEna': bool, 'staName': str, 'staPass': str, 'mdnsName': str,
     'wakeFlickEna': bool, 'wakeFlickBoot': bool, 'wakeFlickStyle': str, 'wakeFlickMs': int, 'wakeFlickGlitch': int,
     'bootBarEna': bool, 'bootBarMs': int, 'dinoBest': int,
+    'eggPresses': int, 'eggAction': str, 'slotWins': int, 'slotSpins': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aTilt2': str, 'aBoop': str, 'aSleep': str,
@@ -126,6 +128,9 @@ class VirtualBoard:
         self.clock_24 = False
         self.dino_on = False           # /dino: the game on the maw. The virtual face cannot play
         self.dino_score = 0            # it, so this is only enough state for the page to drive
+        self.slot_on = False           # /slots: likewise, a pretend spin the page can follow
+        self.slot_outcome = -1
+        self.slot_until = 0.0
         self.log_lines = []
         self.log('[I] Virtual board started, showing default.json')
 
@@ -539,6 +544,33 @@ class Handler(BaseHTTPRequestHandler):
                 'on': board.dino_on,
                 'score': board.dino_score,
                 'best': int(cfg.get('dinoBest') or 0),
+            }), 'application/json')
+
+        if path == '/slots':  # the slot machine on the maw, stubbed the same way the dino is:
+            # a real spin takes a few seconds and lands on triple sevens one time in three.
+            if board.slot_on and time.time() >= board.slot_until:
+                board.slot_on = False
+                if board.slot_outcome == 1:
+                    cfg['slotWins'] = int(cfg.get('slotWins') or 0) + 1
+                board.save_config()
+                board.log('[I] Slots: %s' % ('won' if board.slot_outcome == 1 else 'lost'))
+            if 'go' in q and not board.slot_on:
+                board.slot_on = True
+                board.slot_outcome = -1
+                board.slot_until = time.time() + 3.0
+                cfg['slotSpins'] = int(cfg.get('slotSpins') or 0) + 1
+                board.save_config()
+                board.log('[I] Slots: spinning')
+            elif 'stop' in q and board.slot_on:
+                board.slot_on = False
+                board.log('[I] Slots: stopped')
+            if board.slot_on and board.slot_outcome < 0 and time.time() > board.slot_until - 0.6:
+                board.slot_outcome = 1 if random.randrange(3) == 0 else 0
+            return self.reply(200, json.dumps({
+                'on': board.slot_on,
+                'outcome': board.slot_outcome,
+                'wins': int(cfg.get('slotWins') or 0),
+                'spins': int(cfg.get('slotSpins') or 0),
             }), 'application/json')
 
         if path == '/wakeflick':   # the deep-sleep warm-up. No panels here, so it only says what the mask would do.
