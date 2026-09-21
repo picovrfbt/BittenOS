@@ -51,3 +51,8 @@ int screenPageHold(int page);     //ms a takeover page lingers after its conditi
 int screenCycleSecs();            //seconds between automatic steps through the always pages; 0 = manual only
 //Draws one page into a 1024-byte buffer in u8g2's layout (page * 128 + x, bit = y & 7)
 void screenRender(uint8_t *pageBuffer, const ScreenData &d, int page);
+
+//The same font, for anything that draws its own screen rather than a designed layout - the slot
+//machine takes the screen over while it spins, and wants captions in the screen's own type.
+void screenDrawText(uint8_t *buf, const String &s, int x, int y, uint8_t size);
+int screenTextWidth(const String &s, uint8_t size);

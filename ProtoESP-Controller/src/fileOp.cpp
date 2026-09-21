@@ -94,6 +94,9 @@ void Config::setDefault() {
   bootBarEna = true;     //a loading bar fills first, then the warm-up reveals the face
   bootBarMs = 1500;      //how long the bar takes, on its own clock
   dinoBest = 0;          //nobody has run yet
+  eggPresses = 6;        //button presses in quick succession to start an easter egg
+  eggAction = "slots";   //slots, dino or none
+  slotWins = 0; slotSpins = 0;
   wakeFlickStyle = "crt";
   wakeFlickMs = 1800;    //how long the whole warm-up takes
   wakeFlickGlitch = 1;   //0 none, 1 a little tearing, 2 a lot
@@ -185,6 +188,10 @@ bool Config::save() {
   doc["bootBarEna"] = bootBarEna;
   doc["bootBarMs"] = bootBarMs;
   doc["dinoBest"] = dinoBest;
+  doc["eggPresses"] = eggPresses;
+  doc["eggAction"] = eggAction;
+  doc["slotWins"] = slotWins;
+  doc["slotSpins"] = slotSpins;
   doc["wakeFlickStyle"] = wakeFlickStyle;
   doc["wakeFlickMs"] = wakeFlickMs;
   doc["wakeFlickGlitch"] = wakeFlickGlitch;
@@ -342,6 +349,10 @@ bool Config::load() {
   bootBarEna = doc["bootBarEna"] | true;
   bootBarMs = doc["bootBarMs"] | 1500;
   dinoBest = doc["dinoBest"] | 0;
+  eggPresses = doc["eggPresses"] | 6;
+  eggAction = doc["eggAction"] | "slots";
+  slotWins = doc["slotWins"] | 0;
+  slotSpins = doc["slotSpins"] | 0;
   wakeFlickStyle = doc["wakeFlickStyle"] | "crt";
   wakeFlickMs = doc["wakeFlickMs"] | 1800;
   wakeFlickGlitch = doc["wakeFlickGlitch"] | 1;
