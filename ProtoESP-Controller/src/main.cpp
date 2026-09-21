@@ -2582,29 +2582,23 @@ const uint8_t boopDigits[10][5] = {
   {0b111,0b101,0b111,0b101,0b111}, {0b111,0b101,0b111,0b001,0b111},
 };
 
-uint64_t boopDigitsWord(int value, int lift) { //row r, column c sits at bit r*8+c
-  uint64_t w = 0;
-  bool twoDigits = value >= 10;
-  int tens = (value / 10) % 10, units = value % 10;
-  int unitsX = twoDigits ? 4 : 3;               //a single digit sits centred instead
-  for(int r = 0; r < 5; r++) {
-    int y = 1 + r - lift;
-    if(y < 0 || y > 7) continue;
-    for(int c = 0; c < 3; c++) {
-      if(twoDigits && ((boopDigits[tens][r] >> (2 - c)) & 1)) w |= 1ULL << (y * 8 + c);
-      if((boopDigits[units][r] >> (2 - c)) & 1) w |= 1ULL << (y * 8 + unitsX + c);
+//The number as a strip of pixel columns, three wide a digit with a blank between, most significant
+//first. Bit r of a column is row r. Returns how many columns were written.
+#define BOOP_MAXCOLS 24                         //five digits is 19, so this is room to spare
+static int boopNumberCols(int value, uint8_t *cols) {
+  int digits[5], n = 0;
+  if(value <= 0) digits[n++] = 0;
+  else { int v = value; while(v > 0 && n < 5) { digits[n++] = v % 10; v /= 10; } }
+  int used = 0;
+  for(int i = n - 1; i >= 0 && used < BOOP_MAXCOLS; i--) {
+    for(int c = 0; c < 3 && used < BOOP_MAXCOLS; c++) {
+      uint8_t col = 0;
+      for(int r = 0; r < 5; r++) if((boopDigits[digits[i]][r] >> (2 - c)) & 1) col |= 1 << r;
+      cols[used++] = col;
     }
+    if(i > 0 && used < BOOP_MAXCOLS) cols[used++] = 0;   //a blank column between digits
   }
-  return w;
-}
-
-uint64_t boopBarWord(int width) { //a centred bar, two rows tall - the number squeezing in and out
-  uint64_t w = 0;
-  int x0 = (8 - width) / 2;
-  for(int r = 3; r <= 4; r++)
-    for(int c = x0; c < x0 + width; c++)
-      w |= 1ULL << (r * 8 + c);
-  return w;
+  return used;
 }
 
 //How the number pops. Each stage runs until that many ms after the boop: kind 0 is a bar of
@@ -2618,6 +2612,55 @@ const BoopStage boopStages[] = {
   {1270, 1, 1}, {1330, 0, 6}, {1390, 0, 2},     //lift, collapse, gone
 };
 #define boopStageCount (sizeof(boopStages) / sizeof(boopStages[0]))
+
+int boopNumberWidth(int value) {                //how many columns that number needs
+  uint8_t cols[BOOP_MAXCOLS];
+  return boopNumberCols(value, cols);
+}
+
+//How far along the number has scrolled, in columns. A number that fits the panel never moves. One
+//that does not sits still a moment, walks left far enough to show its end, and sits again - the way
+//an mp3 player shows a title too long for its screen. The window is the stage the number already
+//spends being read, from boopStages: index 5 ends at 340 ms and the long hold ends at 1200 ms.
+int boopScrollOffset(unsigned long dt, int value) {
+  int travel = boopNumberWidth(value) - 8;
+  if(travel <= 0) return 0;                     //it fits: nothing to scroll
+  const unsigned long from = boopStages[5].until, to = boopStages[6].until;
+  if(dt <= from) return 0;
+  if(dt >= to) return travel;
+  float t = (float)(dt - from) / (float)(to - from);      //0 to 1 across the hold
+  const float pause = 0.25f;                    //still at each end, moving through the middle
+  if(t <= pause) return 0;
+  if(t >= 1.0f - pause) return travel;
+  return (int)(((t - pause) / (1.0f - 2 * pause)) * travel + 0.5f);
+}
+
+uint64_t boopDigitsWord(int value, int lift, int xoff) { //row r, column c sits at bit r*8+c
+  uint8_t cols[BOOP_MAXCOLS];
+  int n = boopNumberCols(value, cols);
+  int x0 = (n <= 8) ? (8 - n) / 2 : -xoff;      //centred while it fits, scrolled once it does not
+  uint64_t w = 0;
+  for(int c = 0; c < n; c++) {
+    int x = x0 + c;
+    if(x < 0 || x > 7) continue;                //outside the panel: clipped by the window
+    for(int r = 0; r < 5; r++) {
+      if(!((cols[c] >> r) & 1)) continue;
+      int y = 1 + r - lift;
+      if(y < 0 || y > 7) continue;
+      w |= 1ULL << (y * 8 + x);
+    }
+  }
+  return w;
+}
+
+uint64_t boopBarWord(int width) { //a centred bar, two rows tall - the number squeezing in and out
+  uint64_t w = 0;
+  int x0 = (8 - width) / 2;
+  for(int r = 3; r <= 4; r++)
+    for(int c = x0; c < x0 + width; c++)
+      w |= 1ULL << (r * 8 + c);
+  return w;
+}
 
 int boopPhase() { //which stage of the pop we're in, -1 for nothing showing
   if(!cfg.boopCountEna || boopShownAt == 0) return -1;
@@ -2676,8 +2719,10 @@ void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
   int bphase = boopPhase();
   if(bphase >= 0) { //boop counter: the number takes over both nose panels while it pops
     const BoopStage &bst = boopStages[bphase];
+    int shown = cfg.boopCount % 100000;         //five digits is all the strip holds
     uint64_t w = (bst.kind == 0) ? boopBarWord(bst.amount)
-                                 : boopDigitsWord(cfg.boopCount % 100, bst.amount);
+                                 : boopDigitsWord(shown, bst.amount,
+                                     boopScrollOffset(millis() - boopShownAt, shown));
     if(noseLeftPanel  < numOfSegm) tempLeds[noseLeftPanel]  = w;
     if(noseRightPanel < numOfSegm) tempLeds[noseRightPanel] = w;
   }
