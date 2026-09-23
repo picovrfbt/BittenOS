@@ -20,9 +20,12 @@
 #define DATA_PIN_VISOR 7 //Face (right cheek, left segment of eye first)
 #define I2C_SDA 8 //SDA for Gyro, OLED, INA219, ToF
 #define I2C_SCL 9 //SCL for Gyro, OLED, INA219, ToF
-#define MAX_CLK 12 //Clock for MAX72xx matrixes if used
-#define MAX_MOSI 11 //Data for MAX72xx matrixes if used
-#define MAX_CS 10 //ChipSelect for MAX72xx matrixes if used
+//Panel pads read CLK, CS, DIN, VCC, GND down the board, and so do J1 pins 18 to 22 (GPIO 12, 13,
+//14, then 5V and GND). Wiring them in that order makes the loom one straight five-way ribbon with
+//nothing crossing and no gap before power. GPIO 13 came free when the fan went.
+#define MAX_CLK 12 //Clock for MAX72xx matrixes, J1 pin 18
+#define MAX_CS 13 //ChipSelect for MAX72xx matrixes, J1 pin 19
+#define MAX_MOSI 14 //Data for MAX72xx matrixes, J1 pin 20
 #define animBtn 21 //Momentary button: short press = next face, hold 1.5s = displays off/on
 #define animBtnGnd 47 //Driven LOW as the button's ground, so both button wires sit on neighbouring pins (47 is next to 21)
 
