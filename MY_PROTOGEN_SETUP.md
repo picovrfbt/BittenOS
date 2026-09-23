@@ -48,6 +48,29 @@ Edition, but it is not the same board:
   and RTS together to reset it by hand - that drives GPIO0 low and it comes back up in
   `boot:0x0 (DOWNLOAD(USB/UART0))` instead of running. Pulse RTS alone, with DTR left released.
 
+#### Every wire except the button fits on one header
+
+Checked against the board's own silkscreen on 2026-09-22: it follows the reference
+ESP32-S3-DevKitC-1 layout, so the whole loom can run down **J1** (the header with 3V3, 3V3, RST at
+the top and 5V, GND at the bottom), power rails included.
+
+| J1 pin | GPIO | For |
+|---|---|---|
+| 1, 2 | 3V3 | Sensors, OLED, mic |
+| 4, 5, 6 | 4, 5, 6 | Mic BCLK, DOUT, LRCL - three in a row |
+| 12 | 8 | I2C SDA |
+| 15 | 9 | I2C SCL |
+| 16, 17, 18 | 10, 11, 12 | MAX7219 CS, DIN, CLK |
+| 19 | 13 | Fan PWM |
+| 21, 22 | 5V, GND | Panel power and shared ground |
+
+J1 pins 15-19 are one continuous run (SCL, CS, DIN, CLK, fan). The only awkward one is SDA: GPIO8 is
+at pin 12, separated from GPIO9 by GPIO3 and GPIO46, so the two I2C wires are not neighbours.
+
+The button is the sole exception and stays on **J3**, where GPIO47 (pin 17) sits directly above
+GPIO21 (pin 18) - adjacent, exactly as on the Gold Edition, so a bare momentary button still bridges
+the two with no GND wire.
+
 ---
 
 ## 2. Wiring
