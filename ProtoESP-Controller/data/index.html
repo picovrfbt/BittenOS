@@ -712,18 +712,6 @@
       </div>
     </details>
 
-    <!-- Fan -->
-    <details class="section">
-      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Fan</b><small>Speed for a fan on GPIO 13</small></span><span class="tag">Not installed</span></summary>
-      <div class="group notfitted">
-        <div class="row stack">
-          <div class="control-head"><label for="fanspeed"><b>Speed</b></label><output id="fanVal">100%</output></div>
-          <input type="range" min="0" max="255" value="255" id="fanspeed">
-        </div>
-        <div class="row"><span class="row-text"><small>Nothing is wired to the fan pin (GPIO 13), so this changes nothing yet.</small></span></div>
-      </div>
-    </details>
-
     <!-- Remote -->
     <details class="section">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Remote</b><small>Bluetooth for the handheld remote, and phone control commands</small></span><span class="tag">Not installed</span></summary>
@@ -1328,7 +1316,7 @@
   }
   document.addEventListener('visibilitychange', () => scheduleStats(true));
 
-  /* ---------- brightness and fan ---------- */
+  /* ---------- brightness ---------- */
   // Brightness (MAX7219, 0-15): the panels follow the slider live, saved on release.
   function sendBrightness(save) {
     const v = $('brightness').value;
@@ -1340,19 +1328,6 @@
   }
   $('brightness').addEventListener('input', () => sendBrightness(false));
   $('brightness').addEventListener('change', () => sendBrightness(true));
-
-  function showFan() {
-    $('fanVal').textContent = Math.round($('fanspeed').value / 255 * 100) + '%';
-    setFill($('fanspeed'));
-  }
-  $('fanspeed').addEventListener('input', showFan);
-  $('fanspeed').addEventListener('change', async () => {
-    showFan();
-    try {
-      const t = await (await fetch('/fanpwm?duty=' + $('fanspeed').value)).text();
-      if (!t.includes('Set')) toast(t, true);
-    } catch (e) { toast('Could not reach the mask', true); }
-  });
 
   /* ---------- settings: every control saves itself ---------- */
   // Each control carries data-key, the setting name /saveconfig takes. Only that one setting is
@@ -1784,7 +1759,6 @@
     for (const k of ['staName', 'staPass', 'mdnsName']) if (o[k] !== undefined && $(k)) $(k).value = o[k];
     if ($('mdnsHint')) $('mdnsHint').textContent = (o.mdnsName || 'protogen') + '.local';
     updateButtonRows();
-    if (o.fanDuty !== undefined) { $('fanspeed').value = o.fanDuty; showFan(); }
     if (o.bVisor !== undefined) {
       const bri = Math.min(15, Math.max(0, o.bVisor));
       $('brightness').value = bri; $('brightnessVal').textContent = bri; setFill($('brightness'));
@@ -2062,7 +2036,6 @@
 
   /* ---------- start ---------- */
   setFill($('brightness'));
-  showFan();
   document.querySelectorAll('input[type=range][data-key]').forEach(showRange);
   let savedTab = 'mask';
   try { savedTab = localStorage.getItem('tab') || 'mask'; } catch (e) {}

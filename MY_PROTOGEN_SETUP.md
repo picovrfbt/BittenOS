@@ -61,10 +61,9 @@ the top and 5V, GND at the bottom), power rails included.
 | 12 | 8 | I2C SDA |
 | 15 | 9 | I2C SCL |
 | 16, 17, 18 | 10, 11, 12 | MAX7219 CS, DIN, CLK |
-| 19 | 13 | Fan PWM |
 | 21, 22 | 5V, GND | Panel power and shared ground |
 
-J1 pins 15-19 are one continuous run (SCL, CS, DIN, CLK, fan). The only awkward one is SDA: GPIO8 is
+J1 pins 15-18 are one continuous run (SCL, CS, DIN, CLK). The only awkward one is SDA: GPIO8 is
 at pin 12, separated from GPIO9 by GPIO3 and GPIO46, so the two I2C wires are not neighbours.
 
 The button is the sole exception and stays on **J3**, where GPIO47 (pin 17) sits directly above
@@ -114,7 +113,6 @@ pin 13 -> 5V, pin 12 -> GND     0.1uF capacitor between pins 14 and 7
 | 4 / 5 / 6 | Digital microphone on I2S: **BCLK → 4, DOUT → 5, LRCL → 6**, matching the order a GY-SPH0645 board prints its pads, so the wires run straight across. Power from **3V3** only (the board takes 1.6–3.6V), and leave **SEL** unconnected for the left channel. Set by `micMode` in `src/main.cpp`. |
 | 4 (analog mic instead) | With `micMode "ANALOG"`, GPIO 4 is an analog mic's output (MAX4466, MAX9814) on 3V3. It must stay on GPIO 1–10 — those are the analog inputs WiFi doesn't use, and the mask's WiFi is always on. An analog mic shares the 3V3 rail with the panels and amplifies their switching noise, which is why this mask went digital. |
 | 2 / 42 | KY-032 boop sensor in / enable (not used) |
-| 13 | 4-pin fan PWM (not fitted) |
 
 **Never use GPIO 35, 36 or 37.** They're printed on the board, but the PSRAM uses them internally.
 
@@ -247,7 +245,7 @@ A mask still on the old 8MB table needs one USB flash before over-the-air update
 2. On your phone, turn **mobile data off** and join `ProtoWiFi`, password `Proto1234`.
 3. Open `192.168.4.1`. The page has three tabs along the bottom:
     - **Mask** — face tiles, brightness and scrolling text. Tap a tile to show that face. Since nearly every face is a mirror image, each tile shows just the left half at twice the size; a face whose halves really are different is shown whole. The **Brightness** slider (0–15) changes the panels live and saves when you let go.
-    - **Settings** — grouped by feature: Boop, Boop counter, Face changes, Sleep, Tilt, Microphone, Fan, Remote and WiFi. Parts that aren't wired yet are greyed with a **Not installed** tag, rather than hidden. **Every setting saves the moment you change it** — there's no Save button, and if the mask doesn't accept a change, the control goes back to what the mask actually has. Rows that belong to a switch that's off are greyed out but can still be set. Three things still have their own button: tilt positions, WiFi (which asks first, since you'll need to reconnect), and Remote (BLE), which starts at the next restart.
+    - **Settings** — grouped by feature: Boop, Boop counter, Face changes, Sleep, Tilt, Microphone, Remote and WiFi. Parts that aren't wired yet are greyed with a **Not installed** tag, rather than hidden. **Every setting saves the moment you change it** — there's no Save button, and if the mask doesn't accept a change, the control goes back to what the mask actually has. Rows that belong to a switch that's off are greyed out but can still be set. Three things still have their own button: tilt positions, WiFi (which asks first, since you'll need to reconnect), and Remote (BLE), which starts at the next restart.
     - **System** — status readings and tools (Animator, faces and config upload/download, firmware update).
 4. Open `192.168.4.1/animator.html` to draw faces.
 5. To show a message, type it into **Scrolling text** and press Enter (up to 64 characters). It scrolls across the mouth panels while the eyes keep the current face. Before sending, pick a speed (Very slow, Slow, Normal or Fast) and **Repeat** or **Play once**. Repeat keeps going until you tap a face. Play once goes back to the face you had after one pass; the mask does that itself, so it works even if your phone locks.
@@ -433,7 +431,7 @@ python tools\virtual_tester.py
 ```
 
 - It opens the dashboard at `http://localhost:8080/__tester`. The mask's web page is on the left. On the right, a virtual 14-panel face plays the current face at the current brightness. The board log underneath shows every request the page makes.
-- It answers the page the way the firmware does: changing faces, Try animation, settings, brightness, fan, saving and deleting faces, mouth bob and the boop counter.
+- It answers the page the way the firmware does: changing faces, Try animation, settings, brightness, saving and deleting faces, mouth bob and the boop counter.
 - Buttons under the virtual face simulate the physical button (a press, or a 1.5 s hold) and boops (**Boop**, or **Boop and hold (4 s)** to watch the boop face loop).
 - The update page works, but uploads are only logged, never written anywhere.
 - **Web pages come live from `data/`.** Edit a page, then press **Reload** to see the change.

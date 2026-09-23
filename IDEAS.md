@@ -86,15 +86,15 @@ it was suggested and rejected on exactly that ground. Anything meant to be funny
 ## Needs parts — closed for now
 
 **No more hardware is going on this mask** (decided 2026-09-17), so everything below is parked
-rather than planned. Kept only so the reasoning is not lost if that ever changes. The fan has been
-moved to its own supply, which takes the fan curve off the table too.
+rather than planned. Kept only so the reasoning is not lost if that ever changes.
+
+The fan is gone for good (decided 2026-09-22): it runs from its own supply, the PWM wire is not
+going back on, and the fan curve idea went with it. GPIO 13 is free.
 
 - [ ] **Remote** — decided against ProtoESP's own BLE remote project for now. Two routes: a bought
       BLE camera-shutter clicker (cheap, two buttons, must be Bluetooth 4.0/BLE since the S3 has no
       classic Bluetooth), or an ESP32-C3 SuperMini sending ESP-NOW (a few dollars, any number of
       buttons, instant, no pairing). ESP-NOW is the better mask remote.
-- [ ] **Fan curve** — the PWM is already set up on GPIO 13 at 25 kHz, it's just fixed-duty. Make it
-      follow the chip temperature the System tab already reads. Only needs the fan fitted.
 - [ ] **INA219 power monitor** — real watts on the System tab, and a sane ceiling for
       auto-brightness's Highest setting. The OLED code already has a slot for it.
 - [ ] **Cheek LEDs (WS2812)** — `blushPresent` and the `blush0`–`blush3` cells exist in the

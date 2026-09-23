@@ -22,7 +22,7 @@ private:
 class Config {
 public:
   bool boopEna, speechEna, tiltEna, bleEna, oledEna, sleepEna, transEna, bobEna, boopCountEna, boopLightEna, autoBriEna, oledFlip;
-  int bEar,bVisor,bOled,rbSpeed,rbWidth,spMin,spMax,spTrig,fanDuty,boopThresh,sleepMins,transMs,boopCount,boopBase,boopShade;
+  int bEar,bVisor,bOled,rbSpeed,rbWidth,spMin,spMax,spTrig,boopThresh,sleepMins,transMs,boopCount,boopBase,boopShade;
   int autoBriSecs,autoBriMin,autoBriMax,autoBriDark,autoBriBright,boopMilestone;
   String autoBriMode,mouthMode,aMilestone,blinkMode;
   int blinkDoublePct;                 //percent of the mask's blinks that come as a quick pair
