@@ -52,8 +52,8 @@ the top and 5V, GND at the bottom), power rails included.
 |---|---|---|
 | 1, 2 | 3V3 | Sensors, OLED, mic |
 | 4, 5, 6 | 4, 5, 6 | Mic BCLK, DOUT, LRCL - three in a row |
-| 12 | 8 | I2C SDA |
-| 15 | 9 | I2C SCL |
+| 15 | 9 | I2C SDA |
+| 16 | 10 | I2C SCL |
 | 18, 19, 20 | 12, 13, 14 | MAX7219 CLK, CS, DIN |
 | 21, 22 | 5V, GND | Panel power and shared ground |
 
@@ -61,8 +61,10 @@ the top and 5V, GND at the bottom), power rails included.
 panel prints its pads, so the display ribbon has nothing crossing and no gap before power. GPIO 13
 came free when the fan was removed, which is what made that possible.
 
-The only awkward one is SDA: GPIO8 is at pin 12, separated from GPIO9 by GPIO3 and GPIO46, so the
-two I2C wires are not neighbours.
+The two I2C wires sit just above that, at J1 pins 15 and 16, with a single spare pin (GPIO 11, pin
+17) between them and the panel block. GPIO numbers do not follow physical position on this board -
+GPIO 8, the old SDA, is at pin 12 with GPIO 3 and GPIO 46 between it and GPIO 9 - which is why the
+I2C pair moved to 9 and 10 once the panels freed up room.
 
 The button is the sole exception and stays on **J3**, where GPIO47 (pin 17) sits directly above
 GPIO21 (pin 18) - adjacent, so a bare momentary button still bridges the two with no GND wire.
@@ -108,7 +110,7 @@ pin 13 -> 5V, pin 12 -> GND     0.1uF capacitor between pins 14 and 7
 | GPIO | Part |
 |---|---|
 | 21 + 47 | Momentary button across these two neighbouring pins on the right header (47 is directly above 21). The firmware holds 47 low as the button's ground, so no GND wire or resistor is needed. Short press: next face. Hold 1.5 s: displays off/on. |
-| 8 / 9 | I2C SDA / SCL, shared by all I2C parts: BMI270 tilt sensor (address 0x68 or 0x69), APDS-9930 boop sensor (0x39), and later an OLED. Power the sensors from **3V3**, not 5V — the APDS-9930 is not 5V tolerant. |
+| 9 / 10 | I2C SDA / SCL, shared by all I2C parts: BMI270 tilt sensor (address 0x68 or 0x69), APDS-9930 boop sensor (0x39), and later an OLED. Power the sensors from **3V3**, not 5V — the APDS-9930 is not 5V tolerant. |
 | 5 | Cheek/blush WS2812 LEDs (not fitted) |
 | 4 / 5 / 6 | Digital microphone on I2S: **BCLK → 4, DOUT → 5, LRCL → 6**, matching the order a GY-SPH0645 board prints its pads, so the wires run straight across. Power from **3V3** only (the board takes 1.6–3.6V), and leave **SEL** unconnected for the left channel. Set by `micMode` in `src/main.cpp`. |
 | 4 (analog mic instead) | With `micMode "ANALOG"`, GPIO 4 is an analog mic's output (MAX4466, MAX9814) on 3V3. It must stay on GPIO 1–10 — those are the analog inputs WiFi doesn't use, and the mask's WiFi is always on. An analog mic shares the 3V3 rail with the panels and amplifies their switching noise, which is why this mask went digital. |
@@ -280,7 +282,7 @@ A mask still on the old 8MB table needs one USB flash before over-the-air update
     - **Lowest** and **Highest** clamp the brightness (0–15). If the panels run from the board's 5V pin, the measured span is about 3W with stock faces at brightness 5 up to roughly 7W with every pixel lit at 15.
     - **Calibrating:** in the darkest place you'll wear it, press **Measure**, then **Use now** on **Dark point**. Do the same in bright light for **Bright point**. Light at or below the dark point gives Lowest, at or above the bright point gives Highest, and it's spread on a log scale in between, the way eyes see light. A change has to be worth more than half a step before it moves, and it eases one step at a time, so it doesn't flicker between two levels.
     - It needs the APDS-9930; if the sensor drops out, brightness goes back to the slider value until it's found again.
-16. **Status screen:** once a 0.96" 128×64 I2C SSD1306 OLED is wired (VCC to **3V3**, GND, SDA to GPIO 8, SCL to GPIO 9 — the same wires as the sensors, address 0x3C), flip on **Status screen** in Settings and pick **Screen brightness** (Dimmest, Dim, Medium, Bright or Brightest — it sets the screen's contrast, so the top step really is bright). **Upside down** turns the picture round if the screen is mounted the other way up. If it's on but not found, the switch's description says so. Turning it off blanks the screen. The screen's layout can be designed in the virtual tester at `/__screen` (saved to `data/screen.json`), though the firmware still draws ProtoESP's original screen for now.
+16. **Status screen:** once a 0.96" 128×64 I2C SSD1306 OLED is wired (VCC to **3V3**, GND, SDA to GPIO 9, SCL to GPIO 10 — the same wires as the sensors, address 0x3C), flip on **Status screen** in Settings and pick **Screen brightness** (Dimmest, Dim, Medium, Bright or Brightest — it sets the screen's contrast, so the top step really is bright). **Upside down** turns the picture round if the screen is mounted the other way up. If it's on but not found, the switch's description says so. Turning it off blanks the screen. The screen's layout can be designed in the virtual tester at `/__screen` (saved to `data/screen.json`), though the firmware still draws ProtoESP's original screen for now.
 17. **Blinks:** on the **Mask** tab, under the faces — the card only appears while a face the mask can actually blink is showing, so it stays out of the way the rest of the time. **Face's own** (the default) leaves every face to blink the way it was drawn. **Mask blinks** takes over: it holds the face on its open-eyed frame and blinks it at random gaps of 2.5 to 7 seconds, so it never falls into a rhythm. **None** holds that frame and never blinks.
 
     **Double blink** (default 25%) is how many of those come as a quick pair rather than one on its own — a second blink 90–190 ms behind the first, never three in a row. A single blink on a timer still reads as a machine ticking however random the gap; the occasional pair is the thing that makes it look alive. Set it to 0 for single blinks only.
@@ -489,7 +491,7 @@ See `ProtoESP-Controller/readme.md` and `touchSensors.md` for sensor wiring.
 | Face previews are black | The mask dropped a request while the page loaded. The page retries and says if it still fails; reload it. |
 | A feature switch flips back on its own | The mask didn't accept the change — usually the phone briefly lost the WiFi. Flip it again. |
 | Mouth moves by itself | Speech is on with no microphone. Turn Speech off. |
-| Tilt sensor shows as not found | Check the BMI270's 3V3, GND, SDA (GPIO 8) and SCL (GPIO 9), and look for `0x68` or `0x69` under **I2C devices** on the System tab. The mask looks for it every 5 seconds, so it picks up a fixed wire by itself. |
+| Tilt sensor shows as not found | Check the BMI270's 3V3, GND, SDA (GPIO 9) and SCL (GPIO 10), and look for `0x68` or `0x69` under **I2C devices** on the System tab. The mask looks for it every 5 seconds, so it picks up a fixed wire by itself. |
 | Boop sensor found, Shadow works, but Closeness never moves | The infrared LED isn't powered: bridge the PS jumper on the sensor board, or wire VL to 3V3 (section 2, *Mounting the boop sensor*). |
 | Boop sensor shows as not found | Look for `0x39` under **I2C devices**. Not there: check the APDS-9930's 3V3 (not 5V), GND, SDA and SCL, which it shares with the BMI270. There but not starting: the chip doesn't match `boopMode` in `src/main.cpp`. |
 | Boop never triggers, or triggers constantly | Watch the meter in Settings > Boop. Press **Calibrate** with nothing near the visor, then set Boop distance again (section 6, step 9). If random boops still get through, check **Confirm with light** is on. If real boops say *no shadow — ignored*, lower **Shadow needed**. If **Boop sensor readings** on the System tab show raw near 255 at rest, the visor reflection is too strong — fit a light barrier or close the air gap (section 2). |

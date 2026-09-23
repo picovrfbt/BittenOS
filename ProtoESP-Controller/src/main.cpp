@@ -18,8 +18,8 @@
 #define T_en 42 //Enable pin to Touch Sensor (for KY-032)
 #define DATA_PIN_EARS 5  //Ears(Blush) (from outer to inner, POV-right cheek, (if blush: from top to bottom, right cheek nearest to ear first))
 #define DATA_PIN_VISOR 7 //Face (right cheek, left segment of eye first)
-#define I2C_SDA 8 //SDA for Gyro, OLED, INA219, ToF
-#define I2C_SCL 9 //SCL for Gyro, OLED, INA219, ToF
+#define I2C_SDA 9 //SDA for Gyro, OLED, INA219, ToF, J1 pin 15
+#define I2C_SCL 10 //SCL for Gyro, OLED, INA219, ToF, J1 pin 16
 //Panel pads read CLK, CS, DIN, VCC, GND down the board, and so do J1 pins 18 to 22 (GPIO 12, 13,
 //14, then 5V and GND). Wiring them in that order makes the loom one straight five-way ribbon with
 //nothing crossing and no gap before power. GPIO 13 came free when the fan went.
