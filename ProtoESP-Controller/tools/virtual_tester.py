@@ -381,7 +381,6 @@ class Handler(BaseHTTPRequestHandler):
                 'brightness': auto_brightness()['bright'],
                 'blanking': auto_brightness()['blanking'],
                 'ambient': board.ambient,
-                'fan': cfg.get('fanDuty'),
                 'toggles': {k: cfg.get(k) for k in ('boopEna', 'speechEna', 'tiltEna', 'bleEna', 'oledEna', 'bobEna', 'boopCountEna')},
                 'boopCount': int(cfg.get('boopCount') or 0),
                 'boopAgo': round(time.time() - board.boop_at, 3) if board.boop_at else 9999,
@@ -658,16 +657,6 @@ class Handler(BaseHTTPRequestHandler):
             if 'measure' in q:
                 board.measure_now = True
             return self.text('ok')
-
-        if path == '/fanpwm':
-            if 'duty' not in q:
-                return self.text('No valid parameters detected!')
-            duty = to_int(q['duty'])
-            if not 0 <= duty < 256:
-                return self.text('Invalid duty cycle')
-            cfg['fanDuty'] = duty
-            board.save_config()
-            return self.text('Set PWM to: %d' % duty)
 
         if path == '/ota' and method == 'POST':   # accepts the upload but writes nothing
             data = form.get('file', '')

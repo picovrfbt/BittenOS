@@ -304,7 +304,7 @@
         const t = s.toggles, onoff = v => v ? 'on' : 'off';
         document.getElementById('stats').innerHTML =
           chip('Display', s.displayOn === false ? 'off' : 'on') +
-          chip('Face', s.anim) + chip('Brightness', s.brightness + '/15') + chip('Fan', s.fan) +
+          chip('Face', s.anim) + chip('Brightness', s.brightness + '/15') +
           chip('Boop', onoff(t.boopEna)) + chip('Speech', onoff(t.speechEna)) + chip('Tilt', onoff(t.tiltEna)) +
           chip('BLE', onoff(t.bleEna)) + chip('OLED', onoff(t.oledEna)) +
           chip('Bob', onoff(t.bobEna)) + chip('Boops', s.boopCount) + chip('WiFi', s.wifi);

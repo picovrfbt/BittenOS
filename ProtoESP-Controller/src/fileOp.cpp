@@ -51,7 +51,6 @@ void Config::setDefault() {
   visColor = strtol(visColorStr.c_str()+1, NULL, 16);
   wifiName = "ProtoWiFi";
   wifiPass = "Proto1234";
-  fanDuty = 255;
   boopThresh = 15;
   boopConfirm = 5;   //readings in a row before a boop counts
   sleepEna = false;
@@ -146,7 +145,6 @@ bool Config::save() {
   doc["visColor"] = visColorStr;
   doc["wifiName"] = wifiName;
   doc["wifiPass"] = wifiPass;
-  doc["fanDuty"] = fanDuty;
   doc["boopThresh"] = boopThresh;
   doc["boopConfirm"] = boopConfirm;
   doc["sleepEna"] = sleepEna;
@@ -308,7 +306,6 @@ bool Config::load() {
   visColor = strtol(visColorStr.c_str()+1, NULL, 16);
   wifiName = doc["wifiName"].as<String>();
   wifiPass = doc["wifiPass"].as<String>();
-  fanDuty = doc["fanDuty"].as<int>();
   boopThresh = doc["boopThresh"].as<int>();
   sleepEna = doc["sleepEna"] | false;
   sleepMins = doc["sleepMins"] | 5;

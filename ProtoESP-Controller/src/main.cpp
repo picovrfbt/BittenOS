@@ -25,7 +25,6 @@
 #define MAX_CS 10 //ChipSelect for MAX72xx matrixes if used
 #define animBtn 21 //Momentary button: short press = next face, hold 1.5s = displays off/on
 #define animBtnGnd 47 //Driven LOW as the button's ground, so both button wires sit on neighbouring pins (47 is next to 21)
-#define fanPWM 13 //PWM pin to control 4pin fan
 
 #define visorType "MAX72XX" // What displays are you using? (WS2812 or MAX72XX so far)
 #define HARDWARE_TYPE MD_MAX72XX::PAROLA_HW //flip up-down: ::DR1CR0RR1_HW , flip left-right: ::PAROLA_HW , flip both: ::ICSTATION_HW
@@ -1555,23 +1554,6 @@ void startWiFiWeb() {
     request->send(200, "text/plain", String(ESP.getFreeHeap()));
   });
 
-  server.on("/fanpwm", HTTP_GET, [](AsyncWebServerRequest *request){
-    if(request->hasParam("duty")) {
-      int duty = request->getParam("duty")->value().toInt();
-      if(duty < 256 && duty >= 0) {
-        //ledcWrite(0, duty);
-        ledcWrite(fanPWM, duty); //Arduino 3.x core
-        cfg.fanDuty = duty;
-        cfg.save();
-        request->send(200, "text/plain", "Set PWM to: " + String(duty));
-      } else {
-        request->send(200, "text/plain", F("Invalid duty cycle"));
-      }
-    } else {
-      request->send(200, "text/plain", F("No valid parameters detected!"));
-    }
-  });
-  
   server.on("/stats", HTTP_GET, [](AsyncWebServerRequest *request){ //system monitor for the homepage; no I2C here, sensor state is what loop() found
     xSemaphoreTake(animQueueMutex, portMAX_DELAY);
     String anim = currentAnim;
@@ -2540,7 +2522,6 @@ void setup() {
   pinMode(animBtnGnd, OUTPUT); //the button's other leg
   digitalWrite(animBtnGnd, LOW);
   pinMode(0, INPUT_PULLUP);
-  pinMode(fanPWM, OUTPUT);
 
   if(boopIs("KY-032")) {
     pinMode(T_in, INPUT_PULLUP);
@@ -2591,12 +2572,6 @@ void setup() {
     micI2SReady = micI2SBegin();
     if(!micI2SReady) logPrint(F("[E] Digital mic did not start; check BCLK, DOUT and LRCL"));
   }
-
-  ledcAttach(fanPWM, 25000, 8); //suport Arduino 3.x
-  ledcWrite(fanPWM, cfg.fanDuty); //Arduino 3.x core
-  //ledcSetup(0, 25000, 8); //For Arduino 2.x
-  //ledcAttachPin(fanPWM, 0); //For Arduino 2.x
-  //ledcWrite(0, cfg.fanDuty); //for Arduino 2.x
 
   if(visorType == "WS2812") {
     ledController[0] = &FastLED.addLeds<WS2812B, DATA_PIN_VISOR, GRB>(visorLeds, visorLedsNum);
