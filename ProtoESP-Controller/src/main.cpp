@@ -16,7 +16,9 @@
 #define MICpin ADC_CHANNEL_3 //Analog microphone, GPIO 4 (ADC1, the set WiFi doesn't use)
 #define T_in 2 //Output from Touch Sensor (for KY-032, Capac)
 #define T_en 42 //Enable pin to Touch Sensor (for KY-032)
-#define DATA_PIN_EARS 5  //Ears(Blush) (from outer to inner, POV-right cheek, (if blush: from top to bottom, right cheek nearest to ear first))
+//Was GPIO 5, which the digital mic uses for DOUT - the two could never be fitted at once. Moved to
+//8 (J1 pin 12), which nothing else claims.
+#define DATA_PIN_EARS 8  //Ears(Blush) (from outer to inner, POV-right cheek, (if blush: from top to bottom, right cheek nearest to ear first))
 #define DATA_PIN_VISOR 7 //Face (right cheek, left segment of eye first)
 #define I2C_SDA 9 //SDA for Gyro, OLED, INA219, ToF, J1 pin 15
 #define I2C_SCL 10 //SCL for Gyro, OLED, INA219, ToF, J1 pin 16
