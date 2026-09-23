@@ -25,6 +25,29 @@ Last updated: 2026-09-13. Everything below was tested on this mask and this PC, 
 **COM numbers change** between plug-ins — the left port has been COM113 and COM115. Run `python -m platformio device list` (section 5) to check before every flash.
 You never need the BOOT button. Both ports put the board into flashing mode automatically.
 
+### The spare board (HiLetgo ESP32-S3-DevKitC N16R8, dual USB-C)
+
+A second board, MAC `b8:1f:3f:da:1c:24`, flashed fresh on 2026-09-22. Same module name as the Gold
+Edition, but it is not the same board:
+
+| Port (USB-C ports facing you, on the bottom edge) | Shows up as | Use it for |
+|---|---|---|
+| **Right** | `USB-Enhanced-SERIAL CH343` | Power, flashing **and** the startup messages - this is the one to run the mask from |
+| **Left** | `USB Serial Device` (native USB) | Power and flashing only; no startup messages, since `ARDUINO_USB_CDC_ON_BOOT=0` |
+
+- **Build it with the `esp32-s3-hiletgo` environment, not the default one.** Its flash will not run
+  in QIO: written that way the ROM boot-loops before the second-stage bootloader prints anything
+  (`load:0x3fce2820`, `ets_loader.c 78`, then `TG0WDT_SYS_RST`, over and over). The environment sets
+  `board_build.flash_mode = dio`, which boots it first try. Everything else is shared with the mask's
+  environment, so the firmware is identical.
+- The right-hand port powers the board and takes firmware updates over the same cable, with no BOOT
+  button - the same convenience the Gold Edition's UART port gives you. Verified by writing a full
+  app image through it while the firmware was running.
+- **If it ever refuses to connect** ("No serial data received" on every attempt), it is sitting in
+  download mode with GPIO0 held low. Unplug and replug without holding any button. Do not toggle DTR
+  and RTS together to reset it by hand - that drives GPIO0 low and it comes back up in
+  `boot:0x0 (DOWNLOAD(USB/UART0))` instead of running. Pulse RTS alone, with DTR left released.
+
 ---
 
 ## 2. Wiring
