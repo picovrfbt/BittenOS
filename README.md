@@ -46,7 +46,7 @@ Microphone, OLED and the wireless remote are supported by ProtoESP but not fitte
 
 | Part | Details |
 |---|---|
-| Controller | ESP32-S3 board with an ESP32-S3-N16R8 module (16MB flash, 8MB PSRAM). PSRAM is required. Built on a HiLetgo ESP32-S3-DevKitC; `platformio.ini` sets `flash_mode = dio`, since that board will not boot in QIO. |
+| Controller | ESP32-S3 board with an ESP32-S3-N16R8 module (16MB flash, 8MB PSRAM). PSRAM is required. Built on a Lonely Binary "Gold Edition"; `platformio.ini` sets `flash_mode = dio`, which both it and a HiLetgo DevKitC boot from. |
 | Display | FurBitten Studios premade face: 14 × MAX7219 8×8 panels, already chained |
 | Tilt sensor | BMI270 on I2C (SDA GPIO 9, SCL GPIO 10), 3V3 |
 | Boop sensor | APDS-9930 on the same I2C wires, 3V3 — not 5V tolerant |
