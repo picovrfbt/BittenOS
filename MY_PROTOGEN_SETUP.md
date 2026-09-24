@@ -10,43 +10,56 @@ Last updated: 2026-09-13. Everything below was tested on this mask and this PC, 
 
 | Part | Details |
 |---|---|
-| Controller | HiLetgo ESP32-S3-DevKitC, module ESP32-S3-N16R8 (16MB flash, 8MB PSRAM), dual USB-C. MAC `b8:1f:3f:da:1c:24`. |
+| Controller | Lonely Binary ESP32-S3 "Gold Edition", module ESP32-S3-N16R8 (16MB flash, 8MB PSRAM). MAC `14:c1:9f:49:23:c4`. |
 | Displays | FurBitten premade face, 14 × MAX7219 8×8 panels, already chained together |
 | Original controller | Arduino Nano with FurBitten's closed firmware. **Unplugged and kept as a backup. Don't reflash it**; their firmware can't be recovered. |
-| Connected right now | Nothing — the old board is being unwired and everything moves onto this one. A mic and an OLED are going on at the same time. |
-| Old controller | Lonely Binary ESP32-S3 "Gold Edition", MAC `14:c1:9f:49:23:c4`. Retired 2026-09-23, kept as a spare. Its wiring used GPIO 10/11/12 for the panels; the pins below have moved. |
+| Connected right now | Being rewired — the panels move to GPIO 12/13/14 and I2C to 9/10, the layout worked out for the HiLetgo. A mic and an OLED are going on at the same time. |
+| Spare controller | HiLetgo ESP32-S3-DevKitC, dual USB-C, MAC `b8:1f:3f:da:1c:24`. Flashed and working; kept as the spare after the mask went back to the Gold Edition on 2026-09-24. **It will not boot in QIO** — see the flash mode note below. |
 
 ### USB ports on the board
 
-Both are USB-C on the bottom edge. With them facing you:
+| Port | Shows up as | Use it for |
+|---|---|---|
+| Left USB-C, labelled **UART** | `USB-SERIAL CH340K` | Flashing **and** reading the startup messages |
+| Right USB-C, labelled **USB** | `303A:1001` | Flashing only (no startup messages on this one) |
+
+**COM numbers change** between plug-ins — the left port has been COM113 and COM115. List the ports
+before every flash rather than reusing the last one.
+You never need the BOOT button. Both ports put the board into flashing mode automatically.
+
+### Flash mode: DIO, on purpose
+
+`platformio.ini` sets `board_build.flash_mode = dio` rather than the board default of `qio`. The
+Gold Edition boots either way; the HiLetgo spare **only** boots in DIO, and written in QIO its ROM
+loops before the second-stage bootloader prints a single line (`load:0x3fce2820`, `ets_loader.c 78`,
+then `TG0WDT_SYS_RST`, with nothing to say why). DIO is the conservative mode and any flash that
+runs QIO also runs DIO, so one setting covers both boards. Flashing by hand needs `--flash-mode dio`
+passed to esptool.
+
+### The spare board (HiLetgo ESP32-S3-DevKitC, dual USB-C)
+
+Both its ports are USB-C on the bottom edge. With them facing you:
 
 | Port | Shows up as | Use it for |
 |---|---|---|
-| **Right** | `USB-Enhanced-SERIAL CH343` | Power, flashing **and** the startup messages — run the mask from this one |
+| **Right** | `USB-Enhanced-SERIAL CH343` | Power, flashing **and** the startup messages |
 | **Left** | `USB Serial Device` (native USB) | Power and flashing only; no startup messages, since `ARDUINO_USB_CDC_ON_BOOT=0` |
 
-**COM numbers change** between plug-ins, and the two ports take different numbers — this board has
-been COM116 and COM117. List the ports before every flash rather than reusing the last one.
-
-The right-hand port powers the board and takes firmware updates over the same cable with no BOOT
-button, verified by writing a full app image through it while the firmware was running.
-
-**The flash mode matters on this board.** It will not boot in QIO: written that way the ROM loops
-before the second-stage bootloader prints a single line (`load:0x3fce2820`, `ets_loader.c 78`, then
-`TG0WDT_SYS_RST`, over and over, with nothing to say why). `platformio.ini` sets
-`board_build.flash_mode = dio`, which boots it first try. Flashing by hand needs
-`--flash-mode dio` passed to esptool.
+It has been COM116 and COM117. The right-hand port powers the board and takes firmware updates over
+the same cable with no BOOT button, verified by writing a full app image through it while the
+firmware was running.
 
 - **If it ever refuses to connect** ("No serial data received" on every attempt), it is sitting in
   download mode with GPIO0 held low. Unplug and replug without holding any button. Do not toggle DTR
   and RTS together to reset it by hand - that drives GPIO0 low and it comes back up in
   `boot:0x0 (DOWNLOAD(USB/UART0))` instead of running. Pulse RTS alone, with DTR left released.
 
-#### Every wire except the button fits on one header
+#### Its wiring, if the mask ever moves back
 
-Checked against the board's own silkscreen on 2026-09-22: it follows the reference
-ESP32-S3-DevKitC-1 layout, so the whole loom can run down **J1** (the header with 3V3, 3V3, RST at
-the top and 5V, GND at the bottom), power rails included.
+Checked against that board's own silkscreen on 2026-09-22: it follows the reference
+ESP32-S3-DevKitC-1 layout, so the whole loom runs down **J1** (the header with 3V3, 3V3, RST at
+the top and 5V, GND at the bottom), power rails included. The Gold Edition's header layout is its
+own - go by the silkscreen numbers there, not by these positions.
 
 | J1 pin | GPIO | For |
 |---|---|---|
@@ -77,21 +90,27 @@ GPIO21 (pin 18) - adjacent, so a bare momentary button still bridges the two wit
 
 Connect to the **first panel in the chain: left eye, back panel**.
 
-Panel pads read CLK, CS, DIN, VCC, GND top to bottom, and so does J1, so this is a straight ribbon:
+Panel pads read CLK, CS, DIN, VCC, GND top to bottom, so wiring them in that order keeps the ribbon
+straight:
 
-| MAX7219 pad | ESP32-S3 pin | J1 position |
-|---|---|---|
-| CLK | GPIO 12 | 18 |
-| CS (sometimes labelled LOAD) | GPIO 13 | 19 |
-| DIN | GPIO 14 | 20 |
-| VCC | 5V | 21 |
-| GND | GND | 22 |
+| MAX7219 pad | ESP32-S3 pin |
+|---|---|
+| CLK | GPIO 12 |
+| CS (sometimes labelled LOAD) | GPIO 13 |
+| DIN | GPIO 14 |
+| VCC | 5V |
+| GND | GND |
+
+These pins were picked on the HiLetgo spare, where they land on J1 pins 18 to 22 as one unbroken
+run down to the power rails. They are kept on the Gold Edition so both boards take the same loom -
+but the Gold Edition's header order is its own, so **find them by silkscreen number, not by
+position**.
 
 - **Panel power:** the panels currently run from the board's `5V0` pin with the board on USB. Measured: about **3W** with the stock faces at brightness 5, and the true worst case - the bsod face, which lights every one of the 896 pixels, at **full brightness** - is about **7W**, roughly **1.4A** at 5V. That works out near 1.6mA a lit pixel. Both figures are measured, not calculated.
   An earlier note here claimed 4.5A worst case; that was an extrapolation from the brightness-5 reading scaled by the MAX7219 duty ratio, and testing showed it wrong. Per-segment current is capped by the module's RSET resistor, so brightness moves the draw far less than the register suggests.
   1.4A is within what a decent USB supply gives, so the panels on the board's `5V0` pin are not as marginal as that 4.5A implied. It is still worth wiring a power bank's 5V to both the board's `5V0` pin and the panels in parallel for the helmet, so the panel current doesn't run through the board - cable losses and WiFi peaks are what cause the USB link to drop, not the steady draw.
 - **Ground must be shared** between the supply and the ESP32. With no shared ground you get garbage or nothing.
-- GPIO 12, 13 and 14 sit next to each other on J1, with 5V and GND immediately below them.
+- GPIO 12, 13 and 14 are consecutive, so the three signal wires stay together whichever board they are on.
 
 ### Level shifter (not fitted, currently works without)
 
