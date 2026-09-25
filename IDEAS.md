@@ -53,16 +53,15 @@ mask dying rather than dozing off, so it came out on 2026-09-17. Deep sleep stay
 **visor**. The inside screen is the wearer's instrument panel, not a stage — a bouncing DVD logo on
 it was suggested and rejected on exactly that ground. Anything meant to be funny goes on the face.
 
-- [ ] **Boop sass** (~25 lines) — five boops inside ten seconds and it pulls `upset.json` at you.
-      The face and the boop timestamps both already exist.
-- [ ] **Boop rank announcements** (~35 lines) — at a milestone, "BOOP FIEND" scrolls across the maw.
-      Reuses `showPhrase()` unchanged: the face's own panels stay as the eyes, text scrolls the
-      mouth row. Ranks something like Novice at 10, Fiend at 500.
+- [x] **Boop sass** (2026-09-25) — boop it too fast and it pulls a face at you. The count, the
+      window and the face are all settings under Boop counter, and 0 turns it off. A long flurry
+      sasses every fifth boop rather than sticking, so the ordinary boop face comes back in
+      between and it reads as a reaction. A milestone outranks it.
+- Boop rank announcements: **dropped** (2026-09-25), not wanted.
 - [x] **Fake boot sequence** (2026-09-18) — a framed bar along both maws, filling outward from the
       nose, stuttering rather than creeping. Runs alongside the wake-up flicker rather than after it.
 - [x] **Chrome dino game** (2026-09-18) — on both maws, mirrored. Start from the System tab, the
       mask's own button jumps while it runs. Score and best kept.
-- [ ] **Boop sass** (~25 lines) — still to do; see above.
 
 ## Being done by hand, not by me
 

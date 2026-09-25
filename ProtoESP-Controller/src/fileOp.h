@@ -24,6 +24,9 @@ public:
   bool boopEna, speechEna, tiltEna, bleEna, oledEna, sleepEna, transEna, bobEna, boopCountEna, boopLightEna, autoBriEna, oledFlip;
   int bEar,bVisor,bOled,rbSpeed,rbWidth,spMin,spMax,spTrig,boopThresh,sleepMins,transMs,boopCount,boopBase,boopShade;
   int autoBriSecs,autoBriMin,autoBriMax,autoBriDark,autoBriBright,boopMilestone;
+  //Boop sass: this many boops inside sassSecs and it pulls a face at you. 0 turns it off.
+  int sassBoops,sassSecs;
+  String aSass;
   String autoBriMode,mouthMode,aMilestone,blinkMode;
   int blinkDoublePct;                 //percent of the mask's blinks that come as a quick pair
   //Button: what a short press, a double press and a hold each do, and how long a hold is.
