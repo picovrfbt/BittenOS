@@ -307,6 +307,12 @@ bool Config::load() {
   wifiName = doc["wifiName"].as<String>();
   wifiPass = doc["wifiPass"].as<String>();
   boopThresh = doc["boopThresh"].as<int>();
+  //This has to be read here, not just set in setDefault(): setDefault() only runs when load()
+  //fails, so any field without a line in load() comes up zero-initialised. Zero is the worst
+  //possible value for this one - min(n, 0) is always 0 and 0 >= 0 is always true, so the count of
+  //readings never builds and the proximity check is bypassed, booping on any shadow at all.
+  boopConfirm = doc["boopConfirm"] | 5;
+  if(boopConfirm < 2 || boopConfirm > 10) boopConfirm = 5;
   sleepEna = doc["sleepEna"] | false;
   sleepMins = doc["sleepMins"] | 5;
   aSleep = doc["aSleep"] | "sleep.json";
