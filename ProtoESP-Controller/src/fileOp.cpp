@@ -100,6 +100,9 @@ void Config::setDefault() {
   wakeFlickMs = 1800;    //how long the whole warm-up takes
   wakeFlickGlitch = 1;   //0 none, 1 a little tearing, 2 a lot
   boopMilestone = 100;   //every this many boops plays a special face; 0 turns it off
+  sassBoops = 5;         //this many boops inside sassSecs pulls the sass face; 0 turns it off
+  sassSecs = 10;
+  aSass = "upset.json";
   aMilestone = "heart.json";
   oledFlip = false;      //the screen mounted upside down
   autoBriEna = false;
@@ -194,6 +197,9 @@ bool Config::save() {
   doc["wakeFlickMs"] = wakeFlickMs;
   doc["wakeFlickGlitch"] = wakeFlickGlitch;
   doc["boopMilestone"] = boopMilestone;
+  doc["sassBoops"] = sassBoops;
+  doc["sassSecs"] = sassSecs;
+  doc["aSass"] = aSass;
   doc["aMilestone"] = aMilestone;
   doc["oledFlip"] = oledFlip;
   doc["autoBriEna"] = autoBriEna;
@@ -360,6 +366,9 @@ bool Config::load() {
   wakeFlickMs = doc["wakeFlickMs"] | 1800;
   wakeFlickGlitch = doc["wakeFlickGlitch"] | 1;
   boopMilestone = doc["boopMilestone"] | 100;
+  sassBoops = doc["sassBoops"] | 5;
+  sassSecs = doc["sassSecs"] | 10;
+  aSass = doc["aSass"] | "upset.json";
   aMilestone = doc["aMilestone"] | "heart.json";
   oledFlip = doc["oledFlip"] | false;
   autoBriEna = doc["autoBriEna"] | false;

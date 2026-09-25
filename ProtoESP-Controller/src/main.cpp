@@ -33,6 +33,9 @@
 
 #define visorType "MAX72XX" // What displays are you using? (WS2812 or MAX72XX so far)
 #define HARDWARE_TYPE MD_MAX72XX::PAROLA_HW //flip up-down: ::DR1CR0RR1_HW , flip left-right: ::PAROLA_HW , flip both: ::ICSTATION_HW
+//The most boops the sass rule can be asked to look back over. Up here because the settings
+//endpoint clamps against it, and that sits well above the boop code.
+#define SASS_HISTORY 10
 #define MATRIXESNUM 14 // How many matrices for visor? 14 (FurBitten 14-string: 2x eye, 4x maw, 1x nose per side)
 #define FADESTEPS 4 //how many steps when fading between frames? (0=disabled; only for WS2812 displays)
 
@@ -1318,6 +1321,7 @@ void startWiFiWeb() {
     cfg.getString(request, "aBoop", cfg.aBoop);
     cfg.getString(request, "aSleep", cfg.aSleep);
     cfg.getString(request, "aMilestone", cfg.aMilestone);
+    cfg.getString(request, "aSass", cfg.aSass);
     //button
     cfg.getString(request, "btnShort", cfg.btnShort);
     cfg.getString(request, "btnDouble", cfg.btnDouble);
@@ -1355,6 +1359,8 @@ void startWiFiWeb() {
     }
     if(cfg.getInt(request, "blinkDoublePct", cfg.blinkDoublePct)) cfg.blinkDoublePct = constrain(cfg.blinkDoublePct, 0, 100);
     if(cfg.getInt(request, "boopMilestone", cfg.boopMilestone)) cfg.boopMilestone = constrain(cfg.boopMilestone, 0, 10000);
+    if(cfg.getInt(request, "sassBoops", cfg.sassBoops)) cfg.sassBoops = constrain(cfg.sassBoops, 0, SASS_HISTORY);
+    if(cfg.getInt(request, "sassSecs", cfg.sassSecs)) cfg.sassSecs = constrain(cfg.sassSecs, 2, 60);
     if(cfg.getString(request, "mouthMode", cfg.mouthMode)) {
       if(cfg.mouthMode != "flap" && cfg.mouthMode != "shapes") cfg.mouthMode = "shapes";
     }
@@ -2896,14 +2902,41 @@ int boopPhase() { //which stage of the pop we're in, -1 for nothing showing
   return -1;
 }
 
+//When the last few boops landed, so a flurry of them can be told from an occasional one. A ring
+//buffer rather than a counter, because the rule is "this many inside this long" - a counter would
+//need resetting on a timer and would lose boops either side of the reset.
+unsigned long sassTimes[SASS_HISTORY];
+uint8_t sassHead = 0, sassFilled = 0;   //how many slots hold a real time, so no sentinel is needed
+
 void countBoop() { //the boop landed: count it, but don't show anything yet
   cfg.boopCount++;
   boopCountDirty = true;      //saved from loop() a while later, not on every boop
+  sassTimes[sassHead] = millis();
+  sassHead = (sassHead + 1) % SASS_HISTORY;
+  if(sassFilled < SASS_HISTORY) sassFilled++;
   logPrint("[I] Boop #" + String(cfg.boopCount));
 }
 
+//Enough boops inside the window to have earned a look. Clears the history when it fires, so a long
+//flurry gets the face every sassBoops boops rather than on every one after the first - the ordinary
+//boop face comes back in between, which is what makes the sass read as a reaction.
+static bool boopIsSassy() {
+  if(cfg.sassBoops < 2 || cfg.sassSecs <= 0 || cfg.aSass == "") return false;
+  unsigned long now = millis(), window = (unsigned long)cfg.sassSecs * 1000UL;
+  int within = 0;
+  //Counting filled slots rather than testing for a zero timestamp: millis() really is 0 for the
+  //first millisecond after boot, and a sentinel would quietly drop that boop.
+  for(int i = 0; i < sassFilled; i++)
+    if(now - sassTimes[i] <= window) within++;
+  if(within < cfg.sassBoops) return false;
+  sassHead = 0;
+  sassFilled = 0;
+  return true;
+}
+
 //Every so many boops, a special face instead of the usual one. countBoop() has already counted this
-//boop by the time this is asked, so the hundredth boop is the one that celebrates.
+//boop by the time this is asked, so the hundredth boop is the one that celebrates. A milestone
+//outranks the sass: it comes round far less often, so it would be a shame to lose one to a flurry.
 String boopFaceNow() {
   if(cfg.boopMilestone > 0 && cfg.aMilestone != "" && (cfg.boopCount % cfg.boopMilestone) == 0) {
     logPrint("[I] Boop #" + String(cfg.boopCount) + " is a milestone: " + cfg.aMilestone);
@@ -2911,6 +2944,10 @@ String boopFaceNow() {
     return cfg.aMilestone;
   }
   milestoneBoop = false;
+  if(boopIsSassy()) {
+    logPrint("[I] " + String(cfg.sassBoops) + " boops in " + String(cfg.sassSecs) + "s: " + cfg.aSass);
+    return cfg.aSass;
+  }
   return cfg.aBoop;
 }
 

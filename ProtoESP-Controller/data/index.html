@@ -439,6 +439,12 @@
           <div class="stepper" data-key="boopMilestone" data-label="Milestone every" data-min="0" data-max="1000" data-step="10"><button type="button" aria-label="Less">−</button><output>100</output><button type="button" aria-label="More">+</button></div></div>
         <div class="row"><span class="row-text"><b>Milestone face</b></span>
           <select id="aMilestone" data-key="aMilestone" data-label="Milestone face" aria-label="Milestone face"></select></div>
+        <div class="row"><span class="row-text"><b>Sass after</b><small>Boops in quick succession before it pulls a face at you. 0 turns it off.</small></span>
+          <div class="stepper" data-key="sassBoops" data-label="Sass after" data-min="0" data-max="10" data-step="1"><button type="button" aria-label="Less">&minus;</button><output>5</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row"><span class="row-text"><b>Counted within</b><small>How close together those boops have to land</small></span>
+          <div class="stepper" data-key="sassSecs" data-label="Counted within" data-min="2" data-max="60" data-step="1" data-unit=" s"><button type="button" aria-label="Less">&minus;</button><output>10 s</output><button type="button" aria-label="More">+</button></div></div>
+        <div class="row"><span class="row-text"><b>Sass face</b></span>
+          <select id="aSass" data-key="aSass" data-label="Sass face" aria-label="Sass face"></select></div>
       </div>
     </details>
 
@@ -862,7 +868,7 @@
     if (ok) $('blinkFaceName').textContent = name.replace(/\.json$/, '');
   }
 
-  const FACE_PICKERS = ['aTilt', 'aTilt2', 'aBoop', 'aSleep', 'aMilestone',
+  const FACE_PICKERS = ['aTilt', 'aTilt2', 'aBoop', 'aSleep', 'aMilestone', 'aSass',
                         'btnShortFace', 'btnDoubleFace', 'btnHoldFace'];
 
   async function loadFiles() {
@@ -1435,7 +1441,7 @@
                      'tilt2X', 'tilt2Y', 'tilt2Z'];
   const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, boopConfirm: 5, tiltTrig: 0.6, eggPresses: 6, eggAction: 'slots', transMs: 80, sleepTol: 0.2, sleepMins: 5,
                     autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
-                    autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', blinkMode: 'face', blinkDoublePct: 25,
+                    autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', sassBoops: 5, sassSecs: 10, aSass: 'upset.json', blinkMode: 'face', blinkDoublePct: 25,
                     btnShort: 'nextFace', btnDouble: 'none', btnHold: 'displays', btnHoldMs: 1500,
                     btnShortPhrase: 0, btnDoublePhrase: 0, btnHoldPhrase: 0,
                     sleepDeepEna: false, sleepDeepMins: 20,

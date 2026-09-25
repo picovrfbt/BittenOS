@@ -59,6 +59,7 @@ SAVECONFIG_KEYS = {
     'wakeFlickEna': bool, 'wakeFlickBoot': bool, 'wakeFlickStyle': str, 'wakeFlickMs': int, 'wakeFlickGlitch': int,
     'bootBarEna': bool, 'bootBarMs': int, 'dinoBest': int,
     'eggPresses': int, 'eggAction': str, 'slotWins': int, 'slotSpins': int,
+    'sassBoops': int, 'sassSecs': int, 'aSass': str,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aTilt2': str, 'aBoop': str, 'aSleep': str,
