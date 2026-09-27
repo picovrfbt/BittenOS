@@ -4,9 +4,6 @@ A few momentary buttons on a Seeed XIAO ESP32C6 that sit in deep sleep until pre
 ESP-NOW packet to the mask, and go back to sleep. **No power switch** — deep sleep is about 15 µA,
 so it can be left armed indefinitely and a small LiPo lasts months.
 
-Not to be confused with `../ProtoESP-Remote/`, which is NCPlyn's upstream BLE remote with its own
-PCB and web server. This one does nothing but send button presses.
-
 > **The mask side does not exist yet.** This firmware transmits; nothing in
 > `ProtoESP-Controller` listens for it. The packet format below is what a receiver has to match.
 
