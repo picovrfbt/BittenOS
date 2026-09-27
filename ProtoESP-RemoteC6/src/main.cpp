@@ -63,6 +63,7 @@ struct __attribute__((packed)) RemotePacket {
 #define CATCH_MS          40  //how long after waking to keep looking for the pin that did it
 #define HOLD_MS         1200  //still down this long and a second packet goes out as a hold
 #define ACK_WAIT_MS       60  //how long to wait for the mask to acknowledge a packet
+#define LINGER_MS       4000  //stay awake this long after a press, in case another follows
 #define CHANNEL_MAX       13  //channels to search; ones the region disallows are skipped
 #define PAIR_DWELL_MS    140  //how long to listen on each channel while pairing
 #define PAIR_ROUNDS        3  //sweeps of every channel before giving up on pairing
@@ -75,6 +76,12 @@ struct __attribute__((packed)) RemotePacket {
 //erase, because losing it would mean opening the case to pair again.
 RTC_DATA_ATTR uint32_t rtcSeq = 0;
 RTC_DATA_ATTR uint8_t rtcChannel = 0;     //last channel the mask answered on; 0 = not known
+
+static unsigned long lastActivity = 0;    //when the last press was dealt with
+//Which buttons were already down last time round. handlePress() can return with the button
+//still held - that is what sending a hold means - so without this the same finger would be
+//read as a fresh press over and over for as long as it stayed there.
+static bool wasDown[BUTTON_COUNT] = {false};
 
 static Preferences prefs;
 static uint8_t maskMac[6];
@@ -255,6 +262,26 @@ static bool runPairing() {
   return false;
 }
 
+//One press, from send to release. Called for the press that woke the chip and for any that follow
+//while it is still awake.
+static void handlePress(int b) {
+  blink(sendPress((uint8_t)b, EV_PRESS) ? 1 : 3);
+  lastActivity = millis();
+
+  //Still down after a moment: send the hold as well, so the mask can treat it like its own
+  //button's hold action rather than the remote having to know what a hold means. A quick tap
+  //leaves here almost at once, which is what keeps rapid presses rapid.
+  unsigned long holdAt = millis() + HOLD_MS;
+  while(millis() < holdAt) {
+    if(!pressed(b)) return;
+    delay(10);
+  }
+  if(pressed(b)) {
+    blink(sendPress((uint8_t)b, EV_HOLD) ? 1 : 3);
+    lastActivity = millis();
+  }
+}
+
 //--------------------------------//Sleep
 //Arming a wake on a pin that is still held down wakes the chip again the instant it sleeps, which
 //would spin until the battery died. So a held button is waited out first, and if it never lets go
@@ -319,18 +346,29 @@ void setup() {
   if(!havePair) { blink(3); sleepNow(); }   //nothing to talk to until it has been paired
   if(!radioUp()) { blink(3); sleepNow(); }
 
-  blink(sendPress((uint8_t)b, EV_PRESS) ? 1 : 3);
-
-  //Still down after a moment: send the hold as well, so the mask can treat it like its own
-  //button's hold action rather than the remote having to know what a hold means.
-  unsigned long holdAt = millis() + HOLD_MS;
-  while(millis() < holdAt) {
-    if(!pressed(b)) break;
-    delay(10);
-  }
-  if(pressed(b)) blink(sendPress((uint8_t)b, EV_HOLD) ? 1 : 3);
-
-  sleepNow();
+  wasDown[b] = true;                      //already dealt with, so loop() must not read it again
+  handlePress(b);
+  //Falls through to loop(), which keeps the radio up a few seconds in case another press follows.
 }
 
-void loop() { }   //never runs: setup() always ends in deep sleep
+//Awake for a few seconds after a press rather than sleeping straight away. Bringing the radio up
+//is most of the ~170ms a press costs from cold, so a second press inside the window lands in about
+//ten - the difference between flicking through faces and waiting for each one.
+//
+//The cost is the radio idling at a few tens of milliamps for those seconds against 15uA asleep,
+//and it is only paid while the remote is actually in someone's hand.
+void loop() {
+  for(int i = 0; i < BUTTON_COUNT; i++) {
+    bool down = pressed(i);
+    if(down && !wasDown[i]) {
+      delay(DEBOUNCE_MS);
+      if(!pressed(i)) continue;           //bounce, not a press
+      wasDown[i] = true;
+      handlePress(i);
+    } else if(!down) {
+      wasDown[i] = false;
+    }
+  }
+  if(millis() - lastActivity > LINGER_MS) sleepNow();
+  delay(5);
+}
