@@ -1,16 +1,22 @@
 //Button remote for the protogen mask. A Seeed XIAO ESP32C6 with a few momentary buttons, sitting
-//in deep sleep until one is pressed. On a press it wakes, sends a single ESP-NOW packet to the
-//mask and goes straight back to sleep. There is no power switch: deep sleep costs about 15uA, so
-//a small cell lasts months and the remote is always armed.
+//in deep sleep until one is pressed. On a press it wakes, sends one ESP-NOW packet to the mask and
+//goes straight back to sleep. There is no power switch: deep sleep costs about 15uA, so a small
+//cell lasts months and the remote is always armed.
 //
-//Why ESP-NOW rather than BLE: no pairing, no connection to maintain, and no need for the mask to
-//act as a BLE host. The cost is that both ends must sit on the same WiFi channel, which is the
-//fiddly part - see the Radio section for how that is dealt with.
+//Why ESP-NOW rather than BLE: no pairing dance with the phone, no connection to maintain, and no
+//need for the mask to act as a BLE host.
+//
+//The remote is paired to one mask and talks only to it, addressed by MAC. That is worth the
+//pairing step for one reason above all: a unicast ESP-NOW packet is acknowledged and a broadcast
+//is not. With an acknowledgement the remote can tell a delivered press from a lost one, which is
+//what lets it notice the mask has moved channel and go and find it again. Broadcasting, the send
+//callback reports success whether or not anything heard it, so there is nothing to react to.
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <Preferences.h>
 #include "esp_sleep.h"
 #include "driver/gpio.h"
 
@@ -28,61 +34,74 @@ static const gpio_num_t BUTTON_PIN[BUTTON_COUNT] = {
   GPIO_NUM_2,   //XIAO D2
 };
 
+#define PAIR_BUTTON 0         //hold this one while powering up to pair with a mask
+
 #define LED_PIN 15            //the XIAO's own LED, active low
 #define LED_ACTIVE LOW
 
-//--------------------------------//The mask
-//Nothing here names the mask. It is not looked for by SSID and not addressed by MAC, so renaming
-//its WiFi, moving it to a different board or changing its channel all cost nothing - see
-//sendEverywhere() for why that is worth doing.
-
-//Sent broadcast rather than to the mask's MAC, so swapping the mask onto a different board does
-//not mean reflashing the remote. The mask ignores anything without this magic in it.
+//--------------------------------//The protocol
+//Shared with the mask. Anything without the magic is not ours and is dropped on sight.
 #define REMOTE_MAGIC 0x50524F54UL     //'PROT'
-#define REMOTE_PROTO 1
+#define REMOTE_PROTO 2                //2: paired unicast. 1 was the broadcast-to-everyone version.
 
-//Events a button can produce. The mask's own button already knows short from hold, so the remote
-//speaks the same vocabulary and the two can share one action table.
+enum : uint8_t { MSG_PRESS = 0, MSG_PAIR_REQ = 1, MSG_PAIR_ACK = 2 };
 enum : uint8_t { EV_PRESS = 0, EV_HOLD = 1 };
 
 struct __attribute__((packed)) RemotePacket {
   uint32_t magic;
   uint8_t  proto;
+  uint8_t  type;        //MSG_*
   uint8_t  button;      //index into BUTTON_PIN
   uint8_t  event;       //EV_PRESS or EV_HOLD
   uint8_t  battPct;     //0-100, or 255 when unknown
-  uint32_t seq;         //counts presses for the life of the battery, so repeats can be spotted
+  uint8_t  channel;     //only meaningful in MSG_PAIR_ACK: the channel the mask is sitting on
+  uint32_t seq;         //counts presses, so a repeat can be spotted
 };
 
 //--------------------------------//Timings
-#define DEBOUNCE_MS     15    //a press has to still be down this long to count
-#define CATCH_MS        40    //how long after waking to keep looking for the pin that did it
-#define HOLD_MS       1200    //still down this long and a second packet goes out as a hold
-#define CHANNEL_DWELL_MS 8    //how long to sit on each channel before moving to the next
-#define CHANNEL_MAX     13    //channels to sweep; ones the region disallows are skipped
+#define DEBOUNCE_MS       15  //a press has to still be down this long to count
+#define CATCH_MS          40  //how long after waking to keep looking for the pin that did it
+#define HOLD_MS         1200  //still down this long and a second packet goes out as a hold
+#define ACK_WAIT_MS       60  //how long to wait for the mask to acknowledge a packet
+#define CHANNEL_MAX       13  //channels to search; ones the region disallows are skipped
+#define PAIR_DWELL_MS    140  //how long to listen on each channel while pairing
+#define PAIR_ROUNDS        3  //sweeps of every channel before giving up on pairing
 #define RELEASE_MAX_MS 30000  //give up waiting for a release after this and treat it as stuck
 #define STUCK_RECHECK_S    2  //while a button is stuck, wake on a timer to see if it has let go
 
 //--------------------------------//State that has to survive deep sleep
-//RTC memory keeps its contents through deep sleep, which is the only reason the press counter can
-//survive at all - everything else here is rebuilt from nothing on every wake.
-RTC_DATA_ATTR uint32_t rtcSeq = 0;        //counts presses, so the mask can throw away repeats
+//RTC memory keeps its contents through deep sleep but not through a flat battery, so it holds only
+//what is cheap to lose. The pairing itself lives in NVS, which survives everything short of an
+//erase, because losing it would mean opening the case to pair again.
+RTC_DATA_ATTR uint32_t rtcSeq = 0;
+RTC_DATA_ATTR uint8_t rtcChannel = 0;     //last channel the mask answered on; 0 = not known
+
+static Preferences prefs;
+static uint8_t maskMac[6];
+static bool havePair = false;
 
 static volatile bool sendDone = false, sendOk = false;
+static volatile bool gotPairAck = false;
+static uint8_t pairMac[6];
+static uint8_t pairChannel = 0;
 
 static void onSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
   sendOk = (status == ESP_NOW_SEND_SUCCESS);
   sendDone = true;
 }
 
+static void onRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
+  if(len != (int)sizeof(RemotePacket)) return;
+  RemotePacket p;
+  memcpy(&p, data, sizeof(p));
+  if(p.magic != REMOTE_MAGIC || p.type != MSG_PAIR_ACK) return;
+  memcpy(pairMac, info->src_addr, 6);
+  pairChannel = p.channel;
+  gotPairAck = true;
+}
+
 //--------------------------------//Buttons
 static inline bool pressed(int i) { return digitalRead(BUTTON_PIN[i]) == LOW; }
-
-static uint64_t buttonMask() {
-  uint64_t m = 0;
-  for(int i = 0; i < BUTTON_COUNT; i++) m |= 1ULL << (int)BUTTON_PIN[i];
-  return m;
-}
 
 static void armButtons() {
   for(int i = 0; i < BUTTON_COUNT; i++) pinMode(BUTTON_PIN[i], INPUT_PULLUP);
@@ -107,54 +126,6 @@ static int whichButton() {
   return -1;
 }
 
-//--------------------------------//Radio
-//ESP-NOW needs both ends on the same WiFi channel, and the mask's channel is not knowable from
-//here. It moves on its own: with "Join a network" switched on, the mask's access point follows
-//the channel of whatever hotspot it joined, and that can change without warning.
-//
-//Two approaches were tried and thrown away. Scanning for the mask's SSID ties the remote to a name
-//that is a setting on the mask - rename the WiFi and the remote goes deaf until it is reflashed.
-//And caching the channel, then rescanning when a send fails, cannot work at all: ESP-NOW
-//broadcasts are never acknowledged, so the send callback reports success whether or not anything
-//heard it. There is no failure to detect and nothing to correct against.
-//
-//So the packet is simply sent on every channel. Thirteen sends of twelve bytes costs about a
-//tenth of a second and is beneath noticing on the battery, and it depends on nothing about the
-//mask: not its name, not its MAC, not its channel. The same seq goes out with every copy and the
-//mask keeps the first it sees.
-static bool radioUp() {
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  if(esp_now_init() != ESP_OK) return false;
-  esp_now_register_send_cb(onSent);
-  esp_now_peer_info_t peer = {};
-  memset(peer.peer_addr, 0xFF, 6);   //broadcast: nothing to keep in step with the mask
-  peer.channel = 0;                  //0 means "whatever channel the radio is on", which is the sweep
-  peer.encrypt = false;
-  return esp_now_add_peer(&peer) == ESP_OK;
-}
-
-static void sendEverywhere(uint8_t button, uint8_t event) {
-  RemotePacket p;
-  p.magic = REMOTE_MAGIC;
-  p.proto = REMOTE_PROTO;
-  p.button = button;
-  p.event = event;
-  p.battPct = 255;                   //no battery divider wired on this board yet
-  p.seq = ++rtcSeq;                  //one number for the press, however many copies go out
-
-  uint8_t bcast[6];
-  memset(bcast, 0xFF, 6);
-  for(uint8_t ch = 1; ch <= CHANNEL_MAX; ch++) {
-    //Regions differ on which channels are legal; the ones this one disallows just fail here.
-    if(esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE) != ESP_OK) continue;
-    sendDone = false;
-    if(esp_now_send(bcast, (uint8_t *)&p, sizeof(p)) != ESP_OK) continue;
-    unsigned long until = millis() + CHANNEL_DWELL_MS;
-    while(!sendDone && millis() < until) delay(1);
-  }
-}
-
 static void blink(int times) {
   pinMode(LED_PIN, OUTPUT);
   for(int i = 0; i < times; i++) {
@@ -164,6 +135,124 @@ static void blink(int times) {
     if(i + 1 < times) delay(80);
   }
   pinMode(LED_PIN, INPUT);                //back to high impedance so it costs nothing asleep
+}
+
+//--------------------------------//Pairing, stored in NVS
+static bool loadPair() {
+  prefs.begin("remote", true);
+  size_t n = prefs.getBytes("mac", maskMac, 6);
+  if(rtcChannel == 0) rtcChannel = prefs.getUChar("ch", 0);
+  prefs.end();
+  havePair = (n == 6);
+  return havePair;
+}
+
+static void savePair(const uint8_t *mac, uint8_t channel) {
+  prefs.begin("remote", false);
+  prefs.putBytes("mac", mac, 6);
+  prefs.putUChar("ch", channel);
+  prefs.end();
+  memcpy(maskMac, mac, 6);
+  rtcChannel = channel;
+  havePair = true;
+}
+
+//The channel is written back whenever it changes, not only at pairing, so a mask that has moved
+//stays found after the remote's battery is pulled. Only on a change: NVS writes are wear-limited
+//and a press happens far more often than a channel does.
+static void rememberChannel(uint8_t channel) {
+  if(channel == rtcChannel) return;
+  rtcChannel = channel;
+  prefs.begin("remote", false);
+  prefs.putUChar("ch", channel);
+  prefs.end();
+}
+
+//--------------------------------//Radio
+static bool radioUp() {
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  if(esp_now_init() != ESP_OK) return false;
+  esp_now_register_send_cb(onSent);
+  esp_now_register_recv_cb(onRecv);
+  return true;
+}
+
+static bool addPeer(const uint8_t *mac, uint8_t channel) {
+  esp_now_del_peer(mac);
+  esp_now_peer_info_t peer = {};
+  memcpy(peer.peer_addr, mac, 6);
+  peer.channel = channel;     //0 means "whatever channel the radio is on"
+  peer.encrypt = false;
+  return esp_now_add_peer(&peer) == ESP_OK;
+}
+
+static bool sendTo(const uint8_t *mac, RemotePacket &p) {
+  sendDone = false; sendOk = false;
+  if(esp_now_send(mac, (uint8_t *)&p, sizeof(p)) != ESP_OK) return false;
+  unsigned long until = millis() + ACK_WAIT_MS;
+  while(!sendDone && millis() < until) delay(1);
+  return sendOk;
+}
+
+static RemotePacket makePacket(uint8_t type, uint8_t button, uint8_t event, bool bumpSeq) {
+  RemotePacket p;
+  p.magic = REMOTE_MAGIC;
+  p.proto = REMOTE_PROTO;
+  p.type = type;
+  p.button = button;
+  p.event = event;
+  p.battPct = 255;            //no battery divider wired on this board yet
+  p.channel = 0;
+  p.seq = bumpSeq ? ++rtcSeq : rtcSeq;
+  return p;
+}
+
+//Sends one press to the paired mask. Tries the channel it was last heard on, and only if that goes
+//unacknowledged does it search - stopping the moment a channel answers, and writing that one down.
+//The search is the whole point of pairing: it works only because unicast is acknowledged, where a
+//broadcast never is.
+static bool sendPress(uint8_t button, uint8_t event) {
+  RemotePacket p = makePacket(MSG_PRESS, button, event, true);
+
+  if(rtcChannel) {
+    esp_wifi_set_channel(rtcChannel, WIFI_SECOND_CHAN_NONE);
+    if(addPeer(maskMac, rtcChannel) && sendTo(maskMac, p)) return true;
+  }
+
+  for(uint8_t ch = 1; ch <= CHANNEL_MAX; ch++) {
+    if(ch == rtcChannel) continue;                                  //already tried
+    if(esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE) != ESP_OK) continue;
+    if(!addPeer(maskMac, ch)) continue;
+    if(sendTo(maskMac, p)) { rememberChannel(ch); return true; }
+  }
+  return false;
+}
+
+//Pairing: the one time a broadcast is the right tool, because the remote does not yet know who it
+//is looking for. It calls on every channel and waits a moment on each for a mask that has been put
+//into pairing mode to answer. The reply tells it the mask's MAC and the channel it is sitting on.
+static bool runPairing() {
+  uint8_t bcast[6];
+  memset(bcast, 0xFF, 6);
+  RemotePacket p = makePacket(MSG_PAIR_REQ, 0, 0, false);
+
+  for(int round = 0; round < PAIR_ROUNDS; round++) {
+    for(uint8_t ch = 1; ch <= CHANNEL_MAX; ch++) {
+      if(esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE) != ESP_OK) continue;
+      if(!addPeer(bcast, 0)) continue;
+      esp_now_send(bcast, (uint8_t *)&p, sizeof(p));
+      unsigned long until = millis() + PAIR_DWELL_MS;
+      while(millis() < until) {
+        if(gotPairAck) {
+          savePair(pairMac, pairChannel ? pairChannel : ch);
+          return true;
+        }
+        delay(2);
+      }
+    }
+  }
+  return false;
 }
 
 //--------------------------------//Sleep
@@ -202,12 +291,19 @@ void setup() {
   //Holds from the last sleep have to be released before the pins can be read again.
   for(int i = 0; i < BUTTON_COUNT; i++) gpio_hold_dis(BUTTON_PIN[i]);
   armButtons();
+  loadPair();
 
-  //A fresh battery or a reflash: nothing to send, just arm and sleep. Two blinks say it is alive,
-  //which is the only feedback this thing has.
+  //Powered up rather than woken: a battery change or a reflash. Holding the pair button through
+  //that is what starts pairing - the remote has no other input to spare for it.
   if(cause != ESP_SLEEP_WAKEUP_GPIO && cause != ESP_SLEEP_WAKEUP_TIMER) {
     rtcSeq = 0;
-    blink(2);
+    if(pressed(PAIR_BUTTON)) {
+      blink(2);                                 //two: listening for a mask
+      if(radioUp() && runPairing()) blink(5);   //five: paired
+      else blink(3);                            //three: nothing answered
+      sleepNow();
+    }
+    blink(havePair ? 1 : 3);                    //one: armed. three: not paired to anything yet
     sleepNow();
   }
 
@@ -215,16 +311,15 @@ void setup() {
   if(cause == ESP_SLEEP_WAKEUP_TIMER) sleepNow();
 
   int b = whichButton();
-  if(b < 0) sleepNow();                   //woken by a glitch, or the tap was over before we looked
+  if(b < 0) sleepNow();                     //woken by a glitch, or the tap ended before we looked
 
   delay(DEBOUNCE_MS);
-  if(!pressed(b)) sleepNow();             //bounce rather than a press
+  if(!pressed(b)) sleepNow();               //bounce rather than a press
 
-  //One blink says the press went out. It cannot say the mask heard it: a broadcast is not
-  //acknowledged, so the only honest failure this can report is the radio refusing to start.
+  if(!havePair) { blink(3); sleepNow(); }   //nothing to talk to until it has been paired
   if(!radioUp()) { blink(3); sleepNow(); }
-  sendEverywhere((uint8_t)b, EV_PRESS);
-  blink(1);
+
+  blink(sendPress((uint8_t)b, EV_PRESS) ? 1 : 3);
 
   //Still down after a moment: send the hold as well, so the mask can treat it like its own
   //button's hold action rather than the remote having to know what a hold means.
@@ -233,10 +328,7 @@ void setup() {
     if(!pressed(b)) break;
     delay(10);
   }
-  if(pressed(b)) {
-    sendEverywhere((uint8_t)b, EV_HOLD);
-    blink(1);
-  }
+  if(pressed(b)) blink(sendPress((uint8_t)b, EV_HOLD) ? 1 : 3);
 
   sleepNow();
 }
