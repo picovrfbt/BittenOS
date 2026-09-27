@@ -33,7 +33,8 @@ removes the question entirely.
 
 | | |
 |---|---|
-| Press | wakes, sends `EV_PRESS`, **one blink** |
+| Press, from sleep | wakes, sends `EV_PRESS`, **one blink** — about 170 ms |
+| Press, within 4 s of the last | sends straight away — about 10 ms |
 | Still held after 1.2 s | sends `EV_HOLD` as well, another blink |
 | Not paired, or couldn't reach the mask | **three blinks** |
 | Powered up, paired and armed | **one blink** |
@@ -42,6 +43,18 @@ removes the question entirely.
 
 One blink now genuinely means **the mask acknowledged it**, not merely that the packet was
 transmitted. That's the practical gain from pairing: with a broadcast there was no way to tell.
+
+**It stays awake for four seconds after a press.** Bringing the radio up is most of the ~170 ms a
+press costs from cold, so a second press inside that window lands in about **ten** — the
+difference between flicking through faces and waiting for each one. The window restarts on every
+press, so a run of them stays quick throughout.
+
+The cost is the radio idling at a few tens of milliamps for those seconds, against 15 uA asleep,
+and it is only paid while the remote is actually in someone's hand. `LINGER_MS` trades
+responsiveness against standby.
+
+Presses are **edge triggered**: `handlePress()` returns with the button still down once it has sent
+a hold, so polling for a low pin would read the same finger as a fresh press over and over.
 
 A held button is waited out before sleeping — arming a wake on a pin that is already low would
 wake the chip the instant it slept and spin until the battery died. If a button never releases it
