@@ -423,6 +423,12 @@ int screenTakeoverPage = -1;
 volatile bool screenReloadReq = false;   //set by /savescreen
 volatile bool oledFlipReq = false;       //set when Upside down is changed
 volatile bool wakeFlickReq = false;      //from /wakeflick: play the warm-up now
+volatile bool bootReplayReq = false;     //play the startup bar and warm-up again, on demand
+//From the ESP-NOW remote. Its packets arrive on the WiFi task, which must not touch the panels
+//or the filesystem, so a press is left here for loop() to act on - the same way BLE does it.
+volatile int8_t rmtBtnReq = -1;          //button index waiting to be acted on
+volatile uint8_t rmtEvtReq = 0;          //0 press, 1 hold
+volatile bool rmtPairedReq = false;      //a remote just paired: save the config from loop()
 bool bootFlickPending = false;           //switched on: warm up as soon as the first frame is drawn
 bool bootBarHandover = false;            //the startup bar is playing; arm the warm-up when it ends
 bool bootBarBlanked = false;             //panels held dark until the bar's own first frame is in them
@@ -1253,12 +1259,131 @@ void staStep() {
 }
 
 //--------------------------------//WiFi server setup
+//--------------------------------//The button remote, over ESP-NOW
+//A XIAO ESP32C6 with three buttons, asleep until one is pressed. See ProtoESP-RemoteC6 for its
+//side. Packets come in on the WiFi task, so nothing here touches the panels, the filesystem or the
+//config - a press is left in rmtBtnReq for loop() to pick up.
+//
+//Unicast, not broadcast, and only from the one remote that has been paired. That is less about
+//secrecy than about feedback: a unicast ESP-NOW packet is acknowledged and a broadcast is not, so
+//pairing is what lets the remote know its press arrived and go looking for the mask when it has
+//moved channel.
+#include <esp_now.h>
+#include <esp_wifi.h>            //for the channel the access point ended up on
+
+#define RMT_MAGIC 0x50524F54UL          //'PROT', shared with the remote
+#define RMT_PROTO 2
+#define RMT_PAIR_SECS 30                //how long the pairing window stays open
+enum : uint8_t { RMT_PRESS = 0, RMT_PAIR_REQ = 1, RMT_PAIR_ACK = 2 };
+
+struct __attribute__((packed)) RmtPacket {
+  uint32_t magic;
+  uint8_t  proto;
+  uint8_t  type;
+  uint8_t  button;
+  uint8_t  event;       //0 press, 1 hold
+  uint8_t  battPct;
+  uint8_t  channel;     //pair acknowledgement only: the channel the mask is on
+  uint32_t seq;
+};
+
+unsigned long rmtPairUntil = 0;         //pairing closes at this time; 0 = not pairing
+static uint8_t rmtMacBytes[6];
+static bool rmtHaveMac = false;
+static uint32_t rmtLastSeq = 0;
+static bool rmtStarted = false;
+
+static bool rmtParseMac(const String &in, uint8_t *out) {
+  unsigned int v[6];
+  if(sscanf(in.c_str(), "%x:%x:%x:%x:%x:%x", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5]) != 6) return false;
+  for(int i = 0; i < 6; i++) out[i] = (uint8_t)v[i];
+  return true;
+}
+
+static String rmtFormatMac(const uint8_t *m) {
+  char buf[18];
+  snprintf(buf, sizeof(buf), "%02x:%02x:%02x:%02x:%02x:%02x", m[0], m[1], m[2], m[3], m[4], m[5]);
+  return String(buf);
+}
+
+static void rmtAddPeer(const uint8_t *mac) {
+  esp_now_del_peer(mac);
+  esp_now_peer_info_t peer = {};
+  memcpy(peer.peer_addr, mac, 6);
+  peer.channel = 0;                     //0 = whatever channel the mask's radio is already on
+  peer.ifidx = WIFI_IF_AP;              //the access point interface, which is the one the remote hears
+  peer.encrypt = false;
+  esp_now_add_peer(&peer);
+}
+
+static void rmtOnRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
+  if(len != (int)sizeof(RmtPacket)) return;
+  RmtPacket p;
+  memcpy(&p, data, sizeof(p));
+  if(p.magic != RMT_MAGIC || p.proto != RMT_PROTO) return;
+
+  if(p.type == RMT_PAIR_REQ) {
+    if(rmtPairUntil == 0 || millis() > rmtPairUntil) return;   //not listening: ignore it
+    memcpy(rmtMacBytes, info->src_addr, 6);
+    rmtHaveMac = true;
+    rmtLastSeq = 0;
+    cfg.rmtMac = rmtFormatMac(rmtMacBytes);
+    rmtPairUntil = 0;
+    rmtPairedReq = true;                //loop() saves the config; this task must not
+
+    //Answer with the channel we are on, so the remote can go straight there next time. Sent from
+    //here rather than queued, because the remote only listens for a moment before moving on.
+    uint8_t ch = 0;
+    wifi_second_chan_t sec;
+    esp_wifi_get_channel(&ch, &sec);
+    rmtAddPeer(rmtMacBytes);
+    RmtPacket ack = p;
+    ack.type = RMT_PAIR_ACK;
+    ack.channel = ch;
+    esp_now_send(rmtMacBytes, (uint8_t *)&ack, sizeof(ack));
+    return;
+  }
+
+  if(p.type != RMT_PRESS || !rmtHaveMac) return;
+  if(memcmp(info->src_addr, rmtMacBytes, 6) != 0) return;      //not our remote
+  //The MAC layer retries, so the same press can land twice. A seq below the last one seen means
+  //the remote restarted - a battery change - rather than a repeat, so that one is let through.
+  if(p.seq == rmtLastSeq) return;
+  rmtLastSeq = p.seq;
+  rmtEvtReq = p.event;
+  rmtBtnReq = (int8_t)p.button;
+}
+
+//Unpaired from the page. The MAC stays out of the peer table so a remote that is still holding
+//the old pairing gets no acknowledgement, which is what tells it to go looking again.
+void rmtForget() {
+  if(rmtHaveMac) esp_now_del_peer(rmtMacBytes);
+  rmtHaveMac = false;
+  rmtLastSeq = 0;
+  logPrint(F("[I] Remote unpaired"));
+}
+
+void rmtBegin() {
+  if(rmtStarted) return;
+  if(esp_now_init() != ESP_OK) { logPrint(F("[E] ESP-NOW would not start")); return; }
+  esp_now_register_recv_cb(rmtOnRecv);
+  rmtStarted = true;
+  rmtHaveMac = cfg.rmtMac.length() && rmtParseMac(cfg.rmtMac, rmtMacBytes);
+  if(rmtHaveMac) {
+    rmtAddPeer(rmtMacBytes);
+    logPrint("[I] Remote paired: " + cfg.rmtMac);
+  } else {
+    logPrint(F("[I] ESP-NOW up, no remote paired"));
+  }
+}
+
 void startWiFiWeb() {
   //AP_STA runs both at once: the mask's own access point stays up whatever happens to the network
   //it is asked to join, so a wrong password here can never lock you out of your own mask.
   WiFi.mode(cfg.staEna ? WIFI_AP_STA : WIFI_AP);
   WiFi.softAP(cfg.wifiName, cfg.wifiPass);
   if(cfg.staEna && cfg.staName.length()) staBegin();
+  rmtBegin();                            //ESP-NOW rides on the access point, so it starts here
 
   server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
@@ -1322,6 +1447,15 @@ void startWiFiWeb() {
     cfg.getString(request, "aSleep", cfg.aSleep);
     cfg.getString(request, "aMilestone", cfg.aMilestone);
     cfg.getString(request, "aSass", cfg.aSass);
+    for(int i = 0; i < 3; i++) {
+      String k = "rmt" + String(i);
+      cfg.getString(request, k.c_str(), cfg.rmtAct[i]);
+      cfg.getString(request, (k + "Face").c_str(), cfg.rmtFace[i]);
+      if(cfg.getInt(request, (k + "Phrase").c_str(), cfg.rmtPhrase[i])) cfg.rmtPhrase[i] = constrain(cfg.rmtPhrase[i], 0, 5);
+      cfg.getString(request, (k + "H").c_str(), cfg.rmtHAct[i]);
+      cfg.getString(request, (k + "HFace").c_str(), cfg.rmtHFace[i]);
+      if(cfg.getInt(request, (k + "HPhrase").c_str(), cfg.rmtHPhrase[i])) cfg.rmtHPhrase[i] = constrain(cfg.rmtHPhrase[i], 0, 5);
+    }
     //button
     cfg.getString(request, "btnShort", cfg.btnShort);
     cfg.getString(request, "btnDouble", cfg.btnDouble);
@@ -1673,6 +1807,19 @@ void startWiFiWeb() {
     request->send(200, "application/json", out);
   });
 
+  server.on("/pair", HTTP_GET, [](AsyncWebServerRequest *request){ //listen for a remote to pair
+    if(request->hasParam("go")) rmtPairUntil = millis() + RMT_PAIR_SECS * 1000UL;
+    else if(request->hasParam("stop")) rmtPairUntil = 0;
+    else if(request->hasParam("forget")) { cfg.rmtMac = ""; cfg.save(); rmtForget(); }
+    JsonDocument d;
+    d["mac"] = cfg.rmtMac;
+    d["pairing"] = rmtPairUntil && millis() < rmtPairUntil;
+    d["secsLeft"] = (rmtPairUntil && millis() < rmtPairUntil) ? (int)((rmtPairUntil - millis()) / 1000) : 0;
+    String out;
+    serializeJson(d, out);
+    request->send(200, "application/json", out);
+  });
+
   server.on("/slots", HTTP_GET, [](AsyncWebServerRequest *request){ //the slot machine on the maw
     if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels")); return; }
     if(request->hasParam("go")) slotStartReq = true;
@@ -1899,6 +2046,21 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
   }
   if(action == "phrase") {
     showPhrase(phraseSlot);
+    return;
+  }
+  if(action == "slots") {                  //the slot machine on the maw
+    slotStartReq = true;
+    logPrint(F("[I] Button: slot machine"));
+    return;
+  }
+  if(action == "dino") {                   //the dino game; once it runs, any button jumps
+    dinoStartReq = true;
+    logPrint(F("[I] Button: dino"));
+    return;
+  }
+  if(action == "boot") {                   //play the startup bar and warm-up again
+    bootReplayReq = true;
+    logPrint(F("[I] Button: boot sequence"));
     return;
   }
   if(action == "screen") {                 //step the status screen to its next page
@@ -4095,6 +4257,26 @@ void loop() {
     int slot = blePhraseReq;
     blePhraseReq = -1;
     showPhrase(slot);
+  }
+  //A press from the remote. Going through doButtonAction() means the remote inherits everything
+  //the mask's own button can do - including that a game in progress swallows the press as a jump.
+  if(rmtBtnReq >= 0) {
+    int b = rmtBtnReq;
+    uint8_t ev = rmtEvtReq;
+    rmtBtnReq = -1;
+    if(b >= 0 && b < 3) {
+      if(ev == 1) doButtonAction(cfg.rmtHAct[b], cfg.rmtHFace[b], cfg.rmtHPhrase[b]);
+      else        doButtonAction(cfg.rmtAct[b], cfg.rmtFace[b], cfg.rmtPhrase[b]);
+    }
+  }
+  if(rmtPairedReq) {
+    rmtPairedReq = false;
+    cfg.save();
+    logPrint("[I] Remote paired: " + cfg.rmtMac);
+  }
+  if(bootReplayReq) {
+    bootReplayReq = false;
+    showBootBar();
   }
   if(bleScreenReq != 0) {
     bleScreenReq = 0;

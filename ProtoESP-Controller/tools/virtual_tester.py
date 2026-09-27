@@ -60,6 +60,13 @@ SAVECONFIG_KEYS = {
     'bootBarEna': bool, 'bootBarMs': int, 'dinoBest': int,
     'eggPresses': int, 'eggAction': str, 'slotWins': int, 'slotSpins': int,
     'sassBoops': int, 'sassSecs': int, 'aSass': str,
+    'rmtMac': str,
+    'rmt0': str, 'rmt0Face': str, 'rmt0Phrase': int,
+    'rmt0H': str, 'rmt0HFace': str, 'rmt0HPhrase': int,
+    'rmt1': str, 'rmt1Face': str, 'rmt1Phrase': int,
+    'rmt1H': str, 'rmt1HFace': str, 'rmt1HPhrase': int,
+    'rmt2': str, 'rmt2Face': str, 'rmt2Phrase': int,
+    'rmt2H': str, 'rmt2HFace': str, 'rmt2HPhrase': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aTilt2': str, 'aBoop': str, 'aSleep': str,
@@ -129,6 +136,7 @@ class VirtualBoard:
         self.clock_24 = False
         self.dino_on = False           # /dino: the game on the maw. The virtual face cannot play
         self.dino_score = 0            # it, so this is only enough state for the page to drive
+        self.pair_until = 0.0          # /pair: a pairing window, with no radio to answer it
         self.slot_on = False           # /slots: likewise, a pretend spin the page can follow
         self.slot_outcome = -1
         self.slot_until = 0.0
@@ -544,6 +552,26 @@ class Handler(BaseHTTPRequestHandler):
                 'on': board.dino_on,
                 'score': board.dino_score,
                 'best': int(cfg.get('dinoBest') or 0),
+            }), 'application/json')
+
+        if path == '/pair':   # pairing a remote. No radio here, so 'go' just opens a window that
+            # times out; a real remote would answer it and land its MAC in the config.
+            if 'go' in q:
+                board.pair_until = time.time() + 30
+                board.log('[I] Listening for a remote to pair')
+            elif 'stop' in q:
+                board.pair_until = 0
+            elif 'forget' in q:
+                cfg['rmtMac'] = ''
+                board.save_config()
+                board.log('[I] Remote unpaired')
+            left = max(0, int(board.pair_until - time.time()))
+            if not left:
+                board.pair_until = 0
+            return self.reply(200, json.dumps({
+                'mac': cfg.get('rmtMac') or '',
+                'pairing': left > 0,
+                'secsLeft': left,
             }), 'application/json')
 
         if path == '/slots':  # the slot machine on the maw, stubbed the same way the dino is:

@@ -96,6 +96,14 @@ void Config::setDefault() {
   eggPresses = 6;        //button presses in quick succession to start an easter egg
   eggAction = "slots";   //slots, dino or none
   slotWins = 0; slotSpins = 0;
+  rmtMac = "";           //nothing paired until you pair one
+  //Defaults worth having out of the box, and a showcase for the newer actions
+  rmtAct[0] = "nextFace";  rmtFace[0] = "";             rmtPhrase[0] = 0;
+  rmtHAct[0] = "displays"; rmtHFace[0] = "";            rmtHPhrase[0] = 0;
+  rmtAct[1] = "prevFace";  rmtFace[1] = "";             rmtPhrase[1] = 0;
+  rmtHAct[1] = "sleep";    rmtHFace[1] = "";            rmtHPhrase[1] = 0;
+  rmtAct[2] = "slots";     rmtFace[2] = "";             rmtPhrase[2] = 0;
+  rmtHAct[2] = "dino";     rmtHFace[2] = "";            rmtHPhrase[2] = 0;
   wakeFlickStyle = "crt";
   wakeFlickMs = 1800;    //how long the whole warm-up takes
   wakeFlickGlitch = 1;   //0 none, 1 a little tearing, 2 a lot
@@ -193,6 +201,16 @@ bool Config::save() {
   doc["eggAction"] = eggAction;
   doc["slotWins"] = slotWins;
   doc["slotSpins"] = slotSpins;
+  doc["rmtMac"] = rmtMac;
+  for(int i = 0; i < 3; i++) {
+    String k = "rmt" + String(i);
+    doc[k] = rmtAct[i];
+    doc[k + "Face"] = rmtFace[i];
+    doc[k + "Phrase"] = rmtPhrase[i];
+    doc[k + "H"] = rmtHAct[i];
+    doc[k + "HFace"] = rmtHFace[i];
+    doc[k + "HPhrase"] = rmtHPhrase[i];
+  }
   doc["wakeFlickStyle"] = wakeFlickStyle;
   doc["wakeFlickMs"] = wakeFlickMs;
   doc["wakeFlickGlitch"] = wakeFlickGlitch;
@@ -362,6 +380,16 @@ bool Config::load() {
   eggAction = doc["eggAction"] | "slots";
   slotWins = doc["slotWins"] | 0;
   slotSpins = doc["slotSpins"] | 0;
+  rmtMac = doc["rmtMac"] | "";
+  for(int i = 0; i < 3; i++) {
+    String k = "rmt" + String(i);
+    rmtAct[i] = doc[k] | (i == 0 ? "nextFace" : i == 1 ? "prevFace" : "slots");
+    rmtFace[i] = doc[k + "Face"] | "";
+    rmtPhrase[i] = doc[k + "Phrase"] | 0;
+    rmtHAct[i] = doc[k + "H"] | (i == 0 ? "displays" : i == 1 ? "sleep" : "dino");
+    rmtHFace[i] = doc[k + "HFace"] | "";
+    rmtHPhrase[i] = doc[k + "HPhrase"] | 0;
+  }
   wakeFlickStyle = doc["wakeFlickStyle"] | "crt";
   wakeFlickMs = doc["wakeFlickMs"] | 1800;
   wakeFlickGlitch = doc["wakeFlickGlitch"] | 1;

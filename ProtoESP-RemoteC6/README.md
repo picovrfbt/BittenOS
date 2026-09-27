@@ -114,18 +114,19 @@ The XIAO's only port is native USB, so it flashes straight over USB-C with no BO
 serial log comes out the same port (`ARDUINO_USB_CDC_ON_BOOT=1`). Note the log is only readable for
 the fraction of a second the chip is awake.
 
-## What the mask still needs
+## The mask side
 
-Roughly 60–100 lines in `ProtoESP-Controller`:
+Built. `ProtoESP-Controller` has the receiver, a pairing window opened from **Settings > Remote**,
+and a press and a hold action for each of the three buttons. What it does:
 
-1. `esp_now_init()` alongside the existing WiFi, with a receive callback
-2. Drop any packet whose `magic` isn't `0x50524F54`, whose sender isn't the paired remote, or
-   whose `seq` has already been seen
-3. A pairing mode: while it's on, reply to `MSG_PAIR_REQ` with a `MSG_PAIR_ACK` carrying the
-   mask's current channel, and store the remote's MAC. Needs a button on the web page and a
-   timeout so it doesn't stay open
-4. Map `button` + `event` onto `doButtonAction()`, which already takes an action name and covers
-   next face, sleep, a chosen face, a quick phrase and next screen page
+1. Starts ESP-NOW alongside the access point, in `startWiFiWeb()`
+2. Drops any packet without the magic, from a sender that isn't the paired remote, or with a `seq`
+   already seen
+3. While pairing is open (30 s, from the page), answers `MSG_PAIR_REQ` with the channel it is on
+   and stores the remote's MAC in the config
+4. Hands `button` + `event` to `doButtonAction()` from the loop task, never from the radio task
 
-Settings for which action each button maps to would follow the same shape as the existing
-`btnShort` / `btnDouble` / `btnHold` pickers.
+Because it goes through `doButtonAction()`, the remote inherits everything the mask's own button
+can do — **including that a running dino game swallows the press as a jump**, which needed no code
+of its own. The action list gained `slots`, `dino` and `boot` at the same time, so the mask's own
+button can start those too.
