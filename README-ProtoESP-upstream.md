@@ -3,7 +3,7 @@
 **ESP32-S3** code which makes your protogen alive with animations and interactivity!  
 
 ##### Main features
-- Utilizes **MAX7219** matrixes using SPI or **[WS2812B RGB Matrixes](RGBMatrix)** (per pixel/matrix color) to show faces/animations
+- Utilizes **MAX7219** matrixes using SPI or **[WS2812B RGB Matrixes](https://github.com/NCPlyn/ProtogenHelmet-ESP32/tree/ProtoESP/RGBMatrix)** (per pixel/matrix color) to show faces/animations
 - Has two additional WS2812 outputs:
 	1. for ring LEDs in the ears (animated or coded);
 	2. for leds under the eyes (can be repurposed for something else)
@@ -30,9 +30,9 @@
 
 ## Navigation
 - [**Controller**](ProtoESP-Controller) folder: ProtoESP controller code with all features
-- [**Remote**](ProtoESP-Remote) folder: ProtoESP *(Not legacy)*  Wireless control remote
+- [**Remote**](https://github.com/NCPlyn/ProtogenHelmet-ESP32/tree/ProtoESP/ProtoESP-Remote) folder: ProtoESP *(Not legacy)*  Wireless control remote
 - [**Legacy**](../Legacy) branch: Legacy controller&remote&WS2812 matrix <- all three not supported anymore but **stable&working**
-- [**Matrix**](RGBMatrix) folder: WS2812B 8x8 RGB Matrix replacement for single color MAX7219 Matrixes
+- [**Matrix**](https://github.com/NCPlyn/ProtogenHelmet-ESP32/tree/ProtoESP/RGBMatrix) folder: WS2812B 8x8 RGB Matrix replacement for single color MAX7219 Matrixes
 - [**Animator**](https://foxxo.cz/proto/animator.html) site: Program to make animations for the controller
 - [**ToDo**](todo.md) .md: Checklist of To Do things
 - [**Troubleshooting / FAQ**](troublefaq.md) .md: If you have problems with anything, check firstly here before contacting me!
@@ -41,7 +41,7 @@
 - How to DIY protogen: [Imgur](https://imgur.com/a/jYpSbuZ)
 - Parts list: [Pastebin](https://pastebin.com/7z4fnVfQ)
 - Controller how to: [**MD**](ProtoESP-Controller/readme.md)
-- Remote how to: [**MD**](ProtoESP-Remote/readme.md)
+- Remote how to: [**MD**](https://github.com/NCPlyn/ProtogenHelmet-ESP32/tree/ProtoESP/ProtoESP-Remote/readme.md)
 - Touch Sensor setup: [**MD**](ProtoESP-Controller/touchSensors.md)
 - Alive ProtoESP protogens / creators: [Furo](https://instagram.com/proto_furo), [Arkoss](https://www.instagram.com/snowkatark/), [Jura](https://www.instagram.com/jura_furr/), [BFoxCZ](https://www.instagram.com/bfoxcz/), & more...
 

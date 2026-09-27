@@ -215,7 +215,7 @@ Pages are served live from `data/`, so edits show up on reload. Faces and settin
 | `MY_PROTOGEN_SETUP.md` | Full setup, flashing and usage guide for this mask |
 | `IDEAS.md` | Ideas not built yet, and decisions already made about them |
 | `README-ProtoESP-upstream.md` | NCPlyn's original README, with links to the upstream docs |
-| `ProtoESP-Remote/`, `RGBMatrix/` | Upstream wireless remote and RGB panel projects, unchanged and not used here |
+| `ProtoESP-RemoteC6/` | Button remote for the mask: a XIAO ESP32C6 that sleeps until pressed, then sends over ESP-NOW |
 
 ## Credits and license
 
