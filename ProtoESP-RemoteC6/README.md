@@ -35,64 +35,71 @@ removes the question entirely.
 |---|---|
 | Press | wakes, sends `EV_PRESS`, **one blink** |
 | Still held after 1.2 s | sends `EV_HOLD` as well, another blink |
-| Radio wouldn't start | **three blinks** |
+| Not paired, or couldn't reach the mask | **three blinks** |
+| Powered up, paired and armed | **one blink** |
+| Pairing: listening / paired | **two blinks** / **five blinks** |
 | Power-on or reflash | **two blinks**, then arms and sleeps without sending |
 
-One blink means the press was transmitted, not that the mask heard it — a broadcast isn't
-acknowledged, so the only honest failure the remote can report is the radio refusing to start.
+One blink now genuinely means **the mask acknowledged it**, not merely that the packet was
+transmitted. That's the practical gain from pairing: with a broadcast there was no way to tell.
 
 A held button is waited out before sleeping — arming a wake on a pin that is already low would
 wake the chip the instant it slept and spin until the battery died. If a button never releases it
 is left out of the wake mask and a 2 s timer wake is armed instead, so the remote recovers by
 itself once the button clears rather than staying dead.
 
+## Pairing
+
+The remote talks to **one mask**, addressed by its MAC. Nothing else hears it and it hears nothing
+else.
+
+**To pair:** hold **button 0** (D0) while powering the remote up — plugging in USB or inserting the
+battery — and put the mask into pairing mode at the same time. The remote blinks twice, calls on
+every channel for a few seconds, and blinks **five times** when a mask answers. Three blinks means
+nothing replied.
+
+The mask's MAC and channel are kept in NVS, so they survive a flat battery and a reflash. Pairing
+is only needed once, or again after you move the mask to a different board.
+
 ## The channel problem
 
-ESP-NOW needs both ends on the same WiFi channel, and the mask's channel isn't knowable from here.
-It moves on its own: with *Join a network* switched on, the mask's AP follows the channel of
-whichever hotspot it joined, and that can change without warning.
+ESP-NOW needs both ends on the same channel, and the mask's moves on its own — with *Join a
+network* on, its access point follows whichever hotspot it joined.
 
-**The remote sends the packet on every channel, 1 to 13.** Thirteen sends of twelve bytes costs
-about a tenth of a second and is beneath noticing on the battery. Every copy carries the same
-`seq`, and the mask keeps the first it sees.
+Pairing is what makes this solvable. **A unicast ESP-NOW packet is acknowledged; a broadcast is
+not.** So the remote can tell a delivered press from a lost one:
 
-That means the remote depends on **nothing** about the mask — not its WiFi name, not its MAC, not
-its channel. Rename `ProtoWiFi`, move the mask to the spare board, join a different hotspot: the
-remote keeps working, untouched.
+1. Send to the mask on the channel it last answered on — one packet, about 10 ms
+2. No acknowledgement? Walk the channels, stopping the moment one is acknowledged
+3. Write that channel down, in RTC memory and in NVS, so the next press goes straight there
 
-Two neater-looking approaches were tried and thrown out:
+A normal press is a single send. The search only happens after the mask has actually moved, and it
+fixes itself without you touching anything.
 
-- **Scanning for the mask's SSID** ties the remote to a name that is a *setting on the mask*.
-  Rename the WiFi and the remote goes deaf until it's reflashed.
-- **Caching the channel and rescanning when a send fails** cannot work at all, because
-  **ESP-NOW broadcasts are never acknowledged**. The send callback reports success whether or not
-  anything heard it, so there's no failure to detect and nothing to correct against.
-
-Channels the region disallows simply fail to be set and are skipped, so a US board sweeping 1–13
-quietly does 1–11.
+This is also why the remote no longer needs to know the mask's **WiFi name**. An earlier version
+scanned for `ProtoWiFi` to find the channel, which tied the remote to a setting on the mask —
+rename the WiFi and the remote went deaf until reflashed. Nothing here names the mask now.
 
 ## The packet
-
-Sent to the broadcast address rather than the mask's MAC, so swapping the mask onto a different
-board doesn't mean reflashing the remote. The receiver ignores anything without the magic value.
 
 ```c
 struct __attribute__((packed)) RemotePacket {
   uint32_t magic;    // 0x50524F54 ('PROT')
-  uint8_t  proto;    // 1
+  uint8_t  proto;    // 2
+  uint8_t  type;     // 0 press, 1 pair request, 2 pair acknowledgement
   uint8_t  button;   // 0..BUTTON_COUNT-1
   uint8_t  event;    // 0 press, 1 hold
   uint8_t  battPct;  // 0-100, 255 = unknown (no divider wired yet)
-  uint32_t seq;      // counts presses for the life of the battery
+  uint8_t  channel;  // pair acknowledgement only: the channel the mask is on
+  uint32_t seq;      // counts presses
 };
 ```
 
-12 bytes, well inside ESP-NOW v1's 250-byte limit, so the v1/v2 version split never comes into it.
+14 bytes, well inside ESP-NOW v1's 250-byte limit, so the v1/v2 version split never comes into it.
 
-`seq` is what makes the channel sweep work: the receiver keeps the first copy of a `seq` it sees
-and drops the other twelve. It also covers ordinary duplicates, since ESP-NOW has no delivery
-guarantee. It resets to 0 when the battery is changed or the remote is reflashed, so the mask
-should treat a `seq` lower than the last one seen as a fresh start rather than a repeat.
+`seq` lets the mask spot a repeat — ESP-NOW retries at the MAC layer and a press can arrive twice.
+It resets to 0 when the battery is changed or the remote is reflashed, so the mask should treat a
+`seq` lower than the last one seen as a fresh start rather than a repeat.
 
 ## Building and flashing
 
@@ -112,9 +119,12 @@ the fraction of a second the chip is awake.
 Roughly 60–100 lines in `ProtoESP-Controller`:
 
 1. `esp_now_init()` alongside the existing WiFi, with a receive callback
-2. Drop any packet whose `magic` isn't `0x50524F54`, and any `seq` already seen — **this is
-   required, not optional**, since every press arrives up to thirteen times, once per channel
-3. Map `button` + `event` onto `doButtonAction()`, which already takes an action name and covers
+2. Drop any packet whose `magic` isn't `0x50524F54`, whose sender isn't the paired remote, or
+   whose `seq` has already been seen
+3. A pairing mode: while it's on, reply to `MSG_PAIR_REQ` with a `MSG_PAIR_ACK` carrying the
+   mask's current channel, and store the remote's MAC. Needs a button on the web page and a
+   timeout so it doesn't stay open
+4. Map `button` + `event` onto `doButtonAction()`, which already takes an action name and covers
    next face, sleep, a chosen face, a quick phrase and next screen page
 
 Settings for which action each button maps to would follow the same shape as the existing
