@@ -665,6 +665,55 @@
       </div>
     </details>
 
+
+    <!-- Remote -->
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Remote</b><small>A three-button remote over ESP-NOW, and what each button does</small></span></summary>
+      <div class="group">
+        <div class="row"><span class="row-text"><b>Paired remote</b><small id="pairHint">Nothing paired yet</small></span>
+          <button class="btn small" type="button" id="pairBtn" onclick="pairToggle()">Pair</button></div>
+        <div class="row" id="forgetRow" hidden><span class="row-text"><b>Forget it</b><small>Unpairs, so another remote can be paired instead</small></span>
+          <button class="btn small danger" type="button" onclick="pairForget()">Forget</button></div>
+        <div class="row"><span class="row-text"><b>Button 1 press</b></span>
+          <select id="rmt0" data-key="rmt0" data-label="Button 1 press" aria-label="Button 1 press" style="text-transform:none"></select></div>
+        <div class="row" id="rmt0FaceRow" hidden><span class="row-text"><b>Which face</b></span>
+          <select id="rmt0Face" data-key="rmt0Face" data-label="Button 1 press face" aria-label="Button 1 press face"></select></div>
+        <div class="row" id="rmt0PhraseRow" hidden><span class="row-text"><b>Which phrase</b></span>
+          <select id="rmt0Phrase" data-key="rmt0Phrase" data-label="Button 1 press phrase" aria-label="Button 1 press phrase" style="text-transform:none"></select></div>
+        <div class="row"><span class="row-text"><b>Button 1 hold</b></span>
+          <select id="rmt0H" data-key="rmt0H" data-label="Button 1 hold" aria-label="Button 1 hold" style="text-transform:none"></select></div>
+        <div class="row" id="rmt0HFaceRow" hidden><span class="row-text"><b>Which face</b></span>
+          <select id="rmt0HFace" data-key="rmt0HFace" data-label="Button 1 hold face" aria-label="Button 1 hold face"></select></div>
+        <div class="row" id="rmt0HPhraseRow" hidden><span class="row-text"><b>Which phrase</b></span>
+          <select id="rmt0HPhrase" data-key="rmt0HPhrase" data-label="Button 1 hold phrase" aria-label="Button 1 hold phrase" style="text-transform:none"></select></div>
+        <div class="row"><span class="row-text"><b>Button 2 press</b></span>
+          <select id="rmt1" data-key="rmt1" data-label="Button 2 press" aria-label="Button 2 press" style="text-transform:none"></select></div>
+        <div class="row" id="rmt1FaceRow" hidden><span class="row-text"><b>Which face</b></span>
+          <select id="rmt1Face" data-key="rmt1Face" data-label="Button 2 press face" aria-label="Button 2 press face"></select></div>
+        <div class="row" id="rmt1PhraseRow" hidden><span class="row-text"><b>Which phrase</b></span>
+          <select id="rmt1Phrase" data-key="rmt1Phrase" data-label="Button 2 press phrase" aria-label="Button 2 press phrase" style="text-transform:none"></select></div>
+        <div class="row"><span class="row-text"><b>Button 2 hold</b></span>
+          <select id="rmt1H" data-key="rmt1H" data-label="Button 2 hold" aria-label="Button 2 hold" style="text-transform:none"></select></div>
+        <div class="row" id="rmt1HFaceRow" hidden><span class="row-text"><b>Which face</b></span>
+          <select id="rmt1HFace" data-key="rmt1HFace" data-label="Button 2 hold face" aria-label="Button 2 hold face"></select></div>
+        <div class="row" id="rmt1HPhraseRow" hidden><span class="row-text"><b>Which phrase</b></span>
+          <select id="rmt1HPhrase" data-key="rmt1HPhrase" data-label="Button 2 hold phrase" aria-label="Button 2 hold phrase" style="text-transform:none"></select></div>
+        <div class="row"><span class="row-text"><b>Button 3 press</b></span>
+          <select id="rmt2" data-key="rmt2" data-label="Button 3 press" aria-label="Button 3 press" style="text-transform:none"></select></div>
+        <div class="row" id="rmt2FaceRow" hidden><span class="row-text"><b>Which face</b></span>
+          <select id="rmt2Face" data-key="rmt2Face" data-label="Button 3 press face" aria-label="Button 3 press face"></select></div>
+        <div class="row" id="rmt2PhraseRow" hidden><span class="row-text"><b>Which phrase</b></span>
+          <select id="rmt2Phrase" data-key="rmt2Phrase" data-label="Button 3 press phrase" aria-label="Button 3 press phrase" style="text-transform:none"></select></div>
+        <div class="row"><span class="row-text"><b>Button 3 hold</b></span>
+          <select id="rmt2H" data-key="rmt2H" data-label="Button 3 hold" aria-label="Button 3 hold" style="text-transform:none"></select></div>
+        <div class="row" id="rmt2HFaceRow" hidden><span class="row-text"><b>Which face</b></span>
+          <select id="rmt2HFace" data-key="rmt2HFace" data-label="Button 3 hold face" aria-label="Button 3 hold face"></select></div>
+        <div class="row" id="rmt2HPhraseRow" hidden><span class="row-text"><b>Which phrase</b></span>
+          <select id="rmt2HPhrase" data-key="rmt2HPhrase" data-label="Button 3 hold phrase" aria-label="Button 3 hold phrase" style="text-transform:none"></select></div>
+        <p class="hint" style="padding:0 16px 14px">To pair: press <b>Pair</b> here, then hold the remote's first button while powering it up. It blinks five times when it finds the mask. While a game is running, any remote button jumps instead of doing its usual job &mdash; the same as the mask's own button.</p>
+      </div>
+    </details>
+
     <!-- Tilt -->
     <details class="section">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Tilt</b><small>A face for tilting left and one for right. Also what stillness sleep uses.</small></span></summary>
@@ -869,7 +918,8 @@
   }
 
   const FACE_PICKERS = ['aTilt', 'aTilt2', 'aBoop', 'aSleep', 'aMilestone', 'aSass',
-                        'btnShortFace', 'btnDoubleFace', 'btnHoldFace'];
+                        'btnShortFace', 'btnDoubleFace', 'btnHoldFace',
+                        ...['rmt0','rmt0H','rmt1','rmt1H','rmt2','rmt2H'].map(k => k + 'Face')];
 
   async function loadFiles() {
     const parts = (await (await fetch('/getfiles', NO_CACHE)).text()).split(';');
@@ -1439,7 +1489,9 @@
 
   const TILT_KEYS = ['neutralX', 'neutralY', 'neutralZ', 'tiltX', 'tiltY', 'tiltZ',
                      'tilt2X', 'tilt2Y', 'tilt2Z'];
-  const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, boopConfirm: 5, tiltTrig: 0.6, eggPresses: 6, eggAction: 'slots', transMs: 80, sleepTol: 0.2, sleepMins: 5,
+  const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, boopConfirm: 5, tiltTrig: 0.6, eggPresses: 6, eggAction: 'slots',
+                    rmtMac: '', rmt0: 'nextFace', rmt0H: 'displays', rmt1: 'prevFace', rmt1H: 'sleep', rmt2: 'slots', rmt2H: 'dino',
+                    rmt0Face: '', rmt0Phrase: 0, rmt0HFace: '', rmt0HPhrase: 0, rmt1Face: '', rmt1Phrase: 0, rmt1HFace: '', rmt1HPhrase: 0, rmt2Face: '', rmt2Phrase: 0, rmt2HFace: '', rmt2HPhrase: 0, transMs: 80, sleepTol: 0.2, sleepMins: 5,
                     autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
                     autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', sassBoops: 5, sassSecs: 10, aSass: 'upset.json', blinkMode: 'face', blinkDoublePct: 25,
                     btnShort: 'nextFace', btnDouble: 'none', btnHold: 'displays', btnHoldMs: 1500,
@@ -1577,8 +1629,9 @@
   // Kept in step with doButtonAction() in src/main.cpp
   const BTN_ACTIONS = {none: 'Nothing', nextFace: 'Next face', prevFace: 'Previous face',
                        displays: 'Displays on/off', sleep: 'Sleep / wake', face: 'A chosen face',
-                       phrase: 'A quick phrase', screen: 'Next screen page'};
-  const BTN_SLOTS = ['btnShort', 'btnDouble', 'btnHold'];
+                       phrase: 'A quick phrase', screen: 'Next screen page',
+                       slots: 'Slot machine', dino: 'Dino game', boot: 'Boot sequence'};
+  const BTN_SLOTS = ['btnShort', 'btnDouble', 'btnHold', ...['rmt0','rmt0H','rmt1','rmt1H','rmt2','rmt2H']];
 
   function fillButtonPickers() {
     for (const id of BTN_SLOTS) {
@@ -1589,7 +1642,8 @@
       }
     }
     // the phrase pickers list the six slots, showing their text so the choice means something
-    for (const id of ['btnShortPhrase', 'btnDoublePhrase', 'btnHoldPhrase']) {
+    for (const id of ['btnShortPhrase', 'btnDoublePhrase', 'btnHoldPhrase',
+                      ...['rmt0','rmt0H','rmt1','rmt1H','rmt2','rmt2H'].map(k => k + 'Phrase')]) {
       const sel = $(id), keep = sel.value;
       sel.innerHTML = '';
       for (let i = 0; i < 6; i++) {
@@ -1851,6 +1905,30 @@
       toast(t === 'ok' ? 'Warming up…' : t, t !== 'ok');
     } catch (e) { toast('Could not reach the mask', true); }
   }
+
+  /* ---------- the remote ---------- */
+  let pairPoll = null;
+  function showPair(s) {
+    const on = !!(s && s.pairing);
+    $('pairBtn').textContent = on ? 'Stop (' + (s.secsLeft || 0) + 's)' : (s && s.mac ? 'Pair again' : 'Pair');
+    $('forgetRow').hidden = !(s && s.mac);
+    $('pairHint').textContent = on ? 'Listening — hold the first button on the remote while powering it up'
+                                   : (s && s.mac ? 'Paired to ' + s.mac : 'Nothing paired yet');
+    if (on && !pairPoll) pairPoll = setInterval(() => pairSend(''), 1000);
+    if (!on && pairPoll) { clearInterval(pairPoll); pairPoll = null; }
+  }
+  async function pairSend(q) {
+    try { showPair(await (await fetch('/pair' + (q ? '?' + q : ''), NO_CACHE)).json()); }
+    catch (e) { showPair(null); }
+  }
+  function pairToggle() {
+    pairSend($('pairBtn').textContent.startsWith('Stop') ? 'stop=1' : 'go=1');
+  }
+  function pairForget() {
+    if (!confirm('Forget the paired remote?')) return;
+    pairSend('forget=1');
+  }
+  pairSend('');
 
   /* ---------- slot machine ---------- */
   let slotOn = false, slotPoll = null;

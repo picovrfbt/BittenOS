@@ -54,6 +54,13 @@ public:
   int eggPresses;
   String eggAction;
   int slotWins, slotSpins;            //how the slot machine has treated you so far
+  //The ESP-NOW button remote. Three buttons, each with a press and a hold action, set the same
+  //way the mask's own button is. An empty MAC means nothing is paired yet.
+  String rmtMac;
+  String rmtAct[3],rmtFace[3];
+  int rmtPhrase[3];
+  String rmtHAct[3],rmtHFace[3];
+  int rmtHPhrase[3];
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
   int wakeFlickMs,wakeFlickGlitch;    //how long the warm-up runs, and how much the picture tears (0-2)
   int boopConfirm;                    //readings in a row over the line before it counts as a boop
