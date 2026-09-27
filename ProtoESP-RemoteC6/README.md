@@ -38,8 +38,11 @@ removes the question entirely.
 |---|---|
 | Press | wakes, sends `EV_PRESS`, **one blink** |
 | Still held after 1.2 s | sends `EV_HOLD` as well, another blink |
-| Could not reach the mask | **three blinks** |
+| Radio wouldn't start | **three blinks** |
 | Power-on or reflash | **two blinks**, then arms and sleeps without sending |
+
+One blink means the press was transmitted, not that the mask heard it — a broadcast isn't
+acknowledged, so the only honest failure the remote can report is the radio refusing to start.
 
 A held button is waited out before sleeping — arming a wake on a pin that is already low would
 wake the chip the instant it slept and spin until the battery died. If a button never releases it
@@ -48,16 +51,28 @@ itself once the button clears rather than staying dead.
 
 ## The channel problem
 
-ESP-NOW needs both ends on the same WiFi channel. The mask runs its access point permanently, so
-the remote finds the channel by scanning for `MASK_SSID` (default `ProtoWiFi`) and **caches it in
-RTC memory**, which survives deep sleep. A scan costs a second or more and is the single largest
-draw on the battery, so it only happens when the channel is unknown or a send fails.
+ESP-NOW needs both ends on the same WiFi channel, and the mask's channel isn't knowable from here.
+It moves on its own: with *Join a network* switched on, the mask's AP follows the channel of
+whichever hotspot it joined, and that can change without warning.
 
-This matters because **the mask's AP channel moves**: with *Join a network* switched on, the AP
-follows the channel of whichever hotspot it joined. A remote with a hardcoded channel would
-silently stop working the first time that changed. Hence the rescan-on-failure.
+**The remote sends the packet on every channel, 1 to 13.** Thirteen sends of twelve bytes costs
+about a tenth of a second and is beneath noticing on the battery. Every copy carries the same
+`seq`, and the mask keeps the first it sees.
 
-If you rename the mask's WiFi, change `MASK_SSID`.
+That means the remote depends on **nothing** about the mask — not its WiFi name, not its MAC, not
+its channel. Rename `ProtoWiFi`, move the mask to the spare board, join a different hotspot: the
+remote keeps working, untouched.
+
+Two neater-looking approaches were tried and thrown out:
+
+- **Scanning for the mask's SSID** ties the remote to a name that is a *setting on the mask*.
+  Rename the WiFi and the remote goes deaf until it's reflashed.
+- **Caching the channel and rescanning when a send fails** cannot work at all, because
+  **ESP-NOW broadcasts are never acknowledged**. The send callback reports success whether or not
+  anything heard it, so there's no failure to detect and nothing to correct against.
+
+Channels the region disallows simply fail to be set and are skipped, so a US board sweeping 1–13
+quietly does 1–11.
 
 ## The packet
 
@@ -77,8 +92,10 @@ struct __attribute__((packed)) RemotePacket {
 
 12 bytes, well inside ESP-NOW v1's 250-byte limit, so the v1/v2 version split never comes into it.
 
-`seq` lets the receiver spot a repeat: ESP-NOW has no delivery guarantee and a press can arrive
-twice. It resets to 0 when the battery is changed or the remote is reflashed.
+`seq` is what makes the channel sweep work: the receiver keeps the first copy of a `seq` it sees
+and drops the other twelve. It also covers ordinary duplicates, since ESP-NOW has no delivery
+guarantee. It resets to 0 when the battery is changed or the remote is reflashed, so the mask
+should treat a `seq` lower than the last one seen as a fresh start rather than a repeat.
 
 ## Building and flashing
 
@@ -98,7 +115,8 @@ the fraction of a second the chip is awake.
 Roughly 60–100 lines in `ProtoESP-Controller`:
 
 1. `esp_now_init()` alongside the existing WiFi, with a receive callback
-2. Drop any packet whose `magic` isn't `0x50524F54`, and any `seq` already seen
+2. Drop any packet whose `magic` isn't `0x50524F54`, and any `seq` already seen — **this is
+   required, not optional**, since every press arrives up to thirteen times, once per channel
 3. Map `button` + `event` onto `doButtonAction()`, which already takes an action name and covers
    next face, sleep, a chosen face, a quick phrase and next screen page
 

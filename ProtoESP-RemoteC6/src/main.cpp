@@ -5,7 +5,7 @@
 //
 //Why ESP-NOW rather than BLE: no pairing, no connection to maintain, and no need for the mask to
 //act as a BLE host. The cost is that both ends must sit on the same WiFi channel, which is the
-//fiddly part - see findMaskChannel() below.
+//fiddly part - see the Radio section for how that is dealt with.
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -32,8 +32,9 @@ static const gpio_num_t BUTTON_PIN[BUTTON_COUNT] = {
 #define LED_ACTIVE LOW
 
 //--------------------------------//The mask
-//Its access point, used only to find which channel it is on. Change if the mask's WiFi is renamed.
-#define MASK_SSID "ProtoWiFi"
+//Nothing here names the mask. It is not looked for by SSID and not addressed by MAC, so renaming
+//its WiFi, moving it to a different board or changing its channel all cost nothing - see
+//sendEverywhere() for why that is worth doing.
 
 //Sent broadcast rather than to the mask's MAC, so swapping the mask onto a different board does
 //not mean reflashing the remote. The mask ignores anything without this magic in it.
@@ -57,17 +58,15 @@ struct __attribute__((packed)) RemotePacket {
 #define DEBOUNCE_MS     15    //a press has to still be down this long to count
 #define CATCH_MS        40    //how long after waking to keep looking for the pin that did it
 #define HOLD_MS       1200    //still down this long and a second packet goes out as a hold
-#define SEND_WAIT_MS   120    //how long to wait for the radio to report the packet sent
+#define CHANNEL_DWELL_MS 8    //how long to sit on each channel before moving to the next
+#define CHANNEL_MAX     13    //channels to sweep; ones the region disallows are skipped
 #define RELEASE_MAX_MS 30000  //give up waiting for a release after this and treat it as stuck
 #define STUCK_RECHECK_S    2  //while a button is stuck, wake on a timer to see if it has let go
 
 //--------------------------------//State that has to survive deep sleep
-//RTC memory keeps its contents through deep sleep, which is what makes the channel cache worth
-//having: finding the mask costs a WiFi scan of a second or more, and doing that on every press
-//would be both slow and the largest single draw on the battery.
-RTC_DATA_ATTR uint8_t rtcChannel = 0;     //0 = not known yet
-RTC_DATA_ATTR uint32_t rtcSeq = 0;
-RTC_DATA_ATTR bool rtcScannedThisBattery = false;
+//RTC memory keeps its contents through deep sleep, which is the only reason the press counter can
+//survive at all - everything else here is rebuilt from nothing on every wake.
+RTC_DATA_ATTR uint32_t rtcSeq = 0;        //counts presses, so the mask can throw away repeats
 
 static volatile bool sendDone = false, sendOk = false;
 
@@ -109,68 +108,51 @@ static int whichButton() {
 }
 
 //--------------------------------//Radio
-//The mask's access point is the only way to know what channel to talk on, and it moves: with
-//"Join a network" switched on, the mask's AP follows the channel of whatever hotspot it joined.
-//So the channel is found by scanning, then cached in RTC memory and only looked for again when a
-//send fails - which is exactly what a channel change looks like from here.
-static uint8_t findMaskChannel() {
-  int n = WiFi.scanNetworks(false, true, false, 120);
-  uint8_t found = 0;
-  for(int i = 0; i < n; i++) {
-    if(WiFi.SSID(i) == MASK_SSID) { found = WiFi.channel(i); break; }
-  }
-  WiFi.scanDelete();
-  return found;
-}
-
-static bool radioUp(uint8_t channel) {
+//ESP-NOW needs both ends on the same WiFi channel, and the mask's channel is not knowable from
+//here. It moves on its own: with "Join a network" switched on, the mask's access point follows
+//the channel of whatever hotspot it joined, and that can change without warning.
+//
+//Two approaches were tried and thrown away. Scanning for the mask's SSID ties the remote to a name
+//that is a setting on the mask - rename the WiFi and the remote goes deaf until it is reflashed.
+//And caching the channel, then rescanning when a send fails, cannot work at all: ESP-NOW
+//broadcasts are never acknowledged, so the send callback reports success whether or not anything
+//heard it. There is no failure to detect and nothing to correct against.
+//
+//So the packet is simply sent on every channel. Thirteen sends of twelve bytes costs about a
+//tenth of a second and is beneath noticing on the battery, and it depends on nothing about the
+//mask: not its name, not its MAC, not its channel. The same seq goes out with every copy and the
+//mask keeps the first it sees.
+static bool radioUp() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
-  if(channel > 0) esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
   if(esp_now_init() != ESP_OK) return false;
   esp_now_register_send_cb(onSent);
   esp_now_peer_info_t peer = {};
-  memset(peer.peer_addr, 0xFF, 6);        //broadcast: no MAC to keep in step with the mask
-  peer.channel = channel;
+  memset(peer.peer_addr, 0xFF, 6);   //broadcast: nothing to keep in step with the mask
+  peer.channel = 0;                  //0 means "whatever channel the radio is on", which is the sweep
   peer.encrypt = false;
-  esp_now_add_peer(&peer);
-  return true;
+  return esp_now_add_peer(&peer) == ESP_OK;
 }
 
-static bool sendPacket(uint8_t button, uint8_t event) {
+static void sendEverywhere(uint8_t button, uint8_t event) {
   RemotePacket p;
   p.magic = REMOTE_MAGIC;
   p.proto = REMOTE_PROTO;
   p.button = button;
   p.event = event;
-  p.battPct = 255;                        //no battery divider wired on this board yet
-  p.seq = ++rtcSeq;
-  uint8_t bcast[6]; memset(bcast, 0xFF, 6);
-  sendDone = false; sendOk = false;
-  if(esp_now_send(bcast, (uint8_t *)&p, sizeof(p)) != ESP_OK) return false;
-  unsigned long until = millis() + SEND_WAIT_MS;
-  while(!sendDone && millis() < until) delay(1);
-  return sendOk;
-}
+  p.battPct = 255;                   //no battery divider wired on this board yet
+  p.seq = ++rtcSeq;                  //one number for the press, however many copies go out
 
-//Sends, and if that fails re-finds the channel once and tries again. A failure here almost always
-//means the mask moved channel rather than that it is switched off, and one rescan is far cheaper
-//than leaving the remote dead until it is reflashed.
-static bool sendWithRetry(uint8_t button, uint8_t event) {
-  if(rtcChannel == 0) {
-    WiFi.mode(WIFI_STA);
-    rtcChannel = findMaskChannel();
-    rtcScannedThisBattery = true;
+  uint8_t bcast[6];
+  memset(bcast, 0xFF, 6);
+  for(uint8_t ch = 1; ch <= CHANNEL_MAX; ch++) {
+    //Regions differ on which channels are legal; the ones this one disallows just fail here.
+    if(esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE) != ESP_OK) continue;
+    sendDone = false;
+    if(esp_now_send(bcast, (uint8_t *)&p, sizeof(p)) != ESP_OK) continue;
+    unsigned long until = millis() + CHANNEL_DWELL_MS;
+    while(!sendDone && millis() < until) delay(1);
   }
-  if(!radioUp(rtcChannel)) return false;
-  if(sendPacket(button, event)) return true;
-
-  uint8_t again = findMaskChannel();
-  if(again == 0 || again == rtcChannel) return false;   //not a channel problem: give up quietly
-  rtcChannel = again;
-  esp_now_deinit();
-  if(!radioUp(rtcChannel)) return false;
-  return sendPacket(button, event);
 }
 
 static void blink(int times) {
@@ -224,9 +206,7 @@ void setup() {
   //A fresh battery or a reflash: nothing to send, just arm and sleep. Two blinks say it is alive,
   //which is the only feedback this thing has.
   if(cause != ESP_SLEEP_WAKEUP_GPIO && cause != ESP_SLEEP_WAKEUP_TIMER) {
-    rtcChannel = 0;
     rtcSeq = 0;
-    rtcScannedThisBattery = false;
     blink(2);
     sleepNow();
   }
@@ -240,8 +220,11 @@ void setup() {
   delay(DEBOUNCE_MS);
   if(!pressed(b)) sleepNow();             //bounce rather than a press
 
-  bool ok = sendWithRetry((uint8_t)b, EV_PRESS);
-  blink(ok ? 1 : 3);                      //one blink sent, three could not reach the mask
+  //One blink says the press went out. It cannot say the mask heard it: a broadcast is not
+  //acknowledged, so the only honest failure this can report is the radio refusing to start.
+  if(!radioUp()) { blink(3); sleepNow(); }
+  sendEverywhere((uint8_t)b, EV_PRESS);
+  blink(1);
 
   //Still down after a moment: send the hold as well, so the mask can treat it like its own
   //button's hold action rather than the remote having to know what a hold means.
@@ -251,7 +234,7 @@ void setup() {
     delay(10);
   }
   if(pressed(b)) {
-    sendWithRetry((uint8_t)b, EV_HOLD);
+    sendEverywhere((uint8_t)b, EV_HOLD);
     blink(1);
   }
 
