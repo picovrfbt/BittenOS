@@ -2391,14 +2391,13 @@ static void slotRender() {
   //loading bar and the dino. Those are shapes, and mirroring them about the nose is the point. A
   //seven is not a shape, it has a way round, and mirrored it comes out backwards.
   //
-  //Which strip needs walking backwards was settled on the real panels, not from visType.txt: text
-  //written in visType's left-to-right order comes out mirrored on the maw, so the hardware runs
-  //the other way. That makes the unmirrored strip the one to reverse, and leaves the mirrored one
-  //walked straight - the opposite of what the layout file suggests.
+  //visType.txt lists the maw left to right as t11 t10 t9 t8 then t5 t4 t3 t2, and every face in
+  //data/anims renders correctly read that way, so that order is right. For a digit to read the
+  //same on both maws, the mirrored strip is the one walked from its far end.
   auto plot = [&](int pos, int r) {
     if(pos < 0 || pos >= 32 || r < 0 || r > 7) return;
     for(int t = 0; t < 2; t++) {
-      int p = mawStrips[t].mirrored ? pos : (31 - pos);
+      int p = mawStrips[t].mirrored ? (31 - pos) : pos;
       uint8_t panel = mawStrips[t].panel[p / 8];
       uint8_t col = mawStrips[t].mirrored ? (uint8_t)(7 - (p % 8)) : (uint8_t)(p % 8);
       words[panel] |= 1ULL << (r * 8 + col);
