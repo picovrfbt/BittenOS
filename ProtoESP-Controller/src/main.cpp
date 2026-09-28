@@ -2387,12 +2387,16 @@ static inline bool slotBlinkOff() {
 static void slotRender() {
   uint64_t words[MATRIXESNUM];
   for(int i = 0; i < MATRIXESNUM; i++) words[i] = 0;
-  //one plot lands on both maws at once, mirrored, exactly as the dino does it
+  //One plot lands on both maws at once - but not mirrored, which is where this differs from the
+  //loading bar and the dino. Those are shapes, and mirroring them about the nose is the point. A
+  //seven is not a shape, it has a way round, and mirrored it comes out backwards on one side. So
+  //the mirrored strip is walked from its far end instead, which puts both maws the same way round.
   auto plot = [&](int pos, int r) {
     if(pos < 0 || pos >= 32 || r < 0 || r > 7) return;
     for(int t = 0; t < 2; t++) {
-      uint8_t panel = mawStrips[t].panel[pos / 8];
-      uint8_t col = mawStrips[t].mirrored ? (uint8_t)(7 - (pos % 8)) : (uint8_t)(pos % 8);
+      int p = mawStrips[t].mirrored ? (31 - pos) : pos;
+      uint8_t panel = mawStrips[t].panel[p / 8];
+      uint8_t col = mawStrips[t].mirrored ? (uint8_t)(7 - (p % 8)) : (uint8_t)(p % 8);
       words[panel] |= 1ULL << (r * 8 + col);
     }
   };
