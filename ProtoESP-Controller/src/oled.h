@@ -71,6 +71,7 @@ public:
   void remote(bool) const;
   void off() const;
   void blit(const uint8_t *page_buffer) const;   //1024 bytes, u8g2's own layout: page*128 + x, bit = y & 7
+  void blitPages(const uint8_t *page_buffer, int firstPage, int lastPage) const;  //only those rows of 8 pixels
   void setFlip(bool upsideDown) const;           //for a screen mounted the other way up
 private:
   bool INAavail = false;
