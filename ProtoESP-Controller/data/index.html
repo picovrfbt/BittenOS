@@ -678,52 +678,62 @@
           <button class="btn small" type="button" id="pairBtn" onclick="pairToggle()">Pair</button></div>
         <div class="row" id="forgetRow" hidden><span class="row-text"><b>Forget it</b><small>Unpairs, so another remote can be paired instead</small></span>
           <button class="btn small danger" type="button" onclick="pairForget()">Forget</button></div>
-        <div class="row rmt"><span class="row-text"><b>Button 1</b></span>
+        <div class="row" style="justify-content:center;padding-top:16px">
+          <svg width="182" height="132" viewBox="0 0 182 132" role="img" aria-label="Outline of the remote: three buttons stepped down the board, top, middle and bottom">
+            <rect x="12" y="6" width="82" height="120" rx="10" fill="none" stroke="var(--line)" stroke-width="2"/>
+            <rect x="24" y="22" width="22" height="22" rx="5" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+            <rect x="38" y="54" width="22" height="22" rx="5" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+            <rect x="52" y="86" width="22" height="22" rx="5" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+            <text x="104" y="37" fill="var(--dim)" font-size="11">Top</text>
+            <text x="104" y="69" fill="var(--dim)" font-size="11">Middle</text>
+            <text x="104" y="101" fill="var(--dim)" font-size="11">Bottom</text>
+          </svg></div>
+        <div class="row rmt"><span class="row-text"><b>Top</b><small>D0</small></span>
           <div class="twoup">
             <label for="rmt0">Press
-              <select id="rmt0" data-key="rmt0" data-label="Button 1 press" style="text-transform:none"></select></label>
+              <select id="rmt0" data-key="rmt0" data-label="Top press" aria-label="Top press" style="text-transform:none"></select></label>
             <label for="rmt0H">Hold
-              <select id="rmt0H" data-key="rmt0H" data-label="Button 1 hold" style="text-transform:none"></select></label>
+              <select id="rmt0H" data-key="rmt0H" data-label="Top hold" aria-label="Top hold" style="text-transform:none"></select></label>
           </div></div>
-        <div class="row" id="rmt0FaceRow" hidden><span class="row-text"><b>Button 1 press face</b></span>
-          <select id="rmt0Face" data-key="rmt0Face" data-label="Button 1 press face" aria-label="Button 1 press face"></select></div>
-        <div class="row" id="rmt0PhraseRow" hidden><span class="row-text"><b>Button 1 press phrase</b></span>
-          <select id="rmt0Phrase" data-key="rmt0Phrase" data-label="Button 1 press phrase" aria-label="Button 1 press phrase" style="text-transform:none"></select></div>
-        <div class="row" id="rmt0HFaceRow" hidden><span class="row-text"><b>Button 1 hold face</b></span>
-          <select id="rmt0HFace" data-key="rmt0HFace" data-label="Button 1 hold face" aria-label="Button 1 hold face"></select></div>
-        <div class="row" id="rmt0HPhraseRow" hidden><span class="row-text"><b>Button 1 hold phrase</b></span>
-          <select id="rmt0HPhrase" data-key="rmt0HPhrase" data-label="Button 1 hold phrase" aria-label="Button 1 hold phrase" style="text-transform:none"></select></div>
-        <div class="row rmt"><span class="row-text"><b>Button 2</b></span>
+        <div class="row" id="rmt0FaceRow" hidden><span class="row-text"><b>Top press face</b></span>
+          <select id="rmt0Face" data-key="rmt0Face" data-label="Top press face" aria-label="Top press face"></select></div>
+        <div class="row" id="rmt0PhraseRow" hidden><span class="row-text"><b>Top press phrase</b></span>
+          <select id="rmt0Phrase" data-key="rmt0Phrase" data-label="Top press phrase" aria-label="Top press phrase" style="text-transform:none"></select></div>
+        <div class="row" id="rmt0HFaceRow" hidden><span class="row-text"><b>Top hold face</b></span>
+          <select id="rmt0HFace" data-key="rmt0HFace" data-label="Top hold face" aria-label="Top hold face"></select></div>
+        <div class="row" id="rmt0HPhraseRow" hidden><span class="row-text"><b>Top hold phrase</b></span>
+          <select id="rmt0HPhrase" data-key="rmt0HPhrase" data-label="Top hold phrase" aria-label="Top hold phrase" style="text-transform:none"></select></div>
+        <div class="row rmt"><span class="row-text"><b>Middle</b><small>D1</small></span>
           <div class="twoup">
             <label for="rmt1">Press
-              <select id="rmt1" data-key="rmt1" data-label="Button 2 press" style="text-transform:none"></select></label>
+              <select id="rmt1" data-key="rmt1" data-label="Middle press" aria-label="Middle press" style="text-transform:none"></select></label>
             <label for="rmt1H">Hold
-              <select id="rmt1H" data-key="rmt1H" data-label="Button 2 hold" style="text-transform:none"></select></label>
+              <select id="rmt1H" data-key="rmt1H" data-label="Middle hold" aria-label="Middle hold" style="text-transform:none"></select></label>
           </div></div>
-        <div class="row" id="rmt1FaceRow" hidden><span class="row-text"><b>Button 2 press face</b></span>
-          <select id="rmt1Face" data-key="rmt1Face" data-label="Button 2 press face" aria-label="Button 2 press face"></select></div>
-        <div class="row" id="rmt1PhraseRow" hidden><span class="row-text"><b>Button 2 press phrase</b></span>
-          <select id="rmt1Phrase" data-key="rmt1Phrase" data-label="Button 2 press phrase" aria-label="Button 2 press phrase" style="text-transform:none"></select></div>
-        <div class="row" id="rmt1HFaceRow" hidden><span class="row-text"><b>Button 2 hold face</b></span>
-          <select id="rmt1HFace" data-key="rmt1HFace" data-label="Button 2 hold face" aria-label="Button 2 hold face"></select></div>
-        <div class="row" id="rmt1HPhraseRow" hidden><span class="row-text"><b>Button 2 hold phrase</b></span>
-          <select id="rmt1HPhrase" data-key="rmt1HPhrase" data-label="Button 2 hold phrase" aria-label="Button 2 hold phrase" style="text-transform:none"></select></div>
-        <div class="row rmt"><span class="row-text"><b>Button 3</b></span>
+        <div class="row" id="rmt1FaceRow" hidden><span class="row-text"><b>Middle press face</b></span>
+          <select id="rmt1Face" data-key="rmt1Face" data-label="Middle press face" aria-label="Middle press face"></select></div>
+        <div class="row" id="rmt1PhraseRow" hidden><span class="row-text"><b>Middle press phrase</b></span>
+          <select id="rmt1Phrase" data-key="rmt1Phrase" data-label="Middle press phrase" aria-label="Middle press phrase" style="text-transform:none"></select></div>
+        <div class="row" id="rmt1HFaceRow" hidden><span class="row-text"><b>Middle hold face</b></span>
+          <select id="rmt1HFace" data-key="rmt1HFace" data-label="Middle hold face" aria-label="Middle hold face"></select></div>
+        <div class="row" id="rmt1HPhraseRow" hidden><span class="row-text"><b>Middle hold phrase</b></span>
+          <select id="rmt1HPhrase" data-key="rmt1HPhrase" data-label="Middle hold phrase" aria-label="Middle hold phrase" style="text-transform:none"></select></div>
+        <div class="row rmt"><span class="row-text"><b>Bottom</b><small>D2</small></span>
           <div class="twoup">
             <label for="rmt2">Press
-              <select id="rmt2" data-key="rmt2" data-label="Button 3 press" style="text-transform:none"></select></label>
+              <select id="rmt2" data-key="rmt2" data-label="Bottom press" aria-label="Bottom press" style="text-transform:none"></select></label>
             <label for="rmt2H">Hold
-              <select id="rmt2H" data-key="rmt2H" data-label="Button 3 hold" style="text-transform:none"></select></label>
+              <select id="rmt2H" data-key="rmt2H" data-label="Bottom hold" aria-label="Bottom hold" style="text-transform:none"></select></label>
           </div></div>
-        <div class="row" id="rmt2FaceRow" hidden><span class="row-text"><b>Button 3 press face</b></span>
-          <select id="rmt2Face" data-key="rmt2Face" data-label="Button 3 press face" aria-label="Button 3 press face"></select></div>
-        <div class="row" id="rmt2PhraseRow" hidden><span class="row-text"><b>Button 3 press phrase</b></span>
-          <select id="rmt2Phrase" data-key="rmt2Phrase" data-label="Button 3 press phrase" aria-label="Button 3 press phrase" style="text-transform:none"></select></div>
-        <div class="row" id="rmt2HFaceRow" hidden><span class="row-text"><b>Button 3 hold face</b></span>
-          <select id="rmt2HFace" data-key="rmt2HFace" data-label="Button 3 hold face" aria-label="Button 3 hold face"></select></div>
-        <div class="row" id="rmt2HPhraseRow" hidden><span class="row-text"><b>Button 3 hold phrase</b></span>
-          <select id="rmt2HPhrase" data-key="rmt2HPhrase" data-label="Button 3 hold phrase" aria-label="Button 3 hold phrase" style="text-transform:none"></select></div>
-        <p class="hint" style="padding:0 16px 14px">To pair: press <b>Pair</b> here, then hold the remote's first button while powering it up. It blinks five times when it finds the mask. While a game is running, any remote button jumps instead of doing its usual job &mdash; the same as the mask's own button.</p>
+        <div class="row" id="rmt2FaceRow" hidden><span class="row-text"><b>Bottom press face</b></span>
+          <select id="rmt2Face" data-key="rmt2Face" data-label="Bottom press face" aria-label="Bottom press face"></select></div>
+        <div class="row" id="rmt2PhraseRow" hidden><span class="row-text"><b>Bottom press phrase</b></span>
+          <select id="rmt2Phrase" data-key="rmt2Phrase" data-label="Bottom press phrase" aria-label="Bottom press phrase" style="text-transform:none"></select></div>
+        <div class="row" id="rmt2HFaceRow" hidden><span class="row-text"><b>Bottom hold face</b></span>
+          <select id="rmt2HFace" data-key="rmt2HFace" data-label="Bottom hold face" aria-label="Bottom hold face"></select></div>
+        <div class="row" id="rmt2HPhraseRow" hidden><span class="row-text"><b>Bottom hold phrase</b></span>
+          <select id="rmt2HPhrase" data-key="rmt2HPhrase" data-label="Bottom hold phrase" aria-label="Bottom hold phrase" style="text-transform:none"></select></div>
+        <p class="hint" style="padding:0 16px 14px">To pair: press <b>Pair</b> here, then hold the <b>Top</b> button while powering the remote up. It blinks five times when it finds the mask. While a game is running, any remote button jumps instead of doing its usual job &mdash; the same as the mask's own button.</p>
       </div>
     </details>
 
