@@ -275,21 +275,18 @@ static bool runPairing() {
 //One press, from send to release. Called for the press that woke the chip and for any that follow
 //while it is still awake.
 static void handlePress(int b) {
-  blink(sendPress((uint8_t)b, EV_PRESS) ? 1 : 3);
-  lastActivity = millis();
-
-  //Still down after a moment: send the hold as well, so the mask can treat it like its own
-  //button's hold action rather than the remote having to know what a hold means. A quick tap
-  //leaves here almost at once, which is what keeps rapid presses rapid.
+  //Nothing goes out on the way down. A press and a hold are two different actions on the mask, so
+  //sending the press first and the hold after would run both: holding the bottom button started
+  //the slot machine and then the dino game on top of it. Waiting to see which gesture this is
+  //costs a tap the time it takes to lift a finger, which is the cheaper of the two prices.
   unsigned long holdAt = millis() + HOLD_MS;
+  bool held = true;
   while(millis() < holdAt) {
-    if(!pressed(b)) return;
+    if(!pressed(b)) { held = false; break; }
     delay(10);
   }
-  if(pressed(b)) {
-    blink(sendPress((uint8_t)b, EV_HOLD) ? 1 : 3);
-    lastActivity = millis();
-  }
+  blink(sendPress((uint8_t)b, held ? EV_HOLD : EV_PRESS) ? 1 : 3);
+  lastActivity = millis();
 }
 
 //All three held for three seconds. Returns true if pairing was attempted, so the caller knows to

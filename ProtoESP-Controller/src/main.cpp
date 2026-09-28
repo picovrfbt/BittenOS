@@ -3370,20 +3370,26 @@ void screenTick() {
   //Only the rows that actually changed go down the wire. A whole-screen push is about 30 ms of
   //blocked I2C, and the panels are drawn from this same loop, so pushing all of it for a redraw
   //that moved one line of text shows up in the face as a stutter.
-  int firstPg = -1, lastPg = -1;
-  if(screenPrevValid) {
-    for(int pg = 0; pg < 8; pg++) {
-      if(memcmp(screenBuf + pg * 128, screenPrev + pg * 128, 128) == 0) continue;
-      if(firstPg < 0) firstPg = pg;
-      lastPg = pg;
-    }
-    if(firstPg < 0) return;              //nothing changed: don't push pixels at all
-  } else {
-    firstPg = 0; lastPg = 7;             //first draw after a reload: send the lot
+  if(!screenPrevValid) {                 //first draw after a reload: send the lot
+    memcpy(screenPrev, screenBuf, sizeof(screenBuf));
+    screenPrevValid = true;
+    oled.blit(screenBuf);
+    return;
   }
+  //Each run of changed rows is sent on its own rather than everything between the first and the
+  //last. A clock at the top and a bar at the bottom both moving is otherwise indistinguishable
+  //from the whole screen changing, and costs just as much.
+  int pushed = 0;
+  for(int pg = 0; pg < 8; ) {
+    if(memcmp(screenBuf + pg * 128, screenPrev + pg * 128, 128) == 0) { pg++; continue; }
+    int run = pg;
+    while(run < 8 && memcmp(screenBuf + run * 128, screenPrev + run * 128, 128) != 0) run++;
+    oled.blitPages(screenBuf, pg, run - 1);
+    pushed += run - pg;
+    pg = run;
+  }
+  if(!pushed) return;                    //nothing changed: don't push pixels at all
   memcpy(screenPrev, screenBuf, sizeof(screenBuf));
-  screenPrevValid = true;
-  oled.blitPages(screenBuf, firstPg, lastPg);
 }
 
 void loop() {
