@@ -34,7 +34,11 @@ static const gpio_num_t BUTTON_PIN[BUTTON_COUNT] = {
   GPIO_NUM_2,   //XIAO D2
 };
 
-#define PAIR_BUTTON 0         //hold this one while powering up to pair with a mask
+//Pairing is all three buttons held together. It used to be one button held through a power-up,
+//which assumed the battery could be reached - untrue the moment the case is closed, and there
+//is no way to power-cycle a sealed remote. Three at once is a thing no ordinary use produces,
+//and it works whenever the remote is in hand.
+#define PAIR_HOLD_MS 3000     //all three held this long starts pairing
 
 #define LED_PIN 15            //the XIAO's own LED, active low
 #define LED_ACTIVE LOW
@@ -67,6 +71,7 @@ struct __attribute__((packed)) RemotePacket {
 #define CHANNEL_MAX       13  //channels to search; ones the region disallows are skipped
 #define PAIR_DWELL_MS    140  //how long to listen on each channel while pairing
 #define PAIR_ROUNDS        3  //sweeps of every channel before giving up on pairing
+#define PAIR_POLL_MS      20  //how often the all-three check looks at the buttons
 #define RELEASE_MAX_MS 30000  //give up waiting for a release after this and treat it as stuck
 #define STUCK_RECHECK_S    2  //while a button is stuck, wake on a timer to see if it has let go
 
@@ -121,6 +126,11 @@ static void armButtons() {
 static void holdButtons(uint64_t mask) {
   for(int i = 0; i < BUTTON_COUNT; i++)
     if(mask & (1ULL << (int)BUTTON_PIN[i])) gpio_hold_en(BUTTON_PIN[i]);
+}
+
+static bool allDown() {
+  for(int i = 0; i < BUTTON_COUNT; i++) if(!pressed(i)) return false;
+  return true;
 }
 
 //Which button is down. Returns -1 if none, after looking for a short while: a quick tap can be
@@ -282,6 +292,22 @@ static void handlePress(int b) {
   }
 }
 
+//All three held for three seconds. Returns true if pairing was attempted, so the caller knows to
+//stop rather than treat the buttons as an ordinary press.
+static bool maybePair() {
+  if(!allDown()) return false;
+  unsigned long until = millis() + PAIR_HOLD_MS;
+  while(millis() < until) {
+    if(!allDown()) return false;              //let go early: not a pairing request after all
+    delay(PAIR_POLL_MS);
+  }
+  blink(2);                                   //two: listening for a mask
+  if(radioUp() && runPairing()) blink(5);     //five: paired
+  else blink(3);                              //three: nothing answered
+  lastActivity = millis();
+  return true;
+}
+
 //--------------------------------//Sleep
 //Arming a wake on a pin that is still held down wakes the chip again the instant it sleeps, which
 //would spin until the battery died. So a held button is waited out first, and if it never lets go
@@ -320,16 +346,10 @@ void setup() {
   armButtons();
   loadPair();
 
-  //Powered up rather than woken: a battery change or a reflash. Holding the pair button through
-  //that is what starts pairing - the remote has no other input to spare for it.
+  //Powered up rather than woken: a battery change or a reflash. Nothing to send, so say whether
+  //there is a mask to send it to and go back to sleep.
   if(cause != ESP_SLEEP_WAKEUP_GPIO && cause != ESP_SLEEP_WAKEUP_TIMER) {
     rtcSeq = 0;
-    if(pressed(PAIR_BUTTON)) {
-      blink(2);                                 //two: listening for a mask
-      if(radioUp() && runPairing()) blink(5);   //five: paired
-      else blink(3);                            //three: nothing answered
-      sleepNow();
-    }
     blink(havePair ? 1 : 3);                    //one: armed. three: not paired to anything yet
     sleepNow();
   }
@@ -342,6 +362,10 @@ void setup() {
 
   delay(DEBOUNCE_MS);
   if(!pressed(b)) sleepNow();               //bounce rather than a press
+
+  //Three at once is a pairing request, not a press. Checked before havePair, since pairing is the
+  //one thing that has to work when nothing is paired yet.
+  if(maybePair()) { for(int i = 0; i < BUTTON_COUNT; i++) wasDown[i] = true; return; }
 
   if(!havePair) { blink(3); sleepNow(); }   //nothing to talk to until it has been paired
   if(!radioUp()) { blink(3); sleepNow(); }
@@ -358,6 +382,10 @@ void setup() {
 //The cost is the radio idling at a few tens of milliamps for those seconds against 15uA asleep,
 //and it is only paid while the remote is actually in someone's hand.
 void loop() {
+  if(maybePair()) {                         //all three grabbed while it was still awake
+    for(int i = 0; i < BUTTON_COUNT; i++) wasDown[i] = true;
+    return;
+  }
   for(int i = 0; i < BUTTON_COUNT; i++) {
     bool down = pressed(i);
     if(down && !wasDown[i]) {
