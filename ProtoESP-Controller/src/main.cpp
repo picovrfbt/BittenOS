@@ -3367,10 +3367,23 @@ void screenTick() {
   screenShownPage = page;
 
   screenRender(screenBuf, d, page);
-  if(screenPrevValid && memcmp(screenBuf, screenPrev, sizeof(screenBuf)) == 0) return; //nothing changed: don't push pixels
+  //Only the rows that actually changed go down the wire. A whole-screen push is about 30 ms of
+  //blocked I2C, and the panels are drawn from this same loop, so pushing all of it for a redraw
+  //that moved one line of text shows up in the face as a stutter.
+  int firstPg = -1, lastPg = -1;
+  if(screenPrevValid) {
+    for(int pg = 0; pg < 8; pg++) {
+      if(memcmp(screenBuf + pg * 128, screenPrev + pg * 128, 128) == 0) continue;
+      if(firstPg < 0) firstPg = pg;
+      lastPg = pg;
+    }
+    if(firstPg < 0) return;              //nothing changed: don't push pixels at all
+  } else {
+    firstPg = 0; lastPg = 7;             //first draw after a reload: send the lot
+  }
   memcpy(screenPrev, screenBuf, sizeof(screenBuf));
   screenPrevValid = true;
-  oled.blit(screenBuf);
+  oled.blitPages(screenBuf, firstPg, lastPg);
 }
 
 void loop() {

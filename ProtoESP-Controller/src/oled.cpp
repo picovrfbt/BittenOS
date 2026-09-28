@@ -29,6 +29,18 @@ void SSDOLED::blit(const uint8_t *page_buffer) const {
   u8g2.sendBuffer();
 }
 
+//Pushes only the rows of eight pixels between firstPage and lastPage. The whole buffer is 1024
+//bytes, about 30 ms of blocked I2C at 400 kHz - long enough to be seen as a stutter in the face,
+//since the panels are drawn from the same loop. Most redraws change one line of text, so sending
+//the single page it lives on costs nearer 4 ms.
+void SSDOLED::blitPages(const uint8_t *page_buffer, int firstPage, int lastPage) const {
+  if(firstPage < 0) firstPage = 0;
+  if(lastPage > 7) lastPage = 7;
+  if(lastPage < firstPage) return;
+  memcpy(u8g2.getBufferPtr(), page_buffer, 128 * 8);
+  u8g2.updateDisplayArea(0, (uint8_t)firstPage, 16, (uint8_t)(lastPage - firstPage + 1));
+}
+
 //--------------------------------//OLED off (switched off from the web page); init() wakes it again
 void SSDOLED::off() const {
   u8g2.clearDisplay();
