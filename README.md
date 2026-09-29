@@ -218,7 +218,7 @@ Pages are served live from `data/`, so edits show up on reload. Faces and settin
 
 ## Credits and license
 
-
+This Project originally used code from NCpyn, it has been completely remade, but attribution os still given to their original Project!
 
 The scrolling-text font is the system font from the [MD_MAX72XX](https://github.com/MajicDesigns/MD_MAX72XX) library by MajicDesigns (LGPL-2.1).
 
