@@ -152,7 +152,7 @@
     <summary><span>Bluetooth<small>Controlling the mask without touching WiFi</small></span></summary>
     <div class="body">
       <p>Switch <b class="k">Remote (BLE)</b> on in Settings and the mask advertises over Bluetooth under the same name as its WiFi. This is the one way to control it that leaves your phone's own connection completely alone — no joining anything, no losing internet.</p>
-      <p>It works with the physical ProtoESP remote, and with a phone. Commands are a letter, a colon and a value, written to characteristic <b class="k">ffe1</b> on service <b class="k">ffe0</b>:</p>
+      <p>It works with the older physical BLE remote, and with a phone. Commands are a letter, a colon and a value, written to characteristic <b class="k">ffe1</b> on service <b class="k">ffe0</b>:</p>
       <table>
         <tr><th>s:</th><td>Ask what the mask is doing — face, brightness, boops, sleeping, displays, speech</td></tr>
         <tr><th>f:name</th><td>Switch to a face, e.g. <b class="k">f:angry</b></td></tr>

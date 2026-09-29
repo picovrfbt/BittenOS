@@ -90,7 +90,7 @@ rather than planned. Kept only so the reasoning is not lost if that ever changes
 The fan is gone for good (decided 2026-09-22): it runs from its own supply, the PWM wire is not
 going back on, and the fan curve idea went with it. GPIO 13 is free.
 
-- [ ] **Remote** — decided against ProtoESP's own BLE remote project for now. Two routes: a bought
+- [ ] **Remote** — decided against the stock BLE remote project for now. Two routes: a bought
       BLE camera-shutter clicker (cheap, two buttons, must be Bluetooth 4.0/BLE since the S3 has no
       classic Bluetooth), or an ESP32-C3 SuperMini sending ESP-NOW (a few dollars, any number of
       buttons, instant, no pairing). ESP-NOW is the better mask remote.

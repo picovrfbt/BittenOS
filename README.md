@@ -1,6 +1,6 @@
-# protogen-fw
+# BittenOS
 
-Firmware for my protogen mask: a FurBitten Studios premade face (14 × MAX7219 8×8 LED panels) driven by an ESP32-S3, running a modified version of [ProtoESP](https://github.com/NCPlyn/ProtogenHelmet-ESP32) by NCPlyn.
+Firmware for my protogen mask: a FurBitten Studios premade face (14 × MAX7219 8×8 LED panels) driven by an ESP32-S3.
 
 The face originally came with an Arduino Nano running FurBitten's closed-source firmware. This repo replaces that controller with open firmware I can change. It contains no FurBitten code, and the Nano is kept untouched as a backup.
 
@@ -24,7 +24,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - A live boop meter showing closeness and shadow against their trigger lines, for setting boops up
 - Brightness and transition sliders, and a power button that turns the displays off while the mask keeps running
 - A System tab: uptime, temperature, memory, storage, what's on the I2C bus, and raw sensor readings
-- The web Animator from ProtoESP, with touch drawing
+- The web Animator, with touch drawing
 - Installs on a phone's home screen with its own icon
 
 **Sensors**
@@ -40,7 +40,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 
 - Over-the-air updates from the web page. A firmware update that doesn't run properly rolls itself back; a filesystem update keeps your settings
 
-Microphone, OLED and the wireless remote are supported by ProtoESP but not fitted, so they're off here and untested.
+A microphone, an OLED status screen and a three-button ESP-NOW remote are all fitted and working.
 
 ## Hardware
 
@@ -77,7 +77,7 @@ t13 t12  .   .   .   .   .   .  t1  t0      eyes
 t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 ```
 
-## Changes from upstream ProtoESP
+## Changes from upstream
 
 ### Hardware and layout
 
@@ -151,7 +151,7 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 ## Quick start
 
 1. Install [PlatformIO](https://platformio.org/) (the VS Code extension, or `pip install platformio`).
-2. Open the `ProtoESP-Controller` folder.
+2. Open the `BittenOS-Controller` folder.
 3. Flash the firmware, then the filesystem:
 
    ```
@@ -178,7 +178,7 @@ The page works out which kind of file it is from its contents and refuses anythi
 
 ## Tools
 
-All in `ProtoESP-Controller/tools/`, run from the `ProtoESP-Controller` folder.
+All in `BittenOS-Controller/tools/`, run from the `BittenOS-Controller` folder.
 
 | Script | Does |
 |---|---|
@@ -189,12 +189,12 @@ All in `ProtoESP-Controller/tools/`, run from the `ProtoESP-Controller` folder.
 | `convert_mk2_to_14.py` | Converts faces drawn for the 11-panel layout to this 14-panel one |
 | `virtual_tester.py` | Runs the web pages on your PC against a pretend mask (below) |
 
-Faces found online are usually drawn for ProtoESP's 11-panel "M16 mk2" layout. Put them in `data/anims/` and run `python tools/convert_mk2_to_14.py`: eyes are copied, each mouth side gains a fourth panel, and the single centre nose is split across the two nose panels. Faces that are already 14-panel are skipped.
+Faces found online are usually drawn for the stock 11-panel "M16 mk2" layout. Put them in `data/anims/` and run `python tools/convert_mk2_to_14.py`: eyes are copied, each mouth side gains a fourth panel, and the single centre nose is split across the two nose panels. Faces that are already 14-panel are skipped.
 
 ## Testing the web pages without the mask
 
 ```
-cd ProtoESP-Controller
+cd BittenOS-Controller
 python tools/virtual_tester.py
 ```
 
@@ -206,20 +206,19 @@ Pages are served live from `data/`, so edits show up on reload. Faces and settin
 
 | Path | Contents |
 |---|---|
-| `ProtoESP-Controller/` | The firmware (PlatformIO project), with the web pages and faces in `data/` |
-| `ProtoESP-Controller/tools/` | Face building, rendering and conversion, icons, and the virtual tester |
-| `ProtoESP-Controller/16MB_ota.csv` | The partition table |
-| `ProtoESP-Controller/anims_14panel_v1/` | The faces as they came, converted to 14 panels — the source of the original eyes and nose |
-| `ProtoESP-Controller/anims_original_11panel/` | The stock faces before conversion |
-| `ProtoESP-Controller/ui_backup/` | The web pages from before the redesign |
+| `BittenOS-Controller/` | The firmware (PlatformIO project), with the web pages and faces in `data/` |
+| `BittenOS-Controller/tools/` | Face building, rendering and conversion, icons, and the virtual tester |
+| `BittenOS-Controller/16MB_ota.csv` | The partition table |
+| `BittenOS-Controller/anims_14panel_v1/` | The faces as they came, converted to 14 panels — the source of the original eyes and nose |
+| `BittenOS-Controller/anims_original_11panel/` | The stock faces before conversion |
+| `BittenOS-Controller/ui_backup/` | The web pages from before the redesign |
 | `MY_PROTOGEN_SETUP.md` | Full setup, flashing and usage guide for this mask |
 | `IDEAS.md` | Ideas not built yet, and decisions already made about them |
-| `README-ProtoESP-upstream.md` | NCPlyn's original README, with links to the upstream docs |
-| `ProtoESP-RemoteC6/` | Button remote for the mask: a XIAO ESP32C6 that sleeps until pressed, then sends over ESP-NOW |
+| `BittenOS-Remote/` | Button remote for the mask: a XIAO ESP32C6 that sleeps until pressed, then sends over ESP-NOW |
 
 ## Credits and license
 
-Based on [ProtoESP (ProtogenHelmet-ESP32)](https://github.com/NCPlyn/ProtogenHelmet-ESP32) by [NCPlyn](https://github.com/NCPlyn), licensed under GPL-3.0. This repo is GPL-3.0 as well (see `LICENSE`). NCPlyn's credit line in `index.html` and `animator.html` is kept, as the original project asks. If ProtoESP is useful to you, consider supporting NCPlyn; the links are in the upstream README.
+BittenOS is GPL-3.0 (see `LICENSE`). It began life as a fork and has since been rewritten far enough that the original author gave permission to drop their credit line; the licence stays, because that travels with the code rather than being a courtesy.
 
 The scrolling-text font is the system font from the [MD_MAX72XX](https://github.com/MajicDesigns/MD_MAX72XX) library by MajicDesigns (LGPL-2.1).
 
