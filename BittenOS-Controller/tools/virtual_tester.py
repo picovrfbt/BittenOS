@@ -1,4 +1,4 @@
-"""Virtual tester for the ProtoESP web UI.
+"""Virtual tester for the BittenOS web UI.
 
 Serves the real web pages from data/ and answers every request the pages make
 the way the firmware does (src/main.cpp), so UI changes can be tried in a
@@ -298,7 +298,7 @@ def end_boop(back_to):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = 'ProtoESP-virtual'
+    server_version = 'BittenOS-virtual'
 
     def log_message(self, fmt, *args):
         pass  # requests go to the board log instead
@@ -745,7 +745,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     global board
-    ap = argparse.ArgumentParser(description='Virtual tester for the ProtoESP web UI')
+    ap = argparse.ArgumentParser(description='Virtual tester for the BittenOS web UI')
     ap.add_argument('--port', type=int, default=8080)
     ap.add_argument('--reset', action='store_true', help='recopy faces and settings from data/')
     ap.add_argument('--no-browser', action='store_true', help="don't open the dashboard")
@@ -761,7 +761,7 @@ def main():
     board = VirtualBoard()
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
     url = 'http://localhost:%d/__tester' % args.port
-    print('ProtoESP virtual tester running.')
+    print('BittenOS virtual tester running.')
     print('  Dashboard:  ' + url)
     print('  Homepage:   http://localhost:%d/' % args.port)
     print('Press Ctrl+C to stop.')

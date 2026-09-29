@@ -1,6 +1,6 @@
 {
-  "name": "ProtoESP",
-  "short_name": "ProtoESP",
+  "name": "BittenOS",
+  "short_name": "BittenOS",
   "description": "Control panel for the 14-panel protogen mask",
   "start_url": "/",
   "scope": "/",

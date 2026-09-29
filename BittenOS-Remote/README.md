@@ -5,7 +5,7 @@ ESP-NOW packet to the mask, and go back to sleep. **No power switch** — deep s
 so it can be left armed indefinitely and a small LiPo lasts months.
 
 > **The mask side does not exist yet.** This firmware transmits; nothing in
-> `ProtoESP-Controller` listens for it. The packet format below is what a receiver has to match.
+> `BittenOS-Controller` listens for it. The packet format below is what a receiver has to match.
 
 ## Wiring
 
@@ -117,7 +117,7 @@ It resets to 0 when the battery is changed or the remote is reflashed, so the ma
 ## Building and flashing
 
 ```bash
-python -m platformio run -d ProtoESP-RemoteC6 -t upload
+python -m platformio run -d BittenOS-Remote -t upload
 ```
 
 Set `PLATFORMIO_CORE_DIR=C:\pio` first, same as the mask. The C6 is RISC-V, so the first build
@@ -129,7 +129,7 @@ the fraction of a second the chip is awake.
 
 ## The mask side
 
-Built. `ProtoESP-Controller` has the receiver, a pairing window opened from **Settings > Remote**,
+Built. `BittenOS-Controller` has the receiver, a pairing window opened from **Settings > Remote**,
 and a press and a hold action for each of the three buttons. What it does:
 
 1. Starts ESP-NOW alongside the access point, in `startWiFiWeb()`

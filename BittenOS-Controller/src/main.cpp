@@ -409,7 +409,7 @@ uint8_t hybridSkips = 0;                //hybrid checks in a row that didn't nee
 int visorBright() { return (cfg.autoBriEna && autoShown >= 0) ? autoShown : cfg.bVisor; }
 void autoBrightnessStep();
 //Status screen: drawn from /screen.json, the layout the on-board designer saves. With a layout in
-//place it owns the screen; without one, ProtoESP's original face-name screen is used instead.
+//place it owns the screen; without one, the original face-name screen is used instead.
 uint8_t screenBuf[128 * 8], screenPrev[128 * 8];
 bool screenPrevValid = false;
 unsigned long lastScreenDraw = 0;
@@ -1260,7 +1260,7 @@ void staStep() {
 
 //--------------------------------//WiFi server setup
 //--------------------------------//The button remote, over ESP-NOW
-//A XIAO ESP32C6 with three buttons, asleep until one is pressed. See ProtoESP-RemoteC6 for its
+//A XIAO ESP32C6 with three buttons, asleep until one is pressed. See BittenOS-Remote for its
 //side. Packets come in on the WiFi task, so nothing here touches the panels, the filesystem or the
 //config - a press is left in rmtBtnReq for loop() to pick up.
 //

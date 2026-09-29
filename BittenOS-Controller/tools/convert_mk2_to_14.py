@@ -1,4 +1,4 @@
-"""Convert stock ProtoESP animations (M16 mk2, 11 panels) to the 14-panel
+"""Convert stock 11-panel animations (M16 mk2) to the 14-panel
 FurBitten layout wired left-eye-first (see data/visType.txt).
 
 Eyes map 1:1. Each maw side gains a 4th panel by repeating its innermost

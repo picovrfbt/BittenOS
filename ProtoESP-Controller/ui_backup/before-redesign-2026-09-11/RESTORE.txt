@@ -1,4 +1,0 @@
-Backup of the web UI before the 2026-09-11 redesign.
-
-To restore: copy these files back into ProtoESP-Controller/data/ and upload the filesystem.
-Or from git:  git checkout ui-before-redesign -- ProtoESP-Controller/data/index.html ProtoESP-Controller/data/animator.html ProtoESP-Controller/data/saved.html

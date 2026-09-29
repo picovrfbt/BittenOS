@@ -1,6 +1,6 @@
 # My Protogen Setup
 
-ProtoESP firmware ([NCPlyn/ProtogenHelmet-ESP32](https://github.com/NCPlyn/ProtogenHelmet-ESP32), GPL-3.0) running a FurBitten Studios premade face (14 × MAX7219) on an ESP32-S3.
+BittenOS firmware (GPL-3.0) running a FurBitten Studios premade face (14 × MAX7219) on an ESP32-S3.
 
 Last updated: 2026-09-13. Everything below was tested on this mask and this PC, except where it says otherwise.
 
@@ -175,7 +175,7 @@ When you tested with numbers, panel "1" was t0, "2" was t1, and so on.
 
 ## 4. What's changed from the stock project
 
-The full list, grouped by area, is in the [README](README.md#changes-from-upstream-protoesp). These are the settings you're most likely to look for:
+The full list, grouped by area, is in the [README](README.md#changes-from-upstream). These are the settings you're most likely to look for:
 
 | File | Setting | Value | Why |
 |---|---|---|---|
@@ -202,7 +202,7 @@ The firmware is 1.31MB, 44% of its 3MB slot.
 
 ### The easy way, once the mask is set up: over WiFi
 
-In the web page, **Tools > Update firmware**, and choose a file from `ProtoESP-Controller\.pio\build\esp32-s3\`. See section 6, step 18. No cable, and settings are kept.
+In the web page, **Tools > Update firmware**, and choose a file from `BittenOS-Controller\.pio\build\esp32-s3\`. See section 6, step 18. No cable, and settings are kept.
 
 That needs the board to already have the 16MB partition table. Getting it there — and recovering a mask that won't boot — needs USB.
 
@@ -212,7 +212,7 @@ Open **PowerShell** (not Git Bash, see the rules below) and run:
 
 ```powershell
 $env:PLATFORMIO_CORE_DIR = 'C:\pio'
-cd C:\Users\MainPC\Documents\protogen-fw\ProtoESP-Controller
+cd C:\Users\MainPC\Documents\protogen-fw\BittenOS-Controller
 
 # find the board's COM port - it changes, so check every time
 python -m platformio device list
@@ -235,7 +235,7 @@ python -m platformio device monitor -p COM115 -b 115200
 
 1. Install VS Code and the **PlatformIO IDE** extension.
 2. Before the first use, delete `C:\Users\MainPC\.platformio`. It's a broken half-install from the first attempt. The extension will download a fresh copy.
-3. `File > Open Folder` and choose `protogen-fw\ProtoESP-Controller` (the inner folder).
+3. `File > Open Folder` and choose `protogen-fw\BittenOS-Controller` (the inner folder).
 4. In the PlatformIO sidebar under `esp32-s3`: **Upload** for the firmware, then **Platform > Upload Filesystem Image** for the filesystem.
 
 ### Keeping your settings through a USB flash
@@ -301,7 +301,7 @@ A mask still on the old 8MB table needs one USB flash before over-the-air update
     - **Lowest** and **Highest** clamp the brightness (0–15). If the panels run from the board's 5V pin, the measured span is about 3W with stock faces at brightness 5 up to roughly 7W with every pixel lit at 15.
     - **Calibrating:** in the darkest place you'll wear it, press **Measure**, then **Use now** on **Dark point**. Do the same in bright light for **Bright point**. Light at or below the dark point gives Lowest, at or above the bright point gives Highest, and it's spread on a log scale in between, the way eyes see light. A change has to be worth more than half a step before it moves, and it eases one step at a time, so it doesn't flicker between two levels.
     - It needs the APDS-9930; if the sensor drops out, brightness goes back to the slider value until it's found again.
-16. **Status screen:** once a 0.96" 128×64 I2C SSD1306 OLED is wired (VCC to **3V3**, GND, SDA to GPIO 9, SCL to GPIO 10 — the same wires as the sensors, address 0x3C), flip on **Status screen** in Settings and pick **Screen brightness** (Dimmest, Dim, Medium, Bright or Brightest — it sets the screen's contrast, so the top step really is bright). **Upside down** turns the picture round if the screen is mounted the other way up. If it's on but not found, the switch's description says so. Turning it off blanks the screen. The screen's layout can be designed in the virtual tester at `/__screen` (saved to `data/screen.json`), though the firmware still draws ProtoESP's original screen for now.
+16. **Status screen:** once a 0.96" 128×64 I2C SSD1306 OLED is wired (VCC to **3V3**, GND, SDA to GPIO 9, SCL to GPIO 10 — the same wires as the sensors, address 0x3C), flip on **Status screen** in Settings and pick **Screen brightness** (Dimmest, Dim, Medium, Bright or Brightest — it sets the screen's contrast, so the top step really is bright). **Upside down** turns the picture round if the screen is mounted the other way up. If it's on but not found, the switch's description says so. Turning it off blanks the screen. The screen's layout can be designed in the virtual tester at `/__screen` (saved to `data/screen.json`), though the firmware still draws the original screen for now.
 17. **Blinks:** on the **Mask** tab, under the faces — the card only appears while a face the mask can actually blink is showing, so it stays out of the way the rest of the time. **Face's own** (the default) leaves every face to blink the way it was drawn. **Mask blinks** takes over: it holds the face on its open-eyed frame and blinks it at random gaps of 2.5 to 7 seconds, so it never falls into a rhythm. **None** holds that frame and never blinks.
 
     **Double blink** (default 25%) is how many of those come as a quick pair rather than one on its own — a second blink 90–190 ms behind the first, never three in a row. A single blink on a timer still reads as a machine ticking however random the gap; the occasional pair is the thing that makes it look alive. Set it to 0 for single blinks only.
@@ -365,7 +365,7 @@ To edit an existing face: pick it under **Load animation**, press **Load selecte
 
 ### Drawing without the mask
 
-The online Animator at <https://foxxo.cz/proto/animator.html> works with no hardware. Set **Config** to **custom**, paste these two lines, then press **Load config**:
+The standalone face maker in `BittenOS-Controller/tools/face-maker.html` works with no hardware, and so does the copy on the mask. Set **Config** to **custom**, paste these two lines, then press **Load config**:
 
 ```
 t13;t12;-;-;-;-;-;-;t1;t0;_;-;-;-;t7;-;-;t6;-;-;-;_;t11;t10;t9;t8;-;-;t5;t4;t3;t2
@@ -380,10 +380,10 @@ Save the file to your PC, then upload it from the phone with **Tools > Upload fa
 
 ## 7. Tools
 
-All of these are in `ProtoESP-Controller\tools\` and run from the `ProtoESP-Controller` folder:
+All of these are in `BittenOS-Controller\tools\` and run from the `BittenOS-Controller` folder:
 
 ```powershell
-cd C:\Users\MainPC\Documents\protogen-fw\ProtoESP-Controller
+cd C:\Users\MainPC\Documents\protogen-fw\BittenOS-Controller
 ```
 
 ### `tools/make_faces.py`: build the faces
@@ -429,7 +429,7 @@ It writes `icon-192.png`, `icon-512.png`, `icon-180.png` (iPhone) and `icon-mask
 
 ### `tools/convert_mk2_to_14.py`: convert 11-panel faces to 14 panels
 
-Faces shared online are mostly drawn for ProtoESP's 11-panel "M16 mk2" layout. On this mask they show junk on the last panels. This converts them.
+Faces shared online are mostly drawn for the stock 11-panel "M16 mk2" layout. On this mask they show junk on the last panels. This converts them.
 
 ```powershell
 python tools\convert_mk2_to_14.py
@@ -492,7 +492,7 @@ Some features are switched on in the web page, but some need a firmware change f
 | OLED | none | the OLED switch was taken off the page since none is fitted: set `"oledEna": true` in `data/config.json` and upload the filesystem, or add the switch back to `data/index.html` |
 | Wireless remote | none | flip Remote (BLE) on (Settings > Remote), then restart the mask |
 
-See `ProtoESP-Controller/readme.md` and `touchSensors.md` for sensor wiring.
+See `BittenOS-Controller/readme.md` and `touchSensors.md` for sensor wiring.
 
 ---
 
@@ -532,7 +532,7 @@ Harmless build warnings you can ignore: `CONFIG_BT_NIMBLE_MAX_CONNECTIONS redefi
 When the firmware crashes, it saves a report in flash (the `coredump` area). A power dip resets the board without saving one, so an empty report after a restart points to power instead. With the board plugged in, in PowerShell (replace `COM115` with your port):
 
 ```powershell
-cd C:\Users\MainPC\Documents\protogen-fw\ProtoESP-Controller
+cd C:\Users\MainPC\Documents\protogen-fw\BittenOS-Controller
 & C:\pio\penv\Scripts\python.exe -m esptool --chip esp32s3 -p COM115 read-flash 0xdd0000 0x10000 "$env:TEMP\coredump.bin"
 python -c "import struct,os;b=open(os.environ['TEMP']+'/coredump.bin','rb').read();n=struct.unpack('<I',b[:4])[0];open(os.environ['TEMP']+'/core.elf','wb').write(b[24:n]) if b[24:28]==b'\x7fELF' else print('no crash report saved')"
 & C:\pio\packages\tool-xtensa-esp-elf-gdb\bin\xtensa-esp32s3-elf-gdb.exe -batch -ex "bt" .pio\build\esp32-s3\firmware.elf "$env:TEMP\core.elf"
@@ -558,11 +558,11 @@ The last line prints the file and line number where it crashed. This only works 
   git commit -m "describe what you changed"
   git push
   ```
-  Your repo is the remote called `mine`. `origin` still points at NCPlyn's repository, so you can check for their updates with `git fetch origin`.
+  Your repo is the remote called `mine`. `origin` still points at the repository this was forked from, so you can check for its updates with `git fetch origin`.
 - **Ideas not built yet**, and decisions already made about them, are in [IDEAS.md](IDEAS.md).
 - **Undo options:**
   - The faces as they first came, converted to 14 panels, are in `anims_14panel_v1/`. The stock 11-panel originals are in `anims_original_11panel/`.
-  - The web pages from before the redesign are in `ProtoESP-Controller/ui_backup/before-redesign-2026-09-11/` (see `RESTORE.txt` there), and in git tag `ui-before-redesign`.
-  - `git checkout ProtoESP -- <file>` restores any file to NCPlyn's original.
+  - The web pages from before the redesign are in `BittenOS-Controller/ui_backup/before-redesign-2026-09-11/` (see `RESTORE.txt` there), and in git tag `ui-before-redesign`.
+  - `git checkout ProtoESP -- <file>` restores any file to its pre-fork state.
   - The Arduino Nano still has FurBitten's firmware. Plug it back in for the original mask.
-- License: GPL-3.0. Keep NCPlyn's credit line in `index.html` and `animator.html`.
+- License: GPL-3.0. The original author gave permission to remove their credit line; the licence itself stays with the code.

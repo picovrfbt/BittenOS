@@ -1,0 +1,4 @@
+Backup of the web UI before the 2026-09-11 redesign.
+
+To restore: copy these files back into BittenOS-Controller/data/ and upload the filesystem.
+Or from git:  git checkout ui-before-redesign -- BittenOS-Controller/data/index.html BittenOS-Controller/data/animator.html BittenOS-Controller/data/saved.html
