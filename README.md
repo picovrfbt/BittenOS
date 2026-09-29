@@ -218,7 +218,7 @@ Pages are served live from `data/`, so edits show up on reload. Faces and settin
 
 ## Credits and license
 
-BittenOS is GPL-3.0 (see `LICENSE`). It began life as a fork and has since been rewritten far enough that the original author gave permission to drop their credit line; the licence stays, because that travels with the code rather than being a courtesy.
+
 
 The scrolling-text font is the system font from the [MD_MAX72XX](https://github.com/MajicDesigns/MD_MAX72XX) library by MajicDesigns (LGPL-2.1).
 
