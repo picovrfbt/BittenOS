@@ -1,1723 +1,1397 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>BittenOS Animator</title>
-  <link rel="shortcut icon" href="data:," />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-  <main>
-    <header class="topbar"><a class="back" href="/">‹ Home</a><h1>Animator</h1><small>FurBitten 14-panel</small></header>
-    <div style="display:none"> <!-- EARS PART: hidden, this mask has no ear LEDs. Kept so faces with ear data still load and save. -->
-      <h2>Ears</h2>
-      <label for="typeEars">Animation: </label> <sup onclick="alert('Select custom or prefab ears animation')">&#9432;</sup>
-      <select id="typeEars">
-	    <option value="none">none</option>
-        <option value="custom">custom</option>
-        <option value="rainbow">rainbow</option>
-        <option value="white_noise">white_noise</option>
-        <option value="corner_sabers">corner_sabers</option>
-        <option value="custom_glow">custom_glow</option>
-      </select>
-	  <label for="earDisplayMode" style="margin-left:30px">Display: </label> <sup onclick="alert('Select display mode and LED config for ears')">&#9432;</sup>
-      <select id="earDisplayMode">
-        <option value="svg74">SVG 74 LED</option>
-        <option value="svg32">SVG 32 LED</option>
-        <option value="matrix">Matrix</option>
-      </select>
-      <div id="earsDiv">
-        <div id="divForSvg"></div>
-        <br>
-        <button onclick="if(confirm('Do you want to empty the current frame?')){fillBlackVisor();}">Fill black</button>
-        <button onclick="mirrorEars()">Copy left to right</button><br>
-        <div style="clear: both;">
-          <label for="timespanEars">Timespan:</label>
-          <input type="number" id="timespanEars" value="500" min="1">
-          <button onclick="frameGenEars(-1)">Add frame</button>
-        </div>
-        <div id="earsFramesP"></div>
-        <div id="editDivEars" style="display:none">
-          <button id="saveEditFrameEars" value="0">Save frame</button>
-          <button onclick="deleteFrameEars()">Delete frame</button>
-          <button onclick="cloneEarsFrame()">Clone frame</button>
-        </div>
-      </div>
-    </div> <!-- END OF EARS PART -->
-    <div class="usedColorsMain">
-      <div class="leftBtns">
-        <button onclick="playAnim();">Play animation</button>
-        <button onclick="stopAnim();">Stop</button>
-        <button onclick="nukeAll();">Reset all</button>
-      </div>
-      <div class="playBtns" style="display:none"> 
-        Pick color: <sup onclick="alert('The color which would set the ears color (black = off) or visor RGB pixel color (black = default matrix/visor color)')">&#9432;</sup><input type="color" id="color" value="#000000"> &nbsp;&nbsp;&nbsp; Used colors:
-      </div>
-      <div id="usedColors" style="display:none"></div>
-    </div>
-    <div> <!-- START OF VISOR PART -->
-      <h2>Visor</h2>
-      <b>Layout: FurBitten 14-panel</b>
-      <select id="visorConfig" style="display:none">
-        <option value="custom_file">custom_file</option>
-      </select>
-      <select id="typeVisor" style="display:none">
-        <option value="custom">custom</option>
-        <option value="all_rainbow">(RGB)all_rainbow</option>
-      </select><br>
-      <div id="customConfig" style="display: none;">
-        <label for="visorCfg">Visor cfg: </label>
-        <sup onclick="alert('\'t0\'.. means first matrix etc with numbering\n\'blush0\'.. means first blush segment etc with numbering\n\'-\' means nothing in place\n\'_\' means new line\nExample:\nt0;t1;-;-;-;-;t12;t13;_;-;-;-;t6;t7;-;-;-;_;t2;t3;t4;t5;t8;t9;t10;t11')">&#9432;</sup>
-        <input type="text" name="visorCfg" id="visorCfg" size=100><br>
-        <label for="mouthCfg">Mouth cfg: </label>
-        <sup onclick="alert('Array of bools telling if the segment in order is mouth or not\n(For dynamic speaking effect)\nExample:\n[false,false,true,true,true,true,false,false,true,true,true,true,false,false]')">&#9432;</sup>
-        <input type="text" name="mouthCfg" id="mouthCfg" size=100><br>
-        <button type="button" onclick="loadCustom();">Load config</button>
-      </div>
-      <br>
-      <div id="visorDiv">
-        <p class="rotate-hint">Tip: turn your phone sideways for a bigger drawing area. Drag across pixels to draw; drag between panels to scroll.</p>
-        <div id="matrixes"></div>
-        <br><br>
-        <p>Matrix control: <sup onclick="alert('There are keyboard shortcuts! Hover over buttons to see!\nTo add or remove matrix to/from selection, hold CTRL/CMD and click on matrix!\nActive pixels on selected matrices will shift over into selected neighbors!')">&#9432;</sup></p> 
-        <div style="display: flex;">
-          <div>
-            <button type="button" onclick='matrixAction = "select";' title="Keyboard: 'S' - Select matrix to work on">Select</button>
-            <button type="button" onclick='entireMatrix()' title="Keyboard: 'T' - Toggle entire selected matrix">Toggle</button>
-            <div id="shift-buttons-container">
-              <button id="shift-up-button" style="left:35px;" title="Keyboard: 'Up' - Shift matrix up">🔼</button>
-              <button id="shift-right-button" style="top:35px;left:70px;" title="Keyboard: 'Right' - Shift matrix right">▶️</button>
-              <button id="shift-down-button" style="top:70px;left:35px;" title="Keyboard: 'Down' - Shift matrix down">🔽</button>
-              <button id="shift-left-button" style="top:35px;" title="Keyboard: 'Left' - Shift matrix left">◀️</button>
-              <button id="invert-button" style="top:35px;left:35px;" title="Invert matrix">🔀</button>
-              <button id="rotate-back-button"title="Rotate matrix counterclock-wise">🔄</button>
-              <button id="rotate-button" style="left:70px;" title="Rotate matrix clockwise">🔃</button>
-              <button id="mirrorVertical-button" style="top:70px;left:70px;" title="Invert matrix vertically">↕️</button>
-              <button id="mirrorHorizontal-button" style="top:70px;" title="Invert matrix horizontally">↔️</button>
-            </div>
-          </div>
-          <div style="margin-left:20px;">
-            <button type="button" onclick='matrixAction = "row";' title="Keyboard: 'R' - Toggle entire clicked row">Row</button> <button type="button" onclick='matrixAction = "col";' title="Keyboard: 'C' - Toggle entire clicked column">Column</button> <sup onclick="alert('Click on Row/Column and then click on Row/Column which you want to toggle')">&#9432;</sup> &nbsp; &nbsp;
-            <button type="button" onclick='matrixAction = "paste";'title="Keyboard: 'V' - Select matrix to paste to">Paste</button> <sup onclick="alert('Click on Paste and then click on matrix which you want to paste the currently selected matrix')">&#9432;</sup><br>
-            <button type="button" onclick="if(confirm('Do you want to empty the current frame?')){fillBlackVisor();}">Empty visor</button>
-            <button type="button" onclick="mirrorVisor()">Copy left to right</button> <sup onclick="alert('Might not work due to wierd config/wiring')">&#9432;</sup><br>
-            <input type="color" id="fColor" value="#000000" style="display:none">
-            <label for="timespanVisor">Timespan: </label>
-            <input type="number" id="timespanVisor" value="500" min="1">
-            <button onclick="frameGenVisor(-1)">Add frame</button>
-          </div>
-        </div>
-        <div id="visorFramesP"></div>
-        <div id="editDivVisor" style="display:none">
-          <button id="saveEditFrameVisor" value="0">Save frame</button>
-          <button onclick="deleteFrameVisor()">Delete frame</button>
-          <button onclick="cloneVisorFrame()">Clone frame</button>
-        </div>
-      </div>
-    </div> <!-- END OF VISOR PART -->
-    <div>
-      <h2>Generate</h2>
-      <label for="canBlink" style="display:inline-block;margin-bottom:8px">
-        <input type="checkbox" id="canBlink"> The mask may blink this face
-        <sup onclick="alert('Tick this for a face that is a still look: the mask can then close and open its eyes for you, at random gaps, instead of you drawing blink frames.\n\nLeave it unticked for a face that animates itself, or the two blinks fight each other and stutter.\n\nThe eyes are the panels that are neither mouth nor nose.')">&#9432;</sup>
-      </label><br>
-      1. <button onclick="completeGen()">Generate final JSON</button><br>
-      <form action="./savefile" method="post" id="footerForm">
-        <label for="output">File content (paste here to load):</label><br>
-        <textarea rows="7" cols="50" name="content" id="output" required></textarea><br>
-        2. Name of animation (without .json): <input type="text" name="file" required id="fileName" style="margin-top: 5px;"><br>
-      </form>
-      <p>Load animation:</p>
-      <div id="espLoad">
-        <select name="file" id="avaibleanims"></select>
-        <button type="button" onclick="loadAnim(true)">Load selected anim</button>
-        <button type="button" onclick="deleteFile()">Delete selected file</button>
-      </div>
-      <button type="button" onclick="loadAnim(false)">Load from textarea</button>
-      <input type="file" id="localFile" accept=".json" style="display: none;">
-      <button onclick="loadLocalFile()">Load from local file</button>
-    </div>
-  </main>
-</body>
-</html>
-
+<meta charset="utf-8">
+<title>BittenOS Animator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f17">
+<link rel="icon" href="data:,">
 <style>
   :root {
     --bg:#0b0f17; --surface:#131a26; --surface2:#1a2333; --line:#253047;
-    --text:#e8edf6; --dim:#8c97ad; --accent:#4da3ff; --accent-soft:rgba(77,163,255,.14);
-    /* LED size follows the screen: ~9px on a phone held sideways, up to 22px on a desktop */
-    --led: clamp(9px, calc((100vw - 64px) / 92), 22px);
+    --text:#e8edf6; --dim:#8c97ad; --faint:#5f6b82;
+    --accent:#4da3ff; --accent-soft:rgba(77,163,255,.14); --bad:#ff6b6b; --good:#3ddc97;
+    --led:#5fb0ff; --led-off:#161e2e;
+    --radius:16px;
     color-scheme: dark;
   }
-  body {
-    margin:0; background:var(--bg); color:var(--text);
-    font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-    -webkit-tap-highlight-color:transparent;
-  }
-  main { max-width:1400px; margin:0 auto; padding:0 12px 24px; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--text); }
+  body { font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  [hidden] { display:none !important; }
+  button { font:inherit; color:inherit; }
+  svg.i { width:20px; height:20px; flex:none; }
 
   /* top bar */
-  .topbar { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:12px;
-            margin:0 -12px 14px; padding:10px 16px; background:rgba(11,15,23,.86);
-            -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
-  .topbar h1 { margin:0; font-size:18px; text-align:left; }
-  .topbar small { color:var(--dim); font-weight:400; font-size:12px; margin-left:auto; }
-  .back { color:var(--accent); text-decoration:none; font-weight:600; padding:8px 12px; border-radius:10px; background:var(--accent-soft); }
+  .topbar { position:sticky; top:0; z-index:10; background:rgba(11,15,23,.9); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+            border-bottom:1px solid var(--line); }
+  .topbar-in { max-width:1280px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:8px; }
+  .back { flex:none; color:var(--accent); text-decoration:none; font-weight:600; padding:8px 10px 8px 4px; }
+  .title { min-width:0; flex:1; line-height:1.15; }
+  .title b { display:block; font-size:17px; }
+  .title small { display:block; color:var(--dim); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .icon-btn { appearance:none; -webkit-appearance:none; flex:none; width:42px; height:42px; border-radius:12px; border:1px solid var(--line);
+              background:var(--surface2); display:grid; place-items:center; cursor:pointer; padding:0; }
+  .icon-btn:disabled { opacity:.35; cursor:default; }
+  .icon-btn:active:not(:disabled) { transform:scale(.95); }
 
-  main > div { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 16px; margin-bottom:14px; }
-  h1, h2 { margin-block-start:.2em; margin-block-end:.6em; }
-  h2 { font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; text-align:left; }
-  p { margin-block-start:.5em; margin-block-end:.3em; }
+  main { max-width:1280px; margin:0 auto; padding:16px 16px calc(40px + env(safe-area-inset-bottom)); display:grid; gap:16px; }
+  @media (min-width:980px) { main { grid-template-columns:minmax(0, 1fr) 340px; align-items:start; } .side { position:sticky; top:78px; } }
+  .side { display:grid; gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; min-width:0; }
+  .card h2 { margin:0 0 12px; font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.08em;
+             display:flex; align-items:center; gap:8px; }
+  .card h2 .grow { flex:1; }
+  .hint { font-size:13px; color:var(--dim); margin:10px 0 0; }
 
-  /* controls */
-  button, input[type="submit"], input[type="file"]::file-selector-button {
-    background:var(--surface2); color:var(--text); border:1px solid var(--line); border-radius:10px;
-    padding:9px 12px; min-height:40px; font:inherit; font-size:14px; font-weight:600; cursor:pointer;
-    transition:border-color .1s ease;
-  }
-  button:hover, input[type="submit"]:hover { border-color:var(--accent); }
-  button:active, input[type="submit"]:active { transform:scale(.98); }
-  input[type="submit"] { background:var(--accent); border-color:var(--accent); color:#04101f; }
-  input, option, button { margin-bottom:6px; }
-  input[type=number] { width:90px; }
-  input[type="text"], input[type="number"], input[type="file"], select, textarea {
-    background:var(--bg); border:1px solid var(--line); border-radius:10px; color:var(--text);
-    padding:8px 10px; min-height:40px; font:inherit; font-size:14px; box-sizing:border-box;
-  }
-  input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
-    outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);
-  }
-  button:focus-visible, input[type="submit"]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  textarea { width:100%; font-family:ui-monospace, Consolas, "Courier New", monospace; font-size:12px; }
-  input[type="color"] { width:50px; height:35px; border:none; cursor:pointer; background:transparent; vertical-align:middle !important; }
-  select option { background:var(--surface2); color:#fff; }
-  #output, form label { margin-left:0; }
+  /* buttons, as on the home page */
+  .btn { -webkit-appearance:none; appearance:none; border:1px solid var(--line); background:var(--surface2); color:var(--text);
+         border-radius:12px; padding:10px 14px; min-height:44px; font-weight:600; cursor:pointer; text-decoration:none;
+         display:inline-flex; align-items:center; justify-content:center; gap:8px; text-align:center; }
+  .btn:active:not(:disabled) { transform:scale(.98); }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#04101f; }
+  .btn.small { min-height:38px; padding:7px 12px; font-size:14px; border-radius:10px; }
+  .btn.danger { color:var(--bad); }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .btn.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  input[type=text], input[type=number], textarea { width:100%; min-height:44px; background:var(--bg); color:var(--text);
+    border:1px solid var(--line); border-radius:10px; padding:9px 12px; font:inherit; }
+  textarea { font:13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; resize:vertical; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .toggle { -webkit-appearance:none; appearance:none; flex:none; width:50px; height:30px; margin:0; border-radius:15px;
+            background:#2a3448; position:relative; cursor:pointer; transition:background .15s; }
+  .toggle::after { content:""; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff;
+                   box-shadow:0 1px 3px rgba(0,0,0,.4); transition:transform .15s; }
+  .toggle:checked { background:var(--accent); }
+  .toggle:checked::after { transform:translateX(20px); }
 
-  /* the shift / rotate / mirror pad keeps its absolute layout */
-  #shift-buttons-container { position:relative; box-sizing:content-box; width:130px; height:105px; margin-bottom:0 !important; margin-left:15px; }
-  #rotate-button,#rotate-back-button,#invert-button,#shift-up-button,#shift-right-button,#shift-down-button,#shift-left-button,#mirrorVertical-button,#mirrorHorizontal-button {
-    position:absolute; height:30px; width:30px; min-height:0; margin:0; box-sizing:border-box; padding:0;
-    font-size:18px; background-color:transparent; border-radius:0; border:none;
-  }
+  /* tools: an icon over a short word, so they read on a phone without a legend */
+  .tools { display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; }
+  .tool { appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:var(--surface2); border-radius:12px;
+          min-height:54px; padding:6px 2px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+          font-size:11px; font-weight:600; color:var(--dim); }
+  .tool.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .tool:active { transform:scale(.97); }
+  .viewbar { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; align-items:center; }
+  .viewbar .spacer { flex:1; }
+  .chip { appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:var(--surface2); border-radius:999px;
+          min-height:36px; padding:6px 12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:var(--dim); }
+  .chip svg.i { width:16px; height:16px; }
+  .chip.icon { padding:6px 9px; }
+  .viewbar .spacer + .chip, .viewbar .spacer ~ .chip { margin-left:0; }
+  .chip.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .chip:disabled { opacity:.4; cursor:default; }
+
+  /* the drawing area. touch-action:none on the canvas: one finger draws, two pan and pinch */
+  .stage { margin-top:12px; border-radius:12px; background:#05070c; border:1px solid var(--line); overflow:auto; overscroll-behavior:contain;
+           max-height:70vh; position:relative; }
+  .stage canvas { display:block; touch-action:none; margin:0 auto; cursor:crosshair; }
+  .stage-note { font-size:12px; color:var(--faint); margin:6px 2px 0; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+
+  /* panel and frame actions */
+  .actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .actions .label { flex-basis:100%; font-size:12px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  .sq { appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:var(--surface2); border-radius:10px;
+        min-width:42px; height:42px; padding:0 10px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+        font-size:13px; font-weight:600; }
+  .sq:active:not(:disabled) { transform:scale(.95); }
+  .sq:disabled { opacity:.35; cursor:default; }
+  .sq.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .sq.danger { color:var(--bad); }
 
   /* frames */
-  #earsFramesP, #visorFramesP { position:relative; min-height:54px; padding:5px; border-radius:10px; font-weight:bold; font-size:20px; background:var(--bg); border:1px solid var(--line); }
-  #earsFramesP::before, #visorFramesP::before { content:'FRAMES'; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-    font-size:40px; letter-spacing:10px; color:rgba(255,255,255,.07); pointer-events:none; z-index:0; }
-  #earsFramesP a, #visorFramesP a { position:relative; display:inline-block; margin:5px; padding:5px 12px; cursor:pointer;
-    border-radius:8px; background:var(--accent-soft); color:var(--text); transition:background .1s ease; }
-  #earsFramesP a:hover, #visorFramesP a:hover { background:rgba(77,163,255,.28); }
+  .preview { display:flex; gap:12px; align-items:center; }
+  .preview canvas { flex:1; min-width:0; max-width:260px; height:auto; background:#05070c; border-radius:8px; border:1px solid var(--line); }
+  .preview .col { display:grid; gap:6px; flex:none; }
+  .strip { position:relative; display:flex; gap:8px; overflow-x:auto; padding:4px 2px 10px; margin-top:12px; scroll-snap-type:x proximity; }
+  .thumb { flex:none; width:112px; border:1px solid var(--line); background:var(--surface2); border-radius:10px; padding:5px; cursor:pointer;
+           scroll-snap-align:center; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:pan-x; position:relative; }
+  .thumb canvas { width:100%; display:block; border-radius:5px; background:#05070c; pointer-events:none; }
+  .thumb span { display:flex; justify-content:space-between; font-size:11px; color:var(--dim); margin-top:4px; padding:0 2px; }
+  .thumb.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .thumb.on span { color:var(--accent); }
+  .thumb.lifted { opacity:.4; }
+  .thumb.playing { border-color:var(--good); }
+  .thumb.add { display:grid; place-items:center; color:var(--dim); font-size:12px; font-weight:600; min-height:60px; }
+  .drop-mark { flex:none; width:3px; border-radius:2px; background:var(--accent); align-self:stretch; }
+  .frame-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+  .ms { display:flex; align-items:center; gap:6px; }
+  .ms input { width:92px; min-height:42px; text-align:right; }
+  .ms small { color:var(--dim); }
 
-  /* play / stop / reset row */
-  .usedColorsMain { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  .usedColorsMain button { margin-top:5px; }
-  .leftBtns { display:flex; gap:6px; flex-wrap:wrap; }
-  .playBtns { padding-left:10px; white-space:nowrap; }
-  #usedColors { display:flex; gap:4px; flex-wrap:wrap; }
-  .colorItem { width:40px; min-width:40px; max-width:40px; height:30px; min-height:30px; max-height:30px; border:solid 1px gray; cursor:pointer; }
+  /* save */
+  .field { display:grid; gap:6px; margin-bottom:12px; }
+  .field label { font-size:13px; font-weight:600; color:var(--dim); }
+  .row { display:flex; align-items:center; gap:12px; padding:6px 0 12px; }
+  .row-text { flex:1; min-width:0; display:grid; gap:1px; }
+  .row-text small { color:var(--dim); font-size:13px; line-height:1.3; }
+  .btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn-row .btn { flex:1 1 140px; white-space:nowrap; }
 
-  /* LED matrices */
-  #matrixes { display:flex; justify-content:center; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch; }
-  @media (max-width:1100px) { #matrixes { justify-content:flex-start; } }
-  .leds-matrix { background:#05070c; border:1px solid var(--line); border-radius:6px; border-collapse:separate; border-spacing:max(1px, calc(var(--led) * .14)); }
-  .leds-matrix .item {
-    width:var(--led); min-width:var(--led); max-width:var(--led);
-    height:var(--led); min-height:var(--led); max-height:var(--led);
-    cursor:pointer; border-radius:50%; background:#1a2233; box-sizing:border-box;
-  }
-  .leds-matrix .item.active { background:var(--active-color, #4da3ff); box-shadow:0 0 calc(var(--led) * .45) rgba(77,163,255,.55); }
-  .leds-matrix .item:hover { box-shadow:inset 0 0 0 1px var(--accent); }
-  .leds-matrix { touch-action:none; }  /* drags that start on a panel draw instead of scrolling */
+  /* dialogs */
+  dialog { border:1px solid var(--line); background:var(--surface); color:var(--text); border-radius:var(--radius); padding:0;
+           width:min(560px, calc(100% - 24px)); max-height:calc(100% - 48px); }
+  dialog::backdrop { background:rgba(0,0,0,.6); }
+  .dlg-head { display:flex; align-items:center; gap:8px; padding:14px 16px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--surface); z-index:1; }
+  .dlg-head b { flex:1; font-size:16px; }
+  .dlg-body { padding:16px; }
+  .face-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+  .face-pick { appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:var(--surface2); border-radius:12px; padding:8px;
+               cursor:pointer; text-align:left; display:grid; gap:6px; }
+  .face-pick canvas { width:100%; display:block; border-radius:6px; background:#05070c; }
+  .face-pick span { font-size:14px; font-weight:600; text-transform:capitalize; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .face-pick.cur { border-color:var(--accent); }
+  .menu-list { display:grid; gap:8px; }
+  .menu-list .btn { justify-content:flex-start; }
+  .keys { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:14px; }
+  .keys kbd { font:12px ui-monospace, monospace; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:2px 6px; white-space:nowrap; }
 
-  .blush { margin-left:auto; margin-right:auto; }
-  .blush td { width:30px; min-width:30px; max-width:30px; height:32px; min-height:32px; max-height:32px; }
-  .blush .item { cursor:pointer; border-radius:50%; box-shadow:inset 0 0 1px #666666; background:#000000; }
-  path { cursor:pointer; }
-  #divForSvg { text-align:center; overflow-x:auto; display:flex; justify-content:center; flex-wrap:wrap; }
-
-  sup { cursor:pointer; color:var(--accent); font-weight:bold; vertical-align:middle !important; }
-  sup:hover { color:#90caf9; }
-
-  .rotate-hint { display:none; color:var(--dim); font-size:13px; margin:0 0 8px; }
-  @media (max-width:600px) and (orientation:portrait) { .rotate-hint { display:block; } }
-
-  /* stack the matrix tools on narrow screens */
-  #visorDiv > div[style*="display: flex"] { flex-wrap:wrap; gap:12px; }
-  @media (max-width:600px) {
-    main > div { padding:12px; }
-    #visorDiv > div[style*="display: flex"] > div { margin-left:0 !important; }
-  }
-
-  .rainbow-text { font-weight:bold; background-image:repeating-linear-gradient(45deg, violet, indigo, blue, green, yellow, orange, red, violet);
-    background-size:800% 800%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:rainbow 8s ease infinite; }
-  @keyframes rainbow { 0% {background-position:0% 50%} 50% {background-position:100% 25%} 100% {background-position:0% 50%} }
-  @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+  .toast { position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:30; max-width:calc(100% - 32px);
+    transform:translate(-50%, 16px); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; display:flex; align-items:center; gap:12px;
+    background:#1f2a3d; border:1px solid var(--line); border-radius:12px; padding:12px 18px; font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,.45); }
+  .toast.show { opacity:1; transform:translate(-50%, 0); pointer-events:auto; }
+  .toast.err { border-color:var(--bad); color:#ffd2d2; }
+  .toast button { appearance:none; -webkit-appearance:none; background:none; border:0; color:var(--accent); font-weight:700; cursor:pointer; padding:0; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+  @media (max-width:420px) { .tool { font-size:10px; } .card { padding:14px 12px; } main { padding-left:12px; padding-right:12px; } }
 </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="back" href="/" id="backLink">‹ Home</a>
+    <div class="title"><b id="pageTitle">Animator</b><small id="faceTitle">New face</small></div>
+    <button class="icon-btn" id="undoBtn" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled><i data-i="undo"></i></button>
+    <button class="icon-btn" id="redoBtn" type="button" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled><i data-i="redo"></i></button>
+    <button class="icon-btn" id="menuBtn" type="button" aria-label="Face menu" title="Open, new, import, export"><i data-i="more"></i></button>
+  </div>
+</header>
 
-<script type="text/javascript" src="jquerymin.js"></script>
+<main>
+  <section class="card" aria-label="Drawing">
+    <div class="tools" role="toolbar" aria-label="Tools">
+      <button class="tool on" type="button" data-tool="pen" title="Pen (P)"><i data-i="pen"></i>Pen</button>
+      <button class="tool" type="button" data-tool="erase" title="Eraser (E)"><i data-i="erase"></i>Eraser</button>
+      <button class="tool" type="button" data-tool="line" title="Line (L)"><i data-i="line"></i>Line</button>
+      <button class="tool" type="button" data-tool="rect" title="Box (B)"><i data-i="rect"></i>Box</button>
+      <button class="tool" type="button" data-tool="fill" title="Fill (F): fills or empties the shape you tap, inside one panel"><i data-i="fill"></i>Fill</button>
+      <button class="tool" type="button" data-tool="select" title="Select a panel (S)"><i data-i="select"></i>Panel</button>
+    </div>
+    <div class="viewbar">
+      <button class="chip" id="mirrorBtn" type="button" aria-pressed="false" title="Mirror (M): whatever you draw on one side is drawn on the other"><i data-i="mirror"></i>Mirror</button>
+      <button class="chip" id="onionBtn" type="button" aria-pressed="false" title="Onion skin (O): the previous frame shows faintly underneath"><i data-i="onion"></i>Onion</button>
+      <span class="spacer"></span>
+      <button class="chip icon" id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out (-)"><i data-i="minus"></i></button>
+      <button class="chip" id="zoomFit" type="button" title="Fit to screen (0)">Fit</button>
+      <button class="chip icon" id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in (+)"><i data-i="plus"></i></button>
+    </div>
+    <div class="stage" id="stage"><canvas id="visor" aria-label="The visor: draw on it"></canvas></div>
+    <p class="stage-note"><span id="stageNote">Seen from the front, as people see the mask.</span><span id="coord"></span></p>
+
+    <div class="actions" id="panelActions" hidden>
+      <span class="label" id="panelLabel">Panel</span>
+      <button class="sq" type="button" data-op="left" aria-label="Shift left" title="Shift left (←)"><i data-i="left"></i></button>
+      <button class="sq" type="button" data-op="up" aria-label="Shift up" title="Shift up (↑)"><i data-i="up"></i></button>
+      <button class="sq" type="button" data-op="down" aria-label="Shift down" title="Shift down (↓)"><i data-i="down"></i></button>
+      <button class="sq" type="button" data-op="right" aria-label="Shift right" title="Shift right (→)"><i data-i="right"></i></button>
+      <button class="sq" type="button" data-op="flipH" aria-label="Flip left to right" title="Flip left to right"><i data-i="flipH"></i></button>
+      <button class="sq" type="button" data-op="flipV" aria-label="Flip upside down" title="Flip upside down"><i data-i="flipV"></i></button>
+      <button class="sq" type="button" data-op="rotate" aria-label="Rotate clockwise" title="Rotate clockwise"><i data-i="rotate"></i></button>
+      <button class="sq" type="button" data-op="invert" aria-label="Invert" title="Invert (I)"><i data-i="invert"></i></button>
+      <button class="sq" type="button" data-op="copy" title="Copy this panel (Ctrl+C)"><i data-i="copy"></i>Copy</button>
+      <button class="sq" type="button" data-op="paste" title="Paste onto this panel (Ctrl+V)" disabled><i data-i="paste"></i>Paste</button>
+      <button class="sq danger" type="button" data-op="clear" title="Empty this panel (Delete)"><i data-i="trash"></i>Empty</button>
+      <button class="sq" type="button" id="mouthBtn" aria-pressed="false" title="Mouth panels move when you talk, and bob with Mouth bob"><i data-i="mouth"></i>Mouth</button>
+    </div>
+    <div class="actions">
+      <span class="label">Whole frame</span>
+      <button class="sq" type="button" data-fop="up" aria-label="Shift the whole face up" title="Shift the whole face up"><i data-i="up"></i></button>
+      <button class="sq" type="button" data-fop="down" aria-label="Shift the whole face down" title="Shift the whole face down"><i data-i="down"></i></button>
+      <button class="sq" type="button" data-fop="mirrorLR" id="mirrorLR" title="Copy the left side onto the right, mirrored"><i data-i="mirror"></i>Left → right</button>
+      <button class="sq" type="button" data-fop="mirrorRL" id="mirrorRL" title="Copy the right side onto the left, mirrored"><i data-i="mirror"></i>Right → left</button>
+      <button class="sq" type="button" data-fop="copyPrev" title="Replace this frame with the one before it">Copy previous</button>
+      <button class="sq danger" type="button" data-fop="clear" title="Empty the whole frame"><i data-i="trash"></i>Empty</button>
+    </div>
+  </section>
+
+  <div class="side">
+    <section class="card" aria-label="Frames">
+      <h2><span class="grow">Frames</span><span id="frameCount" style="text-transform:none;letter-spacing:0">1 frame</span></h2>
+      <div class="preview">
+        <canvas id="preview" aria-label="Preview"></canvas>
+        <div class="col">
+          <button class="btn small" id="playBtn" type="button" title="Play the face here (Space)"><i data-i="play"></i><span>Play</span></button>
+          <button class="btn small" id="tryBtn" type="button" title="Play it on the mask without saving"><i data-i="send"></i>On mask</button>
+        </div>
+      </div>
+      <div class="strip" id="strip" aria-label="Frames, long-press and drag to reorder"></div>
+      <div class="frame-row">
+        <div class="ms"><input type="number" id="msInput" min="10" max="60000" step="10" inputmode="numeric" aria-label="How long this frame shows, in milliseconds"><small>ms</small></div>
+        <button class="sq" type="button" id="msAll" title="Give every frame this length">All</button>
+        <span style="flex:1"></span>
+        <button class="sq" type="button" id="moveLeft" aria-label="Move frame earlier" title="Move earlier"><i data-i="left"></i></button>
+        <button class="sq" type="button" id="moveRight" aria-label="Move frame later" title="Move later"><i data-i="right"></i></button>
+      </div>
+      <div class="frame-row">
+        <button class="sq" type="button" id="addFrame" title="Add an empty frame after this one"><i data-i="plus"></i>New</button>
+        <button class="sq" type="button" id="dupFrame" title="Duplicate this frame (D)"><i data-i="copy"></i>Duplicate</button>
+        <button class="sq danger" type="button" id="delFrame" title="Delete this frame"><i data-i="trash"></i>Delete</button>
+      </div>
+      <p class="hint">Tap a frame to edit it. Long-press and drag to move it. <kbd style="font:inherit">,</kbd> and <kbd style="font:inherit">.</kbd> step through them on a keyboard.</p>
+    </section>
+
+    <section class="card" aria-label="Save">
+      <h2>Save</h2>
+      <div class="field">
+        <label for="nameInput">Name</label>
+        <input type="text" id="nameInput" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="my-face">
+      </div>
+      <label class="row">
+        <span class="row-text"><b>The mask may blink this face</b><small>For a still look. The mask closes and opens the eyes for you. Leave it off for a face that animates itself.</small></span>
+        <input type="checkbox" class="toggle" id="blinkToggle">
+      </label>
+      <div class="btn-row">
+        <button class="btn primary" id="saveBtn" type="button"><i data-i="save"></i><span id="saveLabel">Save to mask</span></button>
+        <button class="btn" id="exportBtn" type="button"><i data-i="download"></i>Download</button>
+      </div>
+      <p class="hint" id="saveHint">Saved faces show up on the home page straight away.</p>
+    </section>
+  </div>
+</main>
+
+<dialog id="menuDlg">
+  <div class="dlg-head"><b>Face</b><button class="icon-btn" type="button" data-close aria-label="Close"><i data-i="x"></i></button></div>
+  <div class="dlg-body menu-list">
+    <button class="btn" type="button" id="openBtn"><i data-i="folder"></i>Open a face from the mask</button>
+    <button class="btn" type="button" id="newBtn"><i data-i="plus"></i>New face</button>
+    <button class="btn" type="button" id="importBtn"><i data-i="upload"></i>Import a .json file</button>
+    <button class="btn" type="button" id="layoutBtn" hidden><i data-i="select"></i>Panel layout</button>
+    <button class="btn" type="button" id="keysBtn"><i data-i="keys"></i>Keyboard shortcuts</button>
+    <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  </div>
+</dialog>
+
+<dialog id="openDlg">
+  <div class="dlg-head"><b>Open a face</b><button class="icon-btn" type="button" data-close aria-label="Close"><i data-i="x"></i></button></div>
+  <div class="dlg-body"><div class="face-list" id="faceList"></div></div>
+</dialog>
+
+<dialog id="layoutDlg">
+  <div class="dlg-head"><b>Panel layout</b><button class="icon-btn" type="button" data-close aria-label="Close"><i data-i="x"></i></button></div>
+  <div class="dlg-body">
+    <div class="field">
+      <label for="layoutText">Layout, as in visType.txt</label>
+      <textarea id="layoutText" rows="3"></textarea>
+      <small class="hint" style="margin:0"><code>tN</code> is panel N, <code>-</code> is a gap, <code>_</code> starts a new row, separated by <code>;</code></small>
+    </div>
+    <div class="field">
+      <label for="mouthText">Mouth panels, as in visTypeMouth.txt</label>
+      <textarea id="mouthText" rows="2"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn" type="button" id="layoutReset">This mask's layout</button>
+      <button class="btn primary" type="button" id="layoutApply">Use this layout</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="keysDlg">
+  <div class="dlg-head"><b>Keyboard shortcuts</b><button class="icon-btn" type="button" data-close aria-label="Close"><i data-i="x"></i></button></div>
+  <div class="dlg-body keys">
+    <kbd>P E L B F S</kbd><span>Pen, eraser, line, box, fill, select panel</span>
+    <kbd>M</kbd><span>Mirror drawing</span>
+    <kbd>O</kbd><span>Onion skin</span>
+    <kbd>Ctrl Z</kbd><span>Undo</span>
+    <kbd>Ctrl Shift Z / Ctrl Y</kbd><span>Redo</span>
+    <kbd>, .</kbd><span>Previous / next frame</span>
+    <kbd>D</kbd><span>Duplicate frame</span>
+    <kbd>Space</kbd><span>Play / stop</span>
+    <kbd>Arrows</kbd><span>Shift the selected panel</span>
+    <kbd>I</kbd><span>Invert the selected panel</span>
+    <kbd>Ctrl C / Ctrl V</kbd><span>Copy / paste a panel</span>
+    <kbd>Delete</kbd><span>Empty the selected panel</span>
+    <kbd>+ − 0</kbd><span>Zoom in, out, fit</span>
+    <kbd>Two fingers</kbd><span>Pan and pinch-zoom on a phone</span>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastAct" hidden></button></div>
+
 <script>
-  let visType = "", visTypeMouth = "", numOfSegm = 0, numOfBlush = 0, nowEditEarsFrame = 0, curColor = "#000000", isMouseDown = false, nowEditVisorFrame = 0, matrixAction = "";
-  let selMatrix = [], framesEars = [], framesVisor = [];
-  let cachedNeighborMap = {};
-  
-  const rgb2hex = (rgb) => `${rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/).slice(1).map(n => parseInt(n, 10).toString(16).padStart(2, '0')).join('')}`;
-  
-  /*-----------------------------------HTML GENS / LISTENERS-----------------------------------*/
-  // Helper: returns "74" or "32" from current display mode (only relevant for svg)
-  function earLedCount() {
-    return $("#earDisplayMode").val() === "svg32" ? 32 : 74;
+'use strict';
+/* BittenOS face editor. The same file runs on the mask (/animator.html) and, with data-standalone on
+   the <html> tag, as tools/face-maker.html, which needs no mask and saves as a download.
+
+   A face file is {"ears":{...},"visor":{"type","isMouth","frames":[{"timespan","leds":[hex,...]}]}}.
+   Each panel is one hex word: byte r is row r counting down from the top, bit c of it is column c
+   counting from the left, as seen from the front. The firmware reads it with strtoull, so leading
+   zeros don't matter - but a panel that isn't edited is written back exactly as it was read, and so
+   is every key this editor doesn't know about (ears, then, per-pixel colours), so opening a face and
+   saving it again changes nothing in the file. */
+
+const STANDALONE = document.documentElement.hasAttribute('data-standalone');
+// This mask's layout, for the standalone page and as a fallback if the mask doesn't answer
+const MASK_LAYOUT = 't13;t12;-;-;-;-;-;-;t1;t0;_;-;-;-;t7;-;-;t6;-;-;-;_;t11;t10;t9;t8;-;-;t5;t4;t3;t2';
+const MASK_MOUTH = [false,false,true,true,true,true,false,false,true,true,true,true,false,false];
+const NO_CACHE = {cache: 'no-store'};
+const $ = id => document.getElementById(id);
+
+/* ---------- icons ---------- */
+const ICONS = {
+  pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  erase: '<path d="M20 20H9l-5-5a2 2 0 0 1 0-2.8L13.2 3a2 2 0 0 1 2.8 0L21 8a2 2 0 0 1 0 2.8L11 20"/><path d="M6.5 10.5l7 7"/>',
+  line: '<path d="M5 19L19 5"/><circle cx="5" cy="19" r="1.5"/><circle cx="19" cy="5" r="1.5"/>',
+  rect: '<rect x="4" y="5" width="16" height="14" rx="1.5"/>',
+  fill: '<path d="M19 11l-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2a2 2 0 0 0 2.8 0z"/><path d="M5 2l5 5"/><path d="M20 15s2 2.3 2 4a2 2 0 0 1-4 0c0-1.7 2-4 2-4z"/>',
+  select: '<rect x="4" y="4" width="16" height="16" rx="1.5" stroke-dasharray="3 3"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  mirror: '<path d="M12 3v18"/><path d="M8 8l-4 4 4 4"/><path d="M16 8l4 4-4 4"/>',
+  onion: '<rect x="3" y="3" width="12" height="12" rx="1.5" stroke-dasharray="2.5 2.5"/><rect x="9" y="9" width="12" height="12" rx="1.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
+  left: '<path d="M15 6l-6 6 6 6"/>',
+  right: '<path d="M9 6l6 6-6 6"/>',
+  up: '<path d="M6 15l6-6 6 6"/>',
+  down: '<path d="M6 9l6 6 6-6"/>',
+  flipH: '<path d="M12 3v18"/><path d="M8 7L3 12l5 5z"/><path d="M16 7l5 5-5 5z"/>',
+  flipV: '<path d="M3 12h18"/><path d="M7 8l5-5 5 5z"/><path d="M7 16l5 5 5-5z"/>',
+  rotate: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  invert: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+  paste: '<path d="M9 4h6v3H9z"/><path d="M15 5h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h3"/>',
+  trash: '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
+  mouth: '<path d="M4 10c2.5 4 13.5 4 16 0"/><path d="M6 14c2 2.5 10 2.5 12 0"/>',
+  play: '<path d="M7 4v16l13-8z" fill="currentColor"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/>',
+  send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+  save: '<path d="M5 3h11l5 5v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M7 3v5h8V3"/><path d="M7 21v-7h10v7"/>',
+  download: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/>',
+  upload: '<path d="M12 21V9"/><path d="M7 14l5-5 5 5"/><path d="M4 3h16"/>',
+  folder: '<path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',
+  keys: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+};
+function icon(name) {
+  return '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+}
+document.querySelectorAll('i[data-i]').forEach(el => { el.outerHTML = icon(el.dataset.i); });
+
+/* ---------- toast ---------- */
+function toast(msg, isError, action) {
+  $('toastText').textContent = msg;
+  $('toast').className = 'toast show' + (isError ? ' err' : '');
+  const b = $('toastAct');
+  b.hidden = !action;
+  if (action) { b.textContent = action.label; b.onclick = () => { $('toast').className = 'toast'; action.run(); }; }
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { $('toast').className = 'toast'; }, action ? 6000 : 2600);
+}
+
+/* ---------- layout ---------- */
+// grid[row][col] is a panel number or -1. mirror[p] is the panel in the same place on the other side.
+let L = null;
+
+function parseLayout(txt, mouthTxt) {
+  const rows = [[]];
+  for (const tok of String(txt).trim().split(';')) {
+    const t = tok.trim();
+    if (t === '_') rows.push([]); else rows[rows.length - 1].push(t);
   }
-  // Helper: returns "svg" or "matrix"
-  function earMode() {
-    return $("#earDisplayMode").val() === "matrix" ? "matrix" : "svg";
+  const W = Math.max(...rows.map(r => r.length));
+  const grid = rows.map(r => Array.from({length: W}, (_, c) => /^t\d+$/.test(r[c] || '') ? parseInt(r[c].slice(1), 10) : -1));
+  const n = Math.max(-1, ...grid.flat()) + 1;
+  if (n < 1 || n > 64) throw new Error('No panels in that layout');
+  const where = [];
+  grid.forEach((row, r) => row.forEach((p, c) => { if (p >= 0) where[p] = {r, c}; }));
+  const mirror = new Int16Array(n).fill(-1);
+  let symmetric = true;
+  for (let p = 0; p < n; p++) {
+    if (!where[p]) { symmetric = false; continue; }
+    const q = grid[where[p].r][W - 1 - where[p].c];
+    if (q >= 0) mirror[p] = q; else symmetric = false;
   }
+  // empty in every row: drawn narrower, so the two halves sit closer and the panels get bigger
+  const colEmpty = Array.from({length: W}, (_, c) => grid.every(r => r[c] < 0));
+  let mouth = null;
+  try { mouth = JSON.parse(mouthTxt); } catch (e) {}
+  if (!Array.isArray(mouth)) mouth = [];
+  mouth = Array.from({length: n}, (_, i) => !!mouth[i]);
+  return {txt: String(txt).trim(), grid, W, H: grid.length, n, where, mirror, symmetric, colEmpty, mouth};
+}
 
-  // Generate an ear matrix table — same leds-matrix class as visor, items are plain .item td
-  function earMatrixHTML(tableId) {
-    var out = ['<table class="leds-matrix" id="'+tableId+'">'];
-    for (var i = 1; i < 9; i++) {
-      out.push('<tr>');
-      for (var j = 1; j < 9; j++) {
-        out.push('<td class="item ear-item" data-row="' + i + '" data-col="' + j + '"></td>');
-      }
-      out.push('</tr>');
-    }
-    out.push('</table>');
-    return out.join('');
+/* ---------- the face being edited ---------- */
+// frames[i] = {t: ms, px: Uint8Array(n*8) one byte a row, orig: the file's hex strings, keys: the frame's
+// key order, extra: keys this editor doesn't touch}
+let face = null;
+let cur = 0;            // frame being edited
+let sel = -1;           // selected panel, -1 for none
+let dirty = false;
+let clip = null;        // copied panel, 8 rows
+
+function hexToRows(h, px, off) {
+  let v = 0n;
+  try { v = BigInt('0x' + (String(h || '0').trim() || '0')) & 0xFFFFFFFFFFFFFFFFn; } catch (e) { v = 0n; }
+  for (let r = 0; r < 8; r++) px[off + r] = Number((v >> BigInt(r * 8)) & 0xFFn);
+}
+function rowsToBig(px, off) {
+  let v = 0n;
+  for (let r = 0; r < 8; r++) v |= BigInt(px[off + r]) << BigInt(r * 8);
+  return v;
+}
+function canonical(h) {
+  try { return (BigInt('0x' + (String(h || '0').trim() || '0')) & 0xFFFFFFFFFFFFFFFFn).toString(16); } catch (e) { return null; }
+}
+
+function blankFrame(t) {
+  return {t: t || 500, px: new Uint8Array(L.n * 8), orig: [], keys: ['timespan', 'leds'], extra: {}};
+}
+
+function newFace() {
+  face = {
+    name: '', file: '',
+    doc: {ears: {type: 'none'}, visor: {type: 'custom', isMouth: L.mouth.slice(), frames: []}},
+    isMouth: L.mouth.slice(),
+    canBlink: null,
+    frames: [blankFrame(500)],
+  };
+  cur = 0; sel = -1; dirty = false;
+  undoStack.length = 0; redoStack.length = 0;
+}
+
+// Reads a face file. Throws on anything that isn't one.
+function loadDoc(doc, name) {
+  if (!doc || typeof doc !== 'object' || !doc.visor || !Array.isArray(doc.visor.frames)) throw new Error("That isn't a face file");
+  const frames = doc.visor.frames.map(f => {
+    const fr = {t: parseInt(f.timespan, 10) || 0, px: new Uint8Array(L.n * 8), orig: Array.isArray(f.leds) ? f.leds.slice() : [],
+                keys: Object.keys(f), extra: {}};
+    for (const k of fr.keys) if (k !== 'timespan' && k !== 'leds') fr.extra[k] = f[k];
+    if (!fr.keys.includes('timespan')) fr.keys.unshift('timespan');
+    if (!fr.keys.includes('leds')) fr.keys.push('leds');
+    for (let p = 0; p < L.n; p++) hexToRows(fr.orig[p], fr.px, p * 8);
+    return fr;
+  });
+  if (!frames.length) frames.push(blankFrame(500));
+  const isMouth = Array.from({length: L.n}, (_, i) => Array.isArray(doc.visor.isMouth) ? !!doc.visor.isMouth[i] : L.mouth[i]);
+  face = {
+    name: name || '', file: name ? name + '.json' : '',
+    doc, isMouth,
+    canBlink: 'canBlink' in doc.visor ? !!doc.visor.canBlink : null,
+    frames,
+  };
+  cur = 0; sel = -1; dirty = false;
+  undoStack.length = 0; redoStack.length = 0;
+}
+
+function frameLeds(fr) {
+  const count = Math.max(L.n, fr.orig.length);
+  const out = [];
+  for (let p = 0; p < count; p++) {
+    if (p >= L.n) { out.push(fr.orig[p]); continue; }        // a panel this layout doesn't have: kept as it was
+    const now = rowsToBig(fr.px, p * 8).toString(16);
+    const o = fr.orig[p];
+    out.push(o !== undefined && canonical(o) === now ? o : now);
   }
+  return out;
+}
 
-  // Click/drag handler for ear matrix — same toggle logic as visor matrices
-  $(document).on('click', '#divForSvg .ear-item', function(e) {
-    if($(this).hasClass('active') && $("#color").val() != "#000000" && !$(this).attr('style')) {} else {
-      $(this).toggleClass('active');
-    }
-    if($(this).hasClass('active') && $("#color").val() != "#000000") {
-      $(this).css("background", $("#color").val());
-    } else {
-      $(this).removeAttr("style");
-    }
-  });
-  $(document).on('mouseenter', '#divForSvg .ear-item', function(e) {
-    if(isMouseDown) {
-      if($(this).hasClass('active') && $("#color").val() != "#000000" && !$(this).attr('style')) {} else {
-        $(this).toggleClass('active');
-      }
-      if($(this).hasClass('active') && $("#color").val() != "#000000") {
-        $(this).css("background", $("#color").val());
-      } else {
-        $(this).removeAttr("style");
-      }
-    }
-  });
-
-  $("#earDisplayMode").change(function() {
-    $('#divForSvg').empty();
-    var mode = earMode();
-    var ledCount = earLedCount();
-    if (mode === "svg") {
-      if (ledCount == 74) {
-        for(var x = 1; x <= 2; x++) {
-          $('#divForSvg').append(`<svg id="svg`+x+`" viewBox="0 0 640 640" width="480" height="480" version="1.1" xmlns="http://www.w3.org/2000/svg"><g fill="black">
-                <path id="37" d="m350 320a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="36" d="m286.36 256.36a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="35" d="m260 320a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="34" d="m286.36 383.64a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="33" d="m350 410a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="32" d="m413.64 383.64a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="31" d="m440 320a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="30" d="m413.64 256.36a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="29" d="m350 230a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="28" d="m260 164.12a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="27" d="m194.12 230a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="26" d="m170 320a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="25" d="m194.12 410a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="24" d="m260 475.88a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="23" d="m350 500a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="22" d="m440 475.88a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="21" d="m505.88 410a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="20" d="m530 320a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="19" d="m505.88 230a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="18" d="m440 164.12a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="17" d="m350 140a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="16" d="m248.86 69.66a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="15" d="m159.08 129.08a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="14" d="m101.464 214.5a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="13" d="m80 320a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="12" d="m99.66 421.14a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="11" d="m159.08 510.92a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="10" d="m244.5 568.54a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="9" d="m350 590a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="8" d="m451.14 570.34a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="7" d="m540.92 510.92a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="6" d="m598.54 425.5a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="5" d="m620 320a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="4" d="m600.34 218.86a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="3" d="m540.92 129.08a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="2" d="m455.5 71.464a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="1" d="m350 50a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-              </g></svg>`);
-        }
-      } else if (ledCount == 32) {
-        for(var x = 1; x <= 2; x++) {
-          $('#divForSvg').append(`<svg id="svg`+x+`" viewBox="0 0 640 640" width="480" height="480" version="1.1" xmlns="http://www.w3.org/2000/svg"><g fill="black">
-                <path id="16" d="m248.86 69.66a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="15" d="m159.08 129.08a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="14" d="m101.464 214.5a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="13" d="m80 320a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="12" d="m99.66 421.14a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="11" d="m159.08 510.92a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="10" d="m244.5 568.54a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="9" d="m350 590a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="8" d="m451.14 570.34a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="7" d="m540.92 510.92a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="6" d="m598.54 425.5a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="5" d="m620 320a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="4" d="m600.34 218.86a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="3" d="m540.92 129.08a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="2" d="m455.5 71.464a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-                <path id="1" d="m350 50a30 30 0 1 1-1e-5 -0.02" paint-order="stroke fill markers"/>
-              </g></svg>`);
-        }
-      }
-    } else {
-      // Matrix mode: two 8x8 grids labeled Left/Right
-      $('#divForSvg').append('<div style="display:inline-block;text-align:center;margin:10px;"><div style="margin-bottom:4px;font-weight:bold;">Left</div>' + earMatrixHTML('svg1') + '</div>');
-      $('#divForSvg').append('<div style="display:inline-block;text-align:center;margin:10px;"><div style="margin-bottom:4px;font-weight:bold;">Right</div>' + earMatrixHTML('svg2') + '</div>');
-    }
-  });
-  $("#earsDiv").hide();
-  $("#earDisplayMode").val('svg74').change();
-
-  $("#visorConfig").change(function() {
-    numOfSegm = 0;
-    numOfBlush = 0;
-    visType = "";
-    visTypeMouth = "";
-    $('#matrixes').empty();
-    $("#customConfig").hide();
-    if ($("#visorConfig").val() == "BFoxCZ") {
-      visType = "t0;t1;-;-;;-;-;t12;t13;_;-;-;-;t6;t7;-;-;-;_;t2;t3;t4;t5;t8;t9;t10;t11";
-      visTypeMouth = "[false,false,true,true,true,true,false,false,true,true,true,true,false,false]";
-      createHTML(visType);
-    } else if ($("#visorConfig").val() == "M16mk2") {
-      visType = "t0;t1;-;-;-;t9;t10;_;blush0;blush1;-;t5;-;blush2;blush3;_;t2;t3;t4;-;t6;t7;t8";
-      visTypeMouth = "[false,false,true,true,true,false,true,true,true,false,false]";
-      createHTML(visType);
-    } else if ($("#visorConfig").val() == "M16mk3") {
-      visType = "t0;t1;-;-;-;-;-;-;t12;t13;_;blush0;blush1;-;t6;-;-;t7;-;blush2;blush3;_;t2;t3;t4;t5;-;-;t8;t9;t10;t11";
-      visTypeMouth = "[false,false,true,true,true,true,false,false,true,true,true,true,false,false]";
-      createHTML(visType);
-    } else if ($("#visorConfig").val() == "custom_file") {
-      loadVisorConfig();
-      createHTML(visType);
-    } else if ($("#visorConfig").val() == "custom") {
-      $("#customConfig").show();
-    }
-  });
-  
-  function loadCustom() {
-    numOfSegm = 0;
-    numOfBlush = 0;
-    visType = "";
-    visTypeMouth = "";
-    $('#matrixes').empty();
-    visType = $('#visorCfg').val();
-    visTypeMouth = $('#mouthCfg').val();
-    createHTML(visType);
-  }
-  
-  //create HTML table by the specified config
-  function createHTML(visorType) {
-    let arr = visorType.split(";");
-    let output = "<table><tr>";
-    for(let x = 0; x < arr.length; x++) {
-      if(arr[x] == "-") {
-        output+= "<td></td>";
-      } else if (arr[x] == "_") {
-        output+= "</tr><tr>";
-      } else if (arr[x].includes("t")) {
-        output+= "<td id='"+arr[x]+"'></td>";
-        numOfSegm++;
-      } else if (arr[x].includes("b")) {
-        output+= "<td id='"+arr[x]+"'></td>";
-        numOfBlush++;
-      }
-    }
-    output+= "</tr></table>";
-    $("#matrixes").append(output);
-    
-    for (var x = 0; x < numOfSegm; x++) {
-      $("#t" + x).append($(generator()));
-    }
-    //generates tables for blush
-    for (var x = 0; x < numOfBlush; x++) {
-      if (x < (numOfBlush/2)) { //left blush tilt
-        $("#blush" + x).append("<table class=\"blush\"><tr><td class=\"item\" id=\"b" + x*2 + "\"></td><td></td><td></td></tr><tr><td></td></tr><tr><td></td><td></td><td class=\"item\" id=\"b" + ((x*2) + 1) + "\"></td></tr></table>");
-      } else { //right blush tilt
-        $("#blush" + x).append("<table class=\"blush\"><tr><td></td><td></td><td class=\"item\" id=\"b" + ((x*2) + 1) + "\"></td></tr><tr><td></td></tr><tr><td class=\"item\" id=\"b" + x*2 + "\"></td><td></td><td></td></tr></table>");
-      }
-    }
-    
-    cachedNeighborMap = buildNeighborMap(); //build and cache neighbor map
-  }
-  
-  //table leds generator
-  function generator() {
-    var out = ['<table class="leds-matrix">'];
-    for (var i = 1; i < 9; i++) {
-      out.push('<tr>');
-      for (var j = 1; j < 9; j++) {
-        out.push('<td class="item" data-row="' + i + '" data-col="' + j + '"></td>');
-      }
-      out.push('</tr>');
-    }
-    out.push('</table>');
-    return out.join('');
-  }
-
-  //cliked on used color and set it
-  $("#usedColors").on('click', ".colorItem", function() {
-    var temp = "#" + rgb2hex($(this).css("background-color"));
-    curColor = temp;
-    $("#color").val(temp);
-  });
-
-  //on color selected, set to global
-  $("#color").change(function() {
-    curColor = $(this).val();
-    $("#usedColors").append("<div class=\"colorItem\" style=\"background-color:" + curColor + "\"></div>");
-  });
-
-  $("#fColor").change(function() {
-    // Apply color to all selected matrices
-    selMatrix.forEach(id => {
-      $('#t'+id).css("--active-color", $("#fColor").val());
-    });
-  });
-
-  //Hold down to color
-  $('body').mousedown(function() {
-    isMouseDown = true;
-  })
-  .mouseup(function() {
-    isMouseDown = false;
-  });
-  
-  /*-----------------------------------EAR FRAME FUNCS-----------------------------------*/
-  //hides animator if not needed
-  $("#typeEars").change(function() {
-    if (($("#typeEars").val() == "custom" || $("#typeEars").val() == "custom_glow") && $("#typeEars").val() != "none") {
-      $("#earsDiv").show();
-    } else {
-      $("#earsDiv").hide();
-    }
-  });
-  
-  //colors SVG dots with selected color
-  $(document).on('click', 'path', function() {
-    $(this).attr('fill', curColor);
-    $(this).attr('stroke', "gray");
-  });
-  $(document).on('mouseenter', 'path', function() {
-    if(isMouseDown) {
-      $(this).attr('fill', curColor);
-      $(this).attr('stroke', "gray");
-    }
-  });
-
-  //fills all black, what more to say
-  function fillBlack() {
-    if (earMode() === "svg") {
-      for (var x = 1; x <= earLedCount()/2; x++) {
-        $("#svg1").find("#" + x).attr('fill', "#000000");
-        $("#svg2").find("#" + x).attr('fill', "#000000");
-      }
-    } else {
-      $("#svg1, #svg2").find('.ear-item').removeClass('active').removeAttr('style');
-    }
-  }
-
-  //mirrors left ear to right one
-  function mirrorEars() {
-    if (earMode() === "svg") {
-      for (var x = 1; x <= earLedCount()/2; x++) {
-        $("#svg2").find("#" + x).attr('fill', $("#svg1").find("#" + x).attr('fill'));
-      }
-    } else {
-      for (var i = 1; i < 9; i++) {
-        for (var j = 1; j < 9; j++) {
-          var src = $("#svg1").find('.ear-item[data-row="'+i+'"][data-col="'+j+'"]');
-          var dst = $("#svg2").find('.ear-item[data-row="'+i+'"][data-col="'+j+'"]');
-          dst.attr("class", src.attr("class"));
-          var srcStyle = src.attr('style');
-          if (srcStyle) { dst.css('background', src.css('background')); }
-          else { dst.removeAttr('style'); }
-        }
-      }
-    }
-  }
-
-  //deletes selected frame
-  function deleteFrameEars() {
-    if (nowEditEarsFrame > -1) {
-      framesEars.splice(nowEditEarsFrame, 1);
-    }
-    nowEditEarsFrame = 0;
-    if (framesEars.length != 0) {
-      loadEarsFrame();
-    } else {
-      fillBlack();
-    }
-    $("#earsFramesP").html("");
-    for (var x = 0; x < framesEars.length; x++) {
-      $("#earsFramesP").append("<a id=\"" + x + "\">" + x + "</a>");
-    }
-    $("#editDivEars").hide();
-  }
-
-  //detects click on frame to edit, call function to load it
-  $("#earsFramesP").on('click', "a", function() {
-    if ($(this).closest('div').attr('id') == "earsFramesP") {
-      $("#earsFramesP").find('a[id="'+nowEditEarsFrame+'"]').css("border","");
-      nowEditEarsFrame = $(this).attr('id');
-      $(this).css("border","rgba(100, 200, 255, 0.6) solid 1px"); 
-      loadEarsFrame();
-    }
-  });
-
-  //loads selected frame from array
-  function loadEarsFrame() {
-    var obj = JSON.parse(framesEars[nowEditEarsFrame]);
-    $("#timespanEars").val(obj.timespan);
-    if (earMode() === "svg") {
-      for (var x = 0; x < obj.leds.length; x++) {
-        var ledCount = earLedCount()/2;
-        if (x < ledCount) {
-          $("#svg1").find("#" + (x + 1)).attr('fill', "#" + obj.leds[x]);
-        } else {
-          $("#svg2").find("#" + (x - ledCount)).attr('fill', "#" + obj.leds[x]);
-        }
-      }
-    } else {
-      // Clear first
-      $("#svg1, #svg2").find('.ear-item').removeClass('active').removeAttr('style');
-      // Matrix mode: leds is [{active, color}] per pixel, 64 per side
-      for (var x = 0; x < obj.leds.length; x++) {
-        var side = x < 64 ? "svg1" : "svg2";
-        var idx = x % 64;
-        var r = Math.floor(idx / 8) + 1;
-        var c = (idx % 8) + 1;
-        var entry = obj.leds[x];
-        var elem = $("#" + side).find('.ear-item[data-row="'+r+'"][data-col="'+c+'"]');
-        if (entry && entry !== "0") {
-          elem.addClass('active');
-          if (entry !== "000000") {
-            elem.css("background", "#" + entry);
-          }
-        }
-      }
-    }
-    $("#editDivEars").show();
-    $("#saveEditFrameEars").attr('value', nowEditEarsFrame);
-  }
-
-  //calls frame generator to save currently editing frame
-  $("#saveEditFrameEars").on('click', function() {
-    frameGenEars($(this).attr('value'));
-    //$("#editDivEars").hide();
-  });
-  
-  //clone selected fram to the end of array
-  function cloneEarsFrame() {
-    framesEars.push(framesEars[nowEditEarsFrame]);
-    $("#earsFramesP").append("<a id=\"" + (framesEars.length - 1) + "\">" + (framesEars.length - 1) + "</a>");
-  }
-  
-  /*-----------------------------------VISOR FRAME FUNCS-----------------------------------*/
-  //if matrix led clicked, add class
-  $("#matrixes").on('click', '.item', function(e) {
-    if(matrixAction == "" && !(e.ctrlKey || e.metaKey))
-      if($(this).hasClass('active') && $("#color").val() != "#000000" && !$(this).attr('style')) {} else {
-        $(this).toggleClass('active');
-      }
-      if($(this).hasClass('active') && $("#color").val() != "#000000") {
-        $(this).css("background", $("#color").val());
-      } else {
-        $(this).removeAttr("style");
-      }
-  });
-  $("#matrixes").on('mouseenter', '.item', function(e) {
-    if(matrixAction == "" && isMouseDown && !(e.ctrlKey || e.metaKey)) {
-      if($(this).hasClass('active') && $("#color").val() != "#000000" && !$(this).attr('style')) {} else {
-        $(this).toggleClass('active');
-      }
-      if($(this).hasClass('active') && $("#color").val() != "#000000") {
-        $(this).css("background", $("#color").val());
-      } else {
-        $(this).removeAttr("style");
-      }
-    }
-  });
-  
-  // Touch drawing: the first pixel touched decides whether the drag draws or erases,
-  // so crossing already-drawn pixels doesn't flicker them. Drags that start between
-  // panels still scroll the grid (touch-action is off only on the panels).
-  (function () {
-    const grid = document.getElementById('matrixes');
-    let drawOn = null, last = null;
-    function cellAt(touch) {
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      return el && el.matches('.leds-matrix td.item') ? el : null;
-    }
-    grid.addEventListener('touchstart', function (e) {
-      if (matrixAction !== '' || e.touches.length !== 1) return;  // Select, Row, Paste etc. keep using taps
-      const cell = cellAt(e.touches[0]);
-      if (!cell) return;
-      e.preventDefault();          // no scrolling, and no second emulated click
-      $(cell).trigger('click');    // same toggle as a tap
-      drawOn = $(cell).hasClass('active');
-      last = cell;
-    }, {passive: false});
-    grid.addEventListener('touchmove', function (e) {
-      if (drawOn === null) return;
-      e.preventDefault();
-      const cell = cellAt(e.touches[0]);
-      if (cell && cell !== last) {
-        last = cell;
-        if ($(cell).hasClass('active') !== drawOn) $(cell).trigger('click');
-      }
-    }, {passive: false});
-    function end() { drawOn = null; last = null; }
-    grid.addEventListener('touchend', end);
-    grid.addEventListener('touchcancel', end);
-  })();
-
-  //colors blush dots with selected color
-  $("#matrixes").on('click', '.blush .item', function() {
-    $(this).css("background-color", curColor);
-  });
-  
-  function fillBlackVisor() {
-    for (var x = 0; x < numOfSegm; x++) {
-      hexInputToLeds(x, "0000000000000000");
-    }
-    for (var x = 0; x < numOfBlush*2; x++) {
-      $("#b" + x).css("background-color", "#000000");
-    }
-    $('td.item').removeAttr('style');
-  }
-  fillBlackVisor();
-
-  //deletes selected frame
-  function deleteFrameVisor() {
-    if (nowEditVisorFrame > -1) {
-      framesVisor.splice(nowEditVisorFrame, 1);
-    }
-    nowEditVisorFrame = 0;
-    if (framesVisor.length != 0) {
-      loadVisorFrame();
-    } else {
-      fillBlackVisor();
-    }
-    $("#visorFramesP").html("");
-    for (var x = 0; x < framesVisor.length; x++) {
-      $("#visorFramesP").append("<a id=\"" + x + "\">" + x + "</a>");
-    }
-    $("#editDivVisor").hide();
-  }
-
-  //detects click on frame to edit, call function to load it
-  $("#visorFramesP").on('click', "a", function() {
-    if ($(this).closest('div').attr('id') == "visorFramesP") {
-      $("#visorFramesP").find('a[id="'+nowEditVisorFrame+'"]').css("border","");
-      nowEditVisorFrame = $(this).attr('id');
-      $(this).css("border","rgba(100, 200, 255, 0.6) solid 1px");
-      loadVisorFrame();
-    }
-  });
-
-  //loads selected frame from array
-  function loadVisorFrame() {
-    var obj = JSON.parse(framesVisor[nowEditVisorFrame]);
-    $("#timespanVisor").val(obj.timespan);
-    if(obj.fColor == undefined || obj.fColor == "0") {} else {
-      for (var x = 0; x < obj.fColor.length; x++) {
-        if(obj.fColor[x] == undefined || obj.fColor[x] == "0") {
-          $('#t'+x).css("--active-color", "#000000");
-        } else {
-          $('#t'+x).css("--active-color", '#'+obj.fColor[x]);
-        }
-      }
-    }
-    $('td.item').removeAttr('style');
-    if (obj.ppColor) {
-      for (var x = 0; x < obj.ppColor.length; x++) {
-        for (var y = 0; y < obj.ppColor[x].data.length; y++) {
-          $('#t'+obj.ppColor[x].mIndex).find("td.item[data-row=\""+(Math.floor(obj.ppColor[x].data[y][0]/8)+1)+"\"][data-col=\""+((obj.ppColor[x].data[y][0]%8)+1)+"\"]").css("background-color","#"+obj.ppColor[x].data[y][1]);
-        }
-      }
-    }
-    for (var x = 0; x < obj.leds.length; x++) {
-      hexInputToLeds(x, obj.leds[x])
-    }
-    for (var x = 0; x < numOfBlush*2; x++) {
-      $("#b" + x).css("background-color", obj.ledsBlush[x]);
-    }
-    $("#editDivVisor").show();
-    $("#saveEditFrameVisor").attr('value', nowEditVisorFrame);
-  }
-  
-  //calls frame generator to save currently editing frame
-  $("#saveEditFrameVisor").on('click', function() {
-    frameGenVisor($(this).attr('value'));
-    //$("#editDivVisor").hide();
-  });
-  
-  //clone selected frame to the end of array
-  function cloneVisorFrame() {
-    framesVisor.push(framesVisor[nowEditVisorFrame]);
-    $("#visorFramesP").append("<a id=\"" + (framesVisor.length - 1) + "\">" + (framesVisor.length - 1) + "</a>");
-  }
-
-  /*-----------------------------------MATRIX MODIFIERS-----------------------------------*/
-  //select/paste/row/col handler
-  $("#matrixes").on("click", function (e) {
-    let $t = $(e.target), $m = $t.closest("td[id^='t']"), r = $t.closest("td[data-row]").attr("data-row"), c = $t.closest("td[data-col]").attr("data-col");
-
-    if (!$m.length) return;
-    let tID = $m.attr("id");
-
-    if (matrixAction == "paste") { //selMatrix[0]
-      if(selMatrix.length > 0) {
-        for (var i = 1; i < 9; i++) {
-          for (var j = 1; j < 9; j++) {
-            let srcElem = $("#t"+selMatrix[0]).find('.item[data-row=' + i + '][data-col=' + j + ']');
-            let dstElem = $("#"+tID).find('.item[data-row=' + i + '][data-col=' + j + ']');
-            dstElem.attr("class", srcElem.attr("class"));
-            // Copy per-pixel color if source has one
-            let srcStyle = srcElem.attr('style');
-            if (srcStyle) {
-              dstElem.css('background-color', srcElem.css('background-color'));
-            } else {
-              dstElem.removeAttr('style');
-            }
-          }
-        }
-      }
-    } else if (matrixAction == "select" || e.ctrlKey || e.metaKey) { //clear all
-      selMatrix.forEach(id => {
-        $("#t"+id).find("table").css("border-color","");
+// The file, with every key it came with, in the order it came in
+function buildDoc() {
+  const src = face.doc;
+  const visor = {};
+  const vkeys = Object.keys(src.visor || {});
+  for (const k of ['type', 'isMouth', 'frames']) if (!vkeys.includes(k)) vkeys.push(k);
+  if (face.canBlink !== null && !vkeys.includes('canBlink')) vkeys.push('canBlink');
+  for (const k of vkeys) {
+    if (k === 'frames') {
+      visor.frames = face.frames.map(fr => {
+        const o = {};
+        for (const key of fr.keys) o[key] = key === 'timespan' ? fr.t : key === 'leds' ? frameLeds(fr) : fr.extra[key];
+        return o;
       });
-      if(e.ctrlKey || e.metaKey) { //Ctrl/Cmd key pressed for multi-select, single select if not
-        let matrixId = tID.slice(1);
-        let index = selMatrix.indexOf(matrixId);
-        if(index > -1) { //deselect if already selected
-          selMatrix.splice(index, 1);
-        } else { //add
-          selMatrix.push(matrixId);
-        }
-      } else {
-        selMatrix = [tID.slice(1)];
-      }
-      
-      if(selMatrix.length > 0) { //update color picker from first selected matrix
-        let bg = $('#t'+selMatrix[0]).css("--active-color");
-        $("#fColor").val(bg ? bg : "#000000");
-        
-        selMatrix.forEach(id => { //highlight all selected matrices
-          $("#t"+id).find("table").css("border-color","red");
-        });
-      }
-    } else if (matrixAction == "col" && c !== undefined) {
-      $('#'+tID).find('.item[data-col=' + c + ']').toggleClass('active', $('#'+tID).find('.item[data-col=' + c + '].active').length != 8);
-    } else if (matrixAction == "row" && r !== undefined) {
-      $('#'+tID).find('.item[data-row=' + r + ']').toggleClass('active', $('#'+tID).find('.item[data-row=' + r + '].active').length != 8);
-    }
-
-    matrixAction = "";
-  });
-  
-  function Bitmap(hexString) {
-    let matrix = fromHexString(hexString);
-
-    function fromHexString(hexString) {
-      const out = [];
-      for (let i = 0; i < hexString.length / 2; i++) {
-        let byte = parseInt(hexString.substr(i * 2, 2), 16).toString(2);
-        byte = ('00000000' + byte).substr(-8);
-        out.push(byte.split('').reverse());
-      }
-      return out.reverse();
-    }
-
-    function toHexString() {
-      const out = [];
-      for (let i = 0; i < matrix.length; i++) {
-        let byte = parseInt(matrix[i].slice().reverse().join(''), 2).toString(16);
-        byte = ('0' + byte).substr(-2);
-        out.push(byte);
-      }
-      return out.reverse().join('');
-    }
-
-    function transpose() {
-      for (let i = 0; i < matrix.length; i++) {
-        for (let j = i; j < 8; j++) {
-          const tmp = matrix[i][j];
-          matrix[i][j] = matrix[j][i];
-          matrix[j][i] = tmp;
-        }
-      }
-    }
-
-    function shiftLeft() {
-      for (let i = 0; i < matrix.length; i++) {
-        const len = matrix[i].length - 1;
-        for (let j = 0; j < len; j++) {
-          matrix[i][j] = matrix[i][j + 1];
-        }
-        matrix[i][len] = 0;
-      }
-    }
-
-    function shiftRight() {
-      for (let i = 0; i < matrix.length; i++) {
-        const len = matrix[i].length - 1;
-        for (let j = len; j > 0; j--) {
-          matrix[i][j] = matrix[i][j - 1];
-        }
-        matrix[i][0] = 0;
-      }
-    }
-
-    function rotate() {
-      matrix.reverse();
-      transpose();
-    }
-
-    function rotateBack() {
-      transpose();
-      matrix.reverse();
-    }
-    
-    function mirrorHorizontal() {
-      for (let i = 0; i < matrix.length; i++) {
-        matrix[i].reverse();
-      }
-    }
-
-    function mirrorVertical() {
-      matrix.reverse();
-    }
-
-    return {
-      toHexString: toHexString,
-      shiftLeft: shiftLeft,
-      shiftRight: shiftRight,
-      rotate: rotate,
-      rotateBack: rotateBack,
-      mirrorHorizontal: mirrorHorizontal,
-      mirrorVertical: mirrorVertical,
-      getMatrix: () => matrix,
-      setMatrix: (newMatrix) => { matrix = newMatrix; },
-    }
-  }
-  
-  //build neighbor map from visType
-  function buildNeighborMap() {
-    if (!visType) return {};
-    
-    let rows = visType.split('_');
-    let grid = rows.map(row => row.split(';'));
-    let neighborMap = {};
-    
-    // Find position of each matrix in the grid
-    let positions = {};
-    for (let r = 0; r < grid.length; r++) {
-      for (let c = 0; c < grid[r].length; c++) {
-        let cell = grid[r][c].trim();
-        if (cell.startsWith('t')) {
-          let matrixId = cell.substring(1);
-          positions[matrixId] = { row: r, col: c };
-        }
-      }
-    }
-    
-    // Build neighbor relationships
-    for (let id in positions) {
-      let pos = positions[id];
-      neighborMap[id] = {
-        left: null,
-        right: null,
-        up: null,
-        down: null
-      };
-      if (pos.col > 0) { // Check left
-        let leftCell = grid[pos.row][pos.col - 1].trim();
-        if (leftCell.startsWith('t')) {
-          neighborMap[id].left = leftCell.substring(1);
-        }
-      }
-      if (pos.col < grid[pos.row].length - 1) { // Check right
-        let rightCell = grid[pos.row][pos.col + 1].trim();
-        if (rightCell.startsWith('t')) {
-          neighborMap[id].right = rightCell.substring(1);
-        }
-      }
-      if (pos.row > 0 && grid[pos.row - 1][pos.col]) { // Check up
-        let upCell = grid[pos.row - 1][pos.col].trim();
-        if (upCell.startsWith('t')) {
-          neighborMap[id].up = upCell.substring(1);
-        }
-      }
-      if (pos.row < grid.length - 1 && grid[pos.row + 1][pos.col]) { // Check down
-        let downCell = grid[pos.row + 1][pos.col].trim();
-        if (downCell.startsWith('t')) {
-          neighborMap[id].down = downCell.substring(1);
-        }
-      }
-    }
-    return neighborMap;
-  }
-  
-  /*---COLOR MATRIX HELPERS: read/write per-pixel colors alongside bitmap state---*/
-  // Returns an 8x8 array of color strings (null = no per-pixel color set)
-  // Row 0 = top row of matrix (data-row=1), Col 0 = leftmost (data-col=1)
-  function getColorMatrix(id) {
-    let cm = [];
-    for (let r = 0; r < 8; r++) {
-      cm[r] = [];
-      for (let c = 0; c < 8; c++) {
-        let elem = $('#t'+id).find('td.item[data-row="'+(r+1)+'"][data-col="'+(c+1)+'"]');
-        let style = elem.attr('style');
-        cm[r][c] = style ? elem.css('background-color') : null;
-      }
-    }
-    return cm;
-  }
-
-  // Writes an 8x8 color matrix back to the DOM
-  function applyColorMatrix(id, cm) {
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        let elem = $('#t'+id).find('td.item[data-row="'+(r+1)+'"][data-col="'+(c+1)+'"]');
-        if (cm[r][c]) {
-          elem.css('background-color', cm[r][c]);
-        } else {
-          elem.removeAttr('style');
-        }
-      }
-    }
-  }
-
-  // Returns a deep copy of an 8x8 color matrix
-  function cloneColorMatrix(cm) {
-    return cm.map(row => row.slice());
-  }
-
-  // Transposes an 8x8 color matrix in-place
-  function transposeColorMatrix(cm) {
-    for (let i = 0; i < 8; i++) {
-      for (let j = i+1; j < 8; j++) {
-        let tmp = cm[i][j];
-        cm[i][j] = cm[j][i];
-        cm[j][i] = tmp;
-      }
-    }
-  }
-
-  $('#mirrorHorizontal-button').click(function () {
-    selMatrix.forEach(id => {
-      const bitmap = Bitmap(fixPattern(ledsToHex(id)));
-      bitmap.mirrorHorizontal();
-      hexInputToLeds(id, bitmap.toHexString());
-      // Mirror color matrix horizontally (reverse each row)
-      let cm = getColorMatrix(id);
-      cm.forEach(row => row.reverse());
-      applyColorMatrix(id, cm);
-    });
-  });
-  
-  $('#mirrorVertical-button').click(function () {
-    selMatrix.forEach(id => {
-      const bitmap = Bitmap(fixPattern(ledsToHex(id)));
-      bitmap.mirrorVertical();
-      hexInputToLeds(id, bitmap.toHexString());
-      // Mirror color matrix vertically (reverse rows)
-      let cm = getColorMatrix(id);
-      cm.reverse();
-      applyColorMatrix(id, cm);
-    });
-  });
-  
-  $('#invert-button').click(function () {
-    selMatrix.forEach(id => {
-      $("#t"+id).find('.item').toggleClass('active');
-      // Per-pixel colors stay on their pixels; no positional change needed for invert
-    });
-  });
-
-  $('#shift-up-button').click(function () {
-    let bitmaps = {}, colorMats = {};
-    selMatrix.forEach(id => {
-      bitmaps[id] = Bitmap(fixPattern(ledsToHex(id)));
-      colorMats[id] = getColorMatrix(id);
-    });
-    
-    // Capture overflow rows (top row of each matrix, before shift)
-    let bitmapOverflows = {}, colorOverflows = {};
-    selMatrix.forEach(id => {
-      bitmapOverflows[id] = bitmaps[id].getMatrix()[0].slice();
-      colorOverflows[id] = colorMats[id][0].slice();
-    });
-    
-    // Shift all matrices up
-    selMatrix.forEach(id => {
-      var val = '00' + fixPattern(ledsToHex(id)).substr(0, 14);
-      bitmaps[id] = Bitmap(val);
-      // Shift color matrix up: rows 1..7 move to 0..6, row 7 becomes nulls
-      let newCm = [];
-      for (let r = 0; r < 7; r++) newCm[r] = colorMats[id][r+1].slice();
-      newCm[7] = new Array(8).fill(null);
-      colorMats[id] = newCm;
-    });
-    
-    // Apply overflows to UP neighbors if selected
-    selMatrix.forEach(id => {
-      let neighbor = cachedNeighborMap[id] && cachedNeighborMap[id].up;
-      if (neighbor && selMatrix.includes(neighbor)) {
-        let mat = bitmaps[neighbor].getMatrix();
-        mat[7] = bitmapOverflows[id];
-        bitmaps[neighbor].setMatrix(mat);
-        colorMats[neighbor][7] = colorOverflows[id].slice();
-      }
-    });
-    
-    selMatrix.forEach(id => {
-      hexInputToLeds(id, bitmaps[id].toHexString());
-      applyColorMatrix(id, colorMats[id]);
-    });
-  });
-
-  $('#shift-down-button').click(function () {
-    let bitmaps = {}, colorMats = {};
-    selMatrix.forEach(id => {
-      bitmaps[id] = Bitmap(fixPattern(ledsToHex(id)));
-      colorMats[id] = getColorMatrix(id);
-    });
-    
-    let bitmapOverflows = {}, colorOverflows = {};
-    selMatrix.forEach(id => {
-      bitmapOverflows[id] = bitmaps[id].getMatrix()[7].slice();
-      colorOverflows[id] = colorMats[id][7].slice();
-    });
-    
-    selMatrix.forEach(id => {
-      var val = fixPattern(ledsToHex(id)).substr(2, 14) + '00';
-      bitmaps[id] = Bitmap(val);
-      // Shift color matrix down: rows 0..6 move to 1..7, row 0 becomes nulls
-      let newCm = [];
-      newCm[0] = new Array(8).fill(null);
-      for (let r = 1; r < 8; r++) newCm[r] = colorMats[id][r-1].slice();
-      colorMats[id] = newCm;
-    });
-
-    selMatrix.forEach(id => {
-      let neighbor = cachedNeighborMap[id] && cachedNeighborMap[id].down;
-      if (neighbor && selMatrix.includes(neighbor)) {
-        let mat = bitmaps[neighbor].getMatrix();
-        mat[0] = bitmapOverflows[id];
-        bitmaps[neighbor].setMatrix(mat);
-        colorMats[neighbor][0] = colorOverflows[id].slice();
-      }
-    });
-
-    selMatrix.forEach(id => {
-      hexInputToLeds(id, bitmaps[id].toHexString());
-      applyColorMatrix(id, colorMats[id]);
-    });
-  });
-
-  $('#shift-right-button').click(function () {
-    let bitmaps = {}, colorMats = {};
-    selMatrix.forEach(id => {
-      bitmaps[id] = Bitmap(fixPattern(ledsToHex(id)));
-      colorMats[id] = getColorMatrix(id);
-    });
-
-    let bitmapOverflows = {}, colorOverflows = {};
-    selMatrix.forEach(id => {
-      let mat = bitmaps[id].getMatrix();
-      bitmapOverflows[id] = [];
-      colorOverflows[id] = [];
-      for (let i = 0; i < 8; i++) {
-        bitmapOverflows[id][i] = mat[i][7]; // rightmost col
-        colorOverflows[id][i] = colorMats[id][i][7];
-      }
-    });
-
-    selMatrix.forEach(id => {
-      bitmaps[id].shiftRight();
-      // Shift color matrix right: cols 0..6 <- cols 1..7 wait — shiftRight moves pixels right,
-      // so col[j] <- col[j-1]; col[0] = null
-      let newCm = cloneColorMatrix(colorMats[id]);
-      for (let r = 0; r < 8; r++) {
-        for (let c = 7; c > 0; c--) newCm[r][c] = colorMats[id][r][c-1];
-        newCm[r][0] = null;
-      }
-      colorMats[id] = newCm;
-    });
-
-    selMatrix.forEach(id => {
-      let neighbor = cachedNeighborMap[id] && cachedNeighborMap[id].right;
-      if (neighbor && selMatrix.includes(neighbor)) {
-        let mat = bitmaps[neighbor].getMatrix();
-        for (let i = 0; i < 8; i++) {
-          mat[i][0] = bitmapOverflows[id][i];
-          colorMats[neighbor][i][0] = colorOverflows[id][i];
-        }
-        bitmaps[neighbor].setMatrix(mat);
-      }
-    });
-
-    selMatrix.forEach(id => {
-      hexInputToLeds(id, bitmaps[id].toHexString());
-      applyColorMatrix(id, colorMats[id]);
-    });
-  });
-
-  $('#shift-left-button').click(function () {
-    let bitmaps = {}, colorMats = {};
-    selMatrix.forEach(id => {
-      bitmaps[id] = Bitmap(fixPattern(ledsToHex(id)));
-      colorMats[id] = getColorMatrix(id);
-    });
-
-    let bitmapOverflows = {}, colorOverflows = {};
-    selMatrix.forEach(id => {
-      let mat = bitmaps[id].getMatrix();
-      bitmapOverflows[id] = [];
-      colorOverflows[id] = [];
-      for (let i = 0; i < 8; i++) {
-        bitmapOverflows[id][i] = mat[i][0]; // leftmost col
-        colorOverflows[id][i] = colorMats[id][i][0];
-      }
-    });
-    
-    selMatrix.forEach(id => {
-      bitmaps[id].shiftLeft();
-      // Shift color matrix left: col[c] <- col[c+1]; col[7] = null
-      let newCm = cloneColorMatrix(colorMats[id]);
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 7; c++) newCm[r][c] = colorMats[id][r][c+1];
-        newCm[r][7] = null;
-      }
-      colorMats[id] = newCm;
-    });
-
-    selMatrix.forEach(id => {
-      let neighbor = cachedNeighborMap[id] && cachedNeighborMap[id].left;
-      if (neighbor && selMatrix.includes(neighbor)) {
-        let mat = bitmaps[neighbor].getMatrix();
-        for (let i = 0; i < 8; i++) {
-          mat[i][7] = bitmapOverflows[id][i];
-          colorMats[neighbor][i][7] = colorOverflows[id][i];
-        }
-        bitmaps[neighbor].setMatrix(mat);
-      }
-    });
-
-    selMatrix.forEach(id => {
-      hexInputToLeds(id, bitmaps[id].toHexString());
-      applyColorMatrix(id, colorMats[id]);
-    });
-  });
-
-  $('#rotate-button').click(function () {
-    selMatrix.forEach(id => {
-      const bitmap = Bitmap(fixPattern(ledsToHex(id)));
-      bitmap.rotate(); // reverse rows then transpose
-      hexInputToLeds(id, bitmap.toHexString());
-      // Rotate color matrix clockwise: reverse rows then transpose
-      let cm = getColorMatrix(id);
-      cm.reverse();
-      transposeColorMatrix(cm);
-      applyColorMatrix(id, cm);
-    });
-  });
-
-  $('#rotate-back-button').click(function () {
-    selMatrix.forEach(id => {
-      const bitmap = Bitmap(fixPattern(ledsToHex(id)));
-      bitmap.rotateBack(); // transpose then reverse rows
-      hexInputToLeds(id, bitmap.toHexString());
-      // Rotate color matrix counter-clockwise: transpose then reverse rows
-      let cm = getColorMatrix(id);
-      transposeColorMatrix(cm);
-      cm.reverse();
-      applyColorMatrix(id, cm);
-    });
-  });
-  
-  function entireMatrix() {
-    selMatrix.forEach(id => {
-      $("#t"+id).find('.item').toggleClass('active', $("#t"+id).find('.item.active').length != 64);
-    });
-  }
-  
-  //mirrors left half to right one --will work if both sides are wired the same
-  function mirrorVisor() {
-    //if visType starts with "t0"
-    let firstMatrix = visType.match(/t\d+/);
-    let isT0First = firstMatrix && firstMatrix[0] === "t0";
-    
-    for (let i = 1; i < 9; i++) {
-      for (let j = 1; j < 9; j++) {
-        let numFix = numOfSegm-1;
-        for (let l = 0; l < numFix/2; l++) {
-          if(numOfSegm % 2 == 1 && numFix == (numOfSegm/2)+1) {l++;}
-          
-          if(isT0First) { //copy from lower numbers to higher numbers
-            let srcElem = $('#t' + l).find('.item[data-row=' + i + '][data-col=' + (9-j) + '] ');
-            let dstElem = $('#t' + (numFix-l)).find('.item[data-row=' + i + '][data-col=' + j + '] ');
-            dstElem.attr("class", srcElem.attr("class"));
-            let srcStyle = srcElem.attr('style');
-            if (srcStyle) { dstElem.css('background-color', srcElem.css('background-color')); }
-            else { dstElem.removeAttr('style'); }
-          } else { //copy from higher numbers to lower numbers
-            let srcElem = $('#t' + (numFix-l)).find('.item[data-row=' + i + '][data-col=' + (9-j) + '] ');
-            let dstElem = $('#t' + l).find('.item[data-row=' + i + '][data-col=' + j + '] ');
-            dstElem.attr("class", srcElem.attr("class"));
-            let srcStyle = srcElem.attr('style');
-            if (srcStyle) { dstElem.css('background-color', srcElem.css('background-color')); }
-            else { dstElem.removeAttr('style'); }
-          }
-        }
-      }
-    }
-    
-    let numFix = numOfBlush*2;
-    for(let i = 0; i < numFix; i++) {
-      if(isT0First) {
-        $("#matrixes").find("#b"+(numFix-i-1)).css("background-color", $("#matrixes").find("#b"+i).css("background-color"));
-      } else {
-        $("#matrixes").find("#b"+i).css("background-color", $("#matrixes").find("#b"+(numFix-i-1)).css("background-color"));
-      }
-    }
-  }
-
-  /*-----------------------------------EAR ANIM CODE GEN-----------------------------------*/
-  //function that get the type of animation and creates entire 'ears' object and returns it
-  function earsGen() {
-    var output = "";
-    if ($("#typeEars").val() == "custom" || $("#typeEars").val() == "custom_glow") {
-      output += "\"ears\":{\"type\":\""+$("#typeEars").val()+"\",\"frames\":[";
-      for (var x = 0; x < framesEars.length; x++) {
-        output += framesEars[x];
-        if (x !== framesEars.length - 1) {
-          output += ",";
-        }
-      }
-      output += "]}"
+    } else if (k === 'isMouth') {
+      // written the length the file had it, or the layout's if it had none
+      const len = Array.isArray(src.visor && src.visor.isMouth) ? Math.max(src.visor.isMouth.length, 0) : L.n;
+      visor.isMouth = Array.from({length: len}, (_, i) => i < L.n ? face.isMouth[i] : !!src.visor.isMouth[i]);
+    } else if (k === 'canBlink') {
+      if (face.canBlink !== null) visor.canBlink = face.canBlink;
+    } else if (k === 'type') {
+      visor.type = (src.visor && src.visor.type) || 'custom';
     } else {
-      output += "\"ears\":{\"type\":\"" + $("#typeEars").val() + "\"}";
+      visor[k] = src.visor[k];
     }
-    return output;
   }
+  const out = {};
+  const keys = Object.keys(src);
+  if (!keys.includes('visor')) keys.push('visor');
+  if (!keys.includes('ears')) keys.unshift('ears');
+  for (const k of keys) out[k] = k === 'visor' ? visor : k === 'ears' ? (src.ears || {type: 'none'}) : src[k];
+  return out;
+}
+function faceJSON() { return JSON.stringify(buildDoc()); }
 
-  //function that gets data from timespan input and SVG pictures or ear matrices, creates frames formated in JSON
-  //and puts them in array, also can edit those frames by rewriting specific frame
-  function frameGenEars(editing) {
-    if ($("#timespanEars").val().length == 0 && $("#timespanEars").val() > 0) {
-      alert("Timespan missing");
-    } else {
-      var temp = "{\"timespan\":" + $("#timespanEars").val() + ",\"leds\":[";
-      if (earMode() === "svg") {
-        var ledNum = earLedCount()/2 + 1;
-        for (var x = 1; x < ledNum; x++) {
-          if (x > 1) temp += ",";
-          temp += "\"" + (($("#svg1").find("#" + x).attr('fill') || "").substring(1) || "0") + "\"";
-        }
-        for (var x = 1; x < ledNum; x++) {
-          temp += ",";
-          temp += "\"" + (($("#svg2").find("#" + x).attr('fill') || "").substring(1) || "0") + "\"";
-        }
-      } else {
-        // Matrix mode: save 64 entries per side (row-major)
-        // Each entry: "000000" = off, "color" = active with default color, "rrggbb" = active with per-pixel color
-        var first = true;
-        for (var s = 1; s <= 2; s++) {
-          for (var r = 1; r < 9; r++) {
-            for (var c = 1; c < 9; c++) {
-              if (!first) temp += ",";
-              first = false;
-              var elem = $("#svg"+s).find('.ear-item[data-row="'+r+'"][data-col="'+c+'"]');
-              if (!elem.hasClass('active')) {
-                temp += "\"0\"";
-              } else if (elem.attr('style')) {
-                temp += "\"" + rgb2hex(elem.css("background-color")) + "\"";
-              } else {
-                temp += "\"000000\""; // active, default color
-              }
-            }
-          }
-        }
-      }
-      temp += "]}";
-      if (editing < 0) {
-        framesEars.push(temp);
-        $("#earsFramesP").append("<a id=\"" + (framesEars.length - 1) + "\">" + (framesEars.length - 1) + "</a>");
-      } else {
-        framesEars[editing] = temp;
-      }
-    }
-  }
+/* ---------- undo ---------- */
+const undoStack = [], redoStack = [];
+function snapshot() {
+  return {cur, isMouth: face.isMouth.slice(), canBlink: face.canBlink,
+          frames: face.frames.map(f => ({t: f.t, px: f.px.slice(), orig: f.orig, keys: f.keys, extra: f.extra}))};
+}
+function restore(s) {
+  cur = Math.min(s.cur, s.frames.length - 1);
+  face.isMouth = s.isMouth.slice();
+  face.canBlink = s.canBlink;
+  face.frames = s.frames.map(f => ({t: f.t, px: f.px.slice(), orig: f.orig, keys: f.keys, extra: f.extra}));
+}
+// Called before every change. The snapshot shares orig/extra, which are never mutated in place.
+function checkpoint() {
+  undoStack.push(snapshot());
+  if (undoStack.length > 150) undoStack.shift();
+  redoStack.length = 0;
+  touched();
+}
+function undo() {
+  if (!undoStack.length) return;
+  stopPlay();
+  redoStack.push(snapshot());
+  restore(undoStack.pop());
+  touched(); refreshAll();
+}
+function redo() {
+  if (!redoStack.length) return;
+  stopPlay();
+  undoStack.push(snapshot());
+  restore(redoStack.pop());
+  touched(); refreshAll();
+}
+function touched() {
+  dirty = true;
+  $('undoBtn').disabled = !undoStack.length;
+  $('redoBtn').disabled = !redoStack.length;
+  saveDraft();
+}
 
-  /*-----------------------------------VISOR ANIM CODE GEN-----------------------------------*/
-  function visorGen() {
-    var output = "";
-    //canBlink: the mask closes and opens the eyes itself on this face, so a still face needs no
-    //blink frames drawn in. Left out entirely when unticked, so faces made before this stay as they were.
-    var blinkFlag = $("#canBlink").is(":checked") ? ',"canBlink":true' : '';
-    output += '"visor":{"type":"' + $("#typeVisor").val() + '","isMouth":'+visTypeMouth+blinkFlag+',"frames":[';
-    for (var x = 0; x < framesVisor.length; x++) {
-      output += framesVisor[x];
-      if (x !== framesVisor.length - 1) {
-        output += ",";
-      }
-    }
-    output += "]}";
-    $('#tempP').text(output);
-    return output;
-  }
+/* ---------- a draft survives a reload, a dropped connection or a phone locking ---------- */
+function saveDraft() {
+  clearTimeout(saveDraft.t);
+  saveDraft.t = setTimeout(() => {
+    try { localStorage.setItem('faceDraft', JSON.stringify({name: $('nameInput').value, file: face.file, dirty, doc: buildDoc()})); } catch (e) {}
+  }, 500);
+}
+function clearDraft() { try { localStorage.removeItem('faceDraft'); } catch (e) {} }
+function readDraft() {
+  try { const d = JSON.parse(localStorage.getItem('faceDraft') || 'null'); return d && d.doc ? d : null; } catch (e) { return null; }
+}
 
-  function frameGenVisor(editing) {
-    if ($("#timespanVisor").val().length == 0 && $("#timespanVisor").val() > 0) {
-      alert("Timespan missing");
-    } else {
-      var temp = "{\"timespan\":" + $("#timespanVisor").val() + ",\"fColor\":[";
-      for (var x = 0; x < numOfSegm; x++) {
-        var temp2 = "0";
-        if($('#t'+x).css("--active-color") != undefined) {
-          temp2 = $('#t'+x).css("--active-color").replace("#", "");
-        }
-        temp += ((x>0)?",":"")+"\"" + ((temp2=="000000")?"0":temp2) + "\"";
-      }
-      temp += "],\"ppColor\":[";
-      for (var x = 0; x < numOfSegm; x++) {
-        var temp3 = "", doAdd = false, doSep = false
-        temp3 = ((x>0)?",":"")+"{\"mIndex\":"+x+",\"data\":[";
-        for (var y = 0; y < 64; y++) {
-          var elem = $('#t'+x).find("td.item[data-row=\""+(Math.floor(y/8)+1)+"\"][data-col=\""+((y%8)+1)+"\"]")
-          if(elem.attr('style') != undefined) {
-            if(doAdd && y>0) {
-              temp3+=",";
-            }
-            doAdd = true
-            temp3+="["+y+",\""+rgb2hex(elem.css("background-color"))+"\"]";
-          }
-        }
-        if(doAdd) {
-          temp+=temp3+"]}";
-        }
-      }
-      temp += "],\"leds\":[";
-      for (var x = 0; x < numOfSegm; x++) {
-        temp += ((x>0)?",":"")+"\"" + ledsToHex(x) + "\"";
-      }
-      temp += "],\"ledsBlush\":["; //TBD
-      for (var x = 0; x < numOfBlush*2; x++) {
-        temp += ((x>0)?",":"")+"\"" + rgb2hex($("#b" + x).css("background-color")) + "\"";
-      }
-      temp += "]}";
-      if (editing < 0) {
-        framesVisor.push(temp);
-        $("#visorFramesP").append("<a id=\"" + (framesVisor.length - 1) + "\">" + (framesVisor.length - 1) + "</a>");
-      } else {
-        framesVisor[editing] = temp;
-      }
-    }
+/* ---------- pixels ---------- */
+const F = () => face.frames[cur];
+function getPx(px, p, r, c) { return (px[p * 8 + r] >> c) & 1; }
+function setPx(px, p, r, c, on) {
+  if (p < 0 || p >= L.n || r < 0 || r > 7 || c < 0 || c > 7) return;
+  if (on) px[p * 8 + r] |= 1 << c; else px[p * 8 + r] &= ~(1 << c);
+}
+let mirrorOn = false, onionOn = false;
+function canMirror() { return L.symmetric; }
+// draws a pixel, and its twin when Mirror is on
+function plot(px, p, r, c, on) {
+  setPx(px, p, r, c, on);
+  if (mirrorOn && canMirror() && L.mirror[p] >= 0) setPx(px, L.mirror[p], r, 7 - c, on);
+}
+// global pixel grid: column = layout column * 8 + c, row = layout row * 8 + r
+function toGlobal(p, r, c) { const w = L.where[p]; return {x: w.c * 8 + c, y: w.r * 8 + r}; }
+function fromGlobal(x, y) {
+  const gr = Math.floor(y / 8), gc = Math.floor(x / 8);
+  if (gr < 0 || gr >= L.H || gc < 0 || gc >= L.W) return null;
+  const p = L.grid[gr][gc];
+  return p < 0 ? null : {p, r: y - gr * 8, c: x - gc * 8};
+}
+function plotGlobal(px, x, y, on) { const h = fromGlobal(x, y); if (h) plot(px, h.p, h.r, h.c, on); }
+function lineGlobal(px, x0, y0, x1, y1, on) {
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    plotGlobal(px, x0, y0, on);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
   }
-  
-  /*-----------------------------------OUTPUT ANIM CODE GEN-----------------------------------*/
-  //get json code for ears and visor, generates final usable code
-  function completeGen() {
-    if ($("#visorConfig").val() == "none" || framesVisor.length == 0 || (framesEars.length == 0 && ( $("#typeEars").val() == "custom"  || $("#typeEars").val() == "custom_glow" ))) {
-      alert("No frames in ears or visor!");
-    } else {
-      var output = "{" + earsGen() + "," + visorGen() + "}";
-      output = output.replace(/"000000"/g, "\"0\"");
-      $("#output").val(output);
-    }
+}
+function rectGlobal(px, x0, y0, x1, y1, on) {
+  const [a, b] = [Math.min(x0, x1), Math.max(x0, x1)], [c, d] = [Math.min(y0, y1), Math.max(y0, y1)];
+  for (let x = a; x <= b; x++) { plotGlobal(px, x, c, on); plotGlobal(px, x, d, on); }
+  for (let y = c; y <= d; y++) { plotGlobal(px, a, y, on); plotGlobal(px, b, y, on); }
+}
+// Fill stays inside one panel: panels sit apart on the mask, so a fill leaking across the gap
+// into the next one would never be what was meant.
+function fillPanel(px, p, r0, c0) {
+  const want = getPx(px, p, r0, c0) ? 0 : 1, from = 1 - want;
+  const todo = [[r0, c0]], hits = [];
+  const seen = new Uint8Array(64);
+  while (todo.length) {
+    const [r, c] = todo.pop();
+    if (r < 0 || r > 7 || c < 0 || c > 7 || seen[r * 8 + c] || getPx(px, p, r, c) !== from) continue;
+    seen[r * 8 + c] = 1; hits.push([r, c]);
+    todo.push([r + 1, c], [r - 1, c], [r, c + 1], [r, c - 1]);
   }
+  for (const [r, c] of hits) plot(px, p, r, c, want);
+}
 
-  /*-----------------------------------PLAYBACK-----------------------------------*/
-  //check for custom and start loops
-  function playAnim(){
-    if($("#typeEars").val() == "custom") {
-      earLoop();
+/* ---------- panel operations ---------- */
+function panelRows(px, p) { return Array.from(px.subarray(p * 8, p * 8 + 8)); }
+function putRows(px, p, rows) { for (let r = 0; r < 8; r++) px[p * 8 + r] = rows[r] & 0xFF; }
+const rev8 = b => { let o = 0; for (let i = 0; i < 8; i++) if (b >> i & 1) o |= 1 << (7 - i); return o; };
+const PANEL_OPS = {
+  // left on screen is toward bit 0
+  left: rows => rows.map(b => (b >> 1)),
+  right: rows => rows.map(b => (b << 1) & 0xFF),
+  up: rows => rows.slice(1).concat([0]),
+  down: rows => [0].concat(rows.slice(0, 7)),
+  flipH: rows => rows.map(rev8),
+  flipV: rows => rows.slice().reverse(),
+  invert: rows => rows.map(b => ~b & 0xFF),
+  clear: () => [0, 0, 0, 0, 0, 0, 0, 0],
+  rotate: rows => {   // clockwise: the new row r is the old column r, read bottom to top
+    const out = [0, 0, 0, 0, 0, 0, 0, 0];
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (rows[7 - c] >> r & 1) out[r] |= 1 << c;
+    return out;
+  },
+  rotateBack: rows => PANEL_OPS.rotate(PANEL_OPS.rotate(PANEL_OPS.rotate(rows))),
+};
+// what the same operation looks like on the other side of the face
+const MIRRORED_OP = {left: 'right', right: 'left', rotate: 'rotateBack'};
+function panelOp(op) {
+  if (sel < 0) return;
+  const px = F().px;
+  if (op === 'copy') { clip = panelRows(px, sel); updatePanelBar(); toast('Panel copied'); return; }
+  checkpoint();
+  if (op === 'paste') {
+    if (!clip) return;
+    putRows(px, sel, clip);
+    if (mirrorOn && canMirror() && L.mirror[sel] >= 0 && L.mirror[sel] !== sel) putRows(px, L.mirror[sel], clip.map(rev8));
+  } else {
+    putRows(px, sel, PANEL_OPS[op](panelRows(px, sel)));
+    const m = L.mirror[sel];
+    if (mirrorOn && canMirror() && m >= 0 && m !== sel) putRows(px, m, PANEL_OPS[MIRRORED_OP[op] || op](panelRows(px, m)));
+  }
+  refreshFrame();
+}
+function frameOp(op) {
+  const px = F().px;
+  if (op === 'copyPrev') {
+    if (cur === 0) { toast('This is the first frame'); return; }
+    checkpoint(); px.set(face.frames[cur - 1].px); refreshFrame(); return;
+  }
+  checkpoint();
+  if (op === 'clear') px.fill(0);
+  else if (op === 'up' || op === 'down') {
+    // the whole face moves as one picture, so rows carry across from one panel row to the next
+    const H = L.H * 8, rows = [];
+    for (let y = 0; y < H; y++) rows.push(new Uint8Array(L.W));
+    for (let p = 0; p < L.n; p++) { const w = L.where[p]; if (w) for (let r = 0; r < 8; r++) rows[w.r * 8 + r][w.c] = px[p * 8 + r]; }
+    const moved = op === 'up' ? rows.slice(1).concat([new Uint8Array(L.W)]) : [new Uint8Array(L.W)].concat(rows.slice(0, H - 1));
+    for (let p = 0; p < L.n; p++) { const w = L.where[p]; if (w) for (let r = 0; r < 8; r++) px[p * 8 + r] = moved[w.r * 8 + r][w.c]; }
+  } else if (op === 'mirrorLR' || op === 'mirrorRL') {
+    for (let p = 0; p < L.n; p++) {
+      const w = L.where[p], m = L.mirror[p];
+      if (!w || m < 0 || m === p) continue;
+      const onLeft = w.c < L.W / 2;
+      if (onLeft === (op === 'mirrorLR')) putRows(px, m, panelRows(px, p).map(rev8));
     }
-    //if($("#typeVisor").val() == "custom") {
-      visorLoop();
-    //}
   }
+  refreshFrame();
+}
 
-  //visor and ear loop to show frames
-  let visorTimeout,earTimeout;
-  function visorLoop() {
-    loadVisorFrame();
-    if(nowEditVisorFrame == framesVisor.length-1) {
-      nowEditVisorFrame = 0;
-    } else {
-      nowEditVisorFrame++;
+/* ---------- drawing geometry ---------- */
+// s is the pitch of one LED in CSS pixels. Panels are 8 LEDs with a gap of one between them.
+function geometry(s, half) {
+  const cols = [];
+  for (let c = 0; c < (half ? Math.ceil(L.W / 2) : L.W); c++) cols.push(c);
+  while (half && cols.length > 1 && L.colEmpty[cols[cols.length - 1]]) cols.pop();   // the gap in the middle is room wasted
+  const pad = Math.round(s * .6), gap = s;
+  const colX = [], colW = [];
+  let x = pad;
+  for (const c of cols) { colX[c] = x; colW[c] = (L.colEmpty[c] ? 4 : 8) * s; x += colW[c] + gap; }
+  const width = x - gap + pad;
+  const rowY = [];
+  let y = pad;
+  for (let r = 0; r < L.H; r++) { rowY[r] = y; y += 8 * s + gap; }
+  return {s, cols, colX, colW, rowY, width, height: y - gap + pad, half};
+}
+function unitsWide(half) { const g = geometry(10, half); return g.width / 10; }
+
+function drawFace(ctx, g, px, opts) {
+  opts = opts || {};
+  const {s} = g;
+  ctx.fillStyle = '#05070c';
+  ctx.fillRect(0, 0, g.width, g.height);
+  const dot = Math.max(1, s * (s >= 6 ? .78 : .86)), off = (s - dot) / 2, round = s >= 6;
+  for (let r = 0; r < L.H; r++) for (const c of g.cols) {
+    const p = L.grid[r][c];
+    if (p < 0) continue;
+    const x0 = g.colX[c], y0 = g.rowY[r];
+    if (opts.panelBg) {
+      ctx.fillStyle = face.isMouth[p] ? '#0d1522' : '#0a0f19';
+      ctx.fillRect(x0 - s * .3, y0 - s * .3, 8 * s + s * .6, 8 * s + s * .6);
     }
-    visorTimeout = setTimeout(visorLoop,$("#timespanVisor").val());
-  }
-
-  function earLoop() {
-    loadEarsFrame();
-    if(nowEditEarsFrame == framesEars.length-1) {
-      nowEditEarsFrame = 0;
-    } else {
-      nowEditEarsFrame++;
+    for (let pr = 0; pr < 8; pr++) for (let pc = 0; pc < 8; pc++) {
+      const on = getPx(px, p, pr, pc);
+      const ghost = !on && opts.onion && getPx(opts.onion, p, pr, pc);
+      ctx.fillStyle = on ? '#5fb0ff' : ghost ? 'rgba(95,176,255,.28)' : '#161e2e';
+      const x = x0 + pc * s + off, y = y0 + pr * s + off;
+      if (round) { ctx.beginPath(); ctx.arc(x + dot / 2, y + dot / 2, dot / 2, 0, Math.PI * 2); ctx.fill(); }
+      else ctx.fillRect(x, y, dot, dot);
     }
-    earTimeout = setTimeout(earLoop,$("#timespanEars").val());
-  }
-
-  //clear timeouts to stop loop
-  function stopAnim(){
-    clearTimeout(visorTimeout);
-    clearTimeout(earTimeout);
-  }
-
-  /*-----------------------------------MISC-----------------------------------*/
-  //nuke and reset all
-  function nukeAll() {
-    if(confirm("You sure to reset all?") == true) {
-      $("#earsFramesP").empty();
-      $("#editDivEars").hide();
-      $("#visorFramesP").empty();
-      $("#editDivVisor").hide();
-      fillBlack();
-      fillBlackVisor();
-      framesEars.length = 0;
-      framesVisor.length = 0;
-      $("#output").val("");
-      $("#usedColors").html("");
+    if (opts.sel === p || opts.twin === p) {
+      ctx.strokeStyle = opts.sel === p ? '#4da3ff' : 'rgba(77,163,255,.45)';
+      ctx.lineWidth = Math.max(2, s * .25);
+      ctx.setLineDash(opts.sel === p ? [] : [s, s * .6]);
+      ctx.strokeRect(x0 - s * .45, y0 - s * .45, 8 * s + s * .9, 8 * s + s * .9);
+      ctx.setLineDash([]);
     }
   }
-  
-  //key press handler
-  $(document).ready(() => {
-    $(document).keydown(function (event) {
-      if(event.target.nodeName === "INPUT" || event.target.nodeName === "TEXTAREA" || event.target.isContentEditable) return;
-      event.preventDefault();
-      switch (event.key) {
-        case "c":
-          matrixAction = "col";
-          break;
-        case "r":
-          matrixAction = "row";
-          break;
-        case "v":
-          matrixAction = "paste";
-          break;
-        case "s":
-          matrixAction = "select";
-          break;
-        case "t":
-          entireMatrix();
-          break;
-        case "ArrowUp":
-          $('#shift-up-button').click();
-          break;
-        case "ArrowLeft":
-          $('#shift-left-button').click();
-          break;
-        case "ArrowDown":
-          $('#shift-down-button').click();
-          break;
-        case "ArrowRight":
-          $('#shift-right-button').click();
-          break;
-      }
-    });
+}
+
+function sizeCanvas(cv, g) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  cv.width = Math.round(g.width * dpr); cv.height = Math.round(g.height * dpr);
+  cv.style.width = g.width + 'px'; cv.style.height = g.height + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
+/* ---------- the main canvas ---------- */
+const cv = $('visor'), stage = $('stage');
+let zoom = 1, G = null, ctx = null;
+
+// Half view: with Mirror on and too little room for the whole face at a size a finger can hit,
+// show only the left half at twice the size. The other half is drawn for you, and the preview
+// shows the whole face.
+function halfView() { return mirrorOn && canMirror() && (stage.clientWidth - 2) / unitsWide(false) < 9; }
+function layoutCanvas(keepCentre) {
+  const half = halfView();
+  const avail = Math.max(200, stage.clientWidth - 2);
+  const fit = avail / unitsWide(half);
+  const s = Math.max(3, Math.min(48, fit * zoom));
+  const cx = keepCentre && G ? (stage.scrollLeft + stage.clientWidth / 2) / G.width : .5;
+  const cy = keepCentre && G ? (stage.scrollTop + stage.clientHeight / 2) / G.height : .5;
+  G = geometry(s, half);
+  ctx = sizeCanvas(cv, G);
+  stage.scrollLeft = cx * G.width - stage.clientWidth / 2;
+  stage.scrollTop = cy * G.height - stage.clientHeight / 2;
+  $('stageNote').textContent = half ? 'Left half, seen from the front. The right half is mirrored for you.' : 'Seen from the front, as people see the mask.';
+  render();
+}
+function render() {
+  if (!G) return;
+  const fr = playing ? face.frames[playAt] : F();
+  drawFace(ctx, G, fr.px, {
+    panelBg: true,
+    onion: !playing && onionOn && cur > 0 ? face.frames[cur - 1].px : null,
+    sel: playing ? -1 : sel,
+    twin: !playing && sel >= 0 && mirrorOn && canMirror() ? L.mirror[sel] : -1,
   });
-  
-  //fixes hex pattern
-  function fixPattern(pattern) {
-    pattern = pattern.replace(/[^0-9a-fA-F]/g, '0');
-    return ('0000000000000000' + pattern).substr(-16);
-  }
+}
 
-  //loads leds from hex
-  function hexInputToLeds(segment, value) {
-    var val = fixPattern(value);
-    for (var i = 1; i < 9; i++) {
-      var byte = val.substr(-2 * i, 2);
+// canvas point -> {p, r, c, x, y} where x/y are global grid coordinates; clamps into the nearest
+// column so a stroke that crosses a gap carries on rather than stopping dead
+function hit(ev) {
+  const rect = cv.getBoundingClientRect();
+  const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+  let col = G.cols[0];
+  for (const c of G.cols) if (x >= G.colX[c] - G.s / 2) col = c;
+  let row = 0;
+  for (let r = 0; r < L.H; r++) if (y >= G.rowY[r] - G.s / 2) row = r;
+  const pc = Math.max(0, Math.min(7, Math.floor((x - G.colX[col]) / G.s)));
+  const pr = Math.max(0, Math.min(7, Math.floor((y - G.rowY[row]) / G.s)));
+  const inside = x >= G.colX[col] && x < G.colX[col] + 8 * G.s && y >= G.rowY[row] && y < G.rowY[row] + 8 * G.s;
+  const p = L.grid[row][col];
+  return {p: inside ? p : -1, anyP: p, r: pr, c: pc, x: col * 8 + pc, y: row * 8 + pr};
+}
 
-      byte = parseInt(byte, 16);
-      for (var j = 1; j < 9; j++) {
-        var active = !!(byte & 1 << (j - 1));
-        $('#t' + segment).find('.item[data-row=' + i + '][data-col=' + j + '] ').toggleClass('active', active);
-      }
-    }
-  }
-  
-  //return hex of segment
-  function ledsToHex(segment) {
-    var out = [];
-    for (var i = 1; i < 9; i++) {
-      var byte = [];
-      for (var j = 1; j < 9; j++) {
-        var active = $('#t' + segment).find('.item[data-row=' + i + '][data-col=' + j + '] ').hasClass('active');
-        byte.push(active ? '1' : '0');
-      }
-      byte.reverse();
-      byte = parseInt(byte.join(''), 2).toString(16);
-      byte = ('0' + byte).substr(-2);
-      out.push(byte);
-    }
-    out.reverse();
-    return out.join('');
-  }
+let tool = 'pen';
+let stroke = null;        // {base, x0, y0, lx, ly, on}
+const pointers = new Map();
+let pinch = null;
 
-  /*-----------------------------------File/Anim SAVE/LOAD-----------------------------------*/
-  //sends animation to ESP for test
-  function postAnim() {
-    $.ajax({
-      url: '/change',
-      type: 'post',
-      data: {
-        anim: $("#output").val()
-      }
+cv.addEventListener('pointerdown', ev => {
+  if (playing) stopPlay();
+  cv.setPointerCapture(ev.pointerId);
+  pointers.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
+  if (pointers.size === 2) {           // a second finger: this is a pan or pinch, not a stroke
+    cancelStroke();
+    const [a, b] = [...pointers.values()];
+    pinch = {d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, zoom};
+    return;
+  }
+  if (pointers.size > 2) return;
+  const h = hit(ev);
+  if (tool === 'select') {
+    sel = h.p >= 0 ? (sel === h.p ? -1 : h.p) : -1;
+    updatePanelBar(); render();
+    return;
+  }
+  if (tool === 'fill') {
+    if (h.p < 0) return;
+    checkpoint(); fillPanel(F().px, h.p, h.r, h.c); refreshFrame();
+    return;
+  }
+  if (h.p < 0 && (tool === 'pen' || tool === 'erase')) {
+    // started between panels: still a stroke, it just begins drawing when it reaches one
+  }
+  checkpoint();
+  stroke = {base: F().px.slice(), x0: h.x, y0: h.y, lx: h.x, ly: h.y, on: tool !== 'erase', undoMark: undoStack.length};
+  applyStroke(h);
+});
+cv.addEventListener('pointermove', ev => {
+  if (!pointers.has(ev.pointerId)) { showCoord(ev); return; }
+  pointers.set(ev.pointerId, {x: ev.clientX, y: ev.clientY});
+  if (pinch && pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const want = Math.max(1, Math.min(6, pinch.zoom * d / Math.max(20, pinch.d)));
+    if (Math.abs(want - zoom) > .02) { zoom = want; layoutCanvas(true); }
+    stage.scrollLeft -= mx - pinch.mx; stage.scrollTop -= my - pinch.my;
+    pinch.mx = mx; pinch.my = my;
+    return;
+  }
+  if (!stroke) return;
+  const events = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
+  for (const e of (events.length ? events : [ev])) applyStroke(hit(e));
+  showCoord(ev);
+});
+function endPointer(ev) {
+  pointers.delete(ev.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (stroke && pointers.size === 0) { stroke = null; refreshFrame(); }
+}
+cv.addEventListener('pointerup', endPointer);
+cv.addEventListener('pointercancel', ev => { cancelStroke(); endPointer(ev); });
+cv.addEventListener('pointerleave', () => { $('coord').textContent = ''; });
+
+function applyStroke(h) {
+  const px = F().px;
+  if (tool === 'pen' || tool === 'erase') {
+    lineGlobal(px, stroke.lx, stroke.ly, h.x, h.y, stroke.on);
+    stroke.lx = h.x; stroke.ly = h.y;
+  } else {                              // line and box are redrawn from where the stroke began
+    px.set(stroke.base);
+    (tool === 'line' ? lineGlobal : rectGlobal)(px, stroke.x0, stroke.y0, h.x, h.y, true);
+  }
+  render();
+}
+function cancelStroke() {
+  if (!stroke) return;
+  F().px.set(stroke.base);
+  if (undoStack.length === stroke.undoMark) undoStack.pop();   // nothing was really drawn
+  stroke = null;
+  touched(); render();
+}
+function showCoord(ev) {
+  if (!G || ev.pointerType === 'touch') return;
+  const h = hit(ev);
+  $('coord').textContent = h.p >= 0 ? 'Panel ' + h.p + (face.isMouth[h.p] ? ' (mouth)' : '') + ' · row ' + (h.r + 1) + ', column ' + (h.c + 1) : '';
+}
+
+/* ---------- tools and view ---------- */
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll('.tool').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
+  if (t !== 'select' && sel >= 0) { /* keep the selection: the panel bar stays useful */ }
+  try { localStorage.setItem('animTool', t); } catch (e) {}
+}
+document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+
+function setMirror(on) {
+  mirrorOn = on && canMirror();
+  $('mirrorBtn').classList.toggle('on', mirrorOn);
+  $('mirrorBtn').setAttribute('aria-pressed', mirrorOn);
+  try { localStorage.setItem('animMirror', mirrorOn ? '1' : '0'); } catch (e) {}
+  layoutCanvas(false);
+}
+function setOnion(on) {
+  onionOn = on;
+  $('onionBtn').classList.toggle('on', on);
+  $('onionBtn').setAttribute('aria-pressed', on);
+  try { localStorage.setItem('animOnion', on ? '1' : '0'); } catch (e) {}
+  render();
+}
+$('mirrorBtn').addEventListener('click', () => setMirror(!mirrorOn));
+$('onionBtn').addEventListener('click', () => setOnion(!onionOn));
+$('zoomIn').addEventListener('click', () => { zoom = Math.min(6, zoom * 1.4); layoutCanvas(true); });
+$('zoomOut').addEventListener('click', () => { zoom = Math.max(1, zoom / 1.4); layoutCanvas(true); });
+$('zoomFit').addEventListener('click', () => { zoom = 1; layoutCanvas(false); });
+let resizeT = null;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => layoutCanvas(true), 120); });
+
+/* ---------- panel bar ---------- */
+function updatePanelBar() {
+  $('panelActions').hidden = sel < 0;
+  if (sel < 0) return;
+  const m = L.mirror[sel];
+  $('panelLabel').textContent = 'Panel ' + sel + (mirrorOn && canMirror() && m >= 0 && m !== sel ? ' and its twin, panel ' + m : '');
+  document.querySelector('[data-op=paste]').disabled = !clip;
+  $('mouthBtn').classList.toggle('on', !!face.isMouth[sel]);
+  $('mouthBtn').setAttribute('aria-pressed', !!face.isMouth[sel]);
+}
+document.querySelectorAll('[data-op]').forEach(b => b.addEventListener('click', () => panelOp(b.dataset.op)));
+document.querySelectorAll('[data-fop]').forEach(b => b.addEventListener('click', () => frameOp(b.dataset.fop)));
+$('mouthBtn').addEventListener('click', () => {
+  if (sel < 0) return;
+  checkpoint();
+  const v = !face.isMouth[sel];
+  face.isMouth[sel] = v;
+  const m = L.mirror[sel];
+  if (mirrorOn && canMirror() && m >= 0) face.isMouth[m] = v;
+  updatePanelBar(); render();
+});
+
+/* ---------- frames ---------- */
+const strip = $('strip');
+const THUMB_S = 2;
+function thumbCanvas(px, cvs) {
+  const g = geometry(THUMB_S, false);
+  const c = cvs || document.createElement('canvas');
+  c.width = g.width; c.height = g.height;
+  drawFace(c.getContext('2d'), g, px);
+  return c;
+}
+function buildStrip() {
+  strip.innerHTML = '';
+  face.frames.forEach((fr, i) => {
+    const t = document.createElement('div');
+    t.className = 'thumb' + (i === cur ? ' on' : '');
+    t.dataset.i = i;
+    t.setAttribute('role', 'button');
+    t.setAttribute('tabindex', '0');
+    t.setAttribute('aria-label', 'Frame ' + (i + 1) + ', ' + fr.t + ' milliseconds');
+    t.appendChild(thumbCanvas(fr.px));
+    const lab = document.createElement('span');
+    lab.innerHTML = '<b></b><em style="font-style:normal"></em>';
+    lab.firstChild.textContent = i + 1;
+    lab.lastChild.textContent = fr.t + ' ms';
+    t.appendChild(lab);
+    strip.appendChild(t);
+  });
+  const add = document.createElement('button');
+  add.type = 'button'; add.className = 'thumb add'; add.textContent = '+ Frame';
+  add.addEventListener('click', () => addFrame(false));
+  strip.appendChild(add);
+  $('frameCount').textContent = face.frames.length + (face.frames.length === 1 ? ' frame' : ' frames') + ' · ' + totalMs() + ' ms';
+}
+function totalMs() { return face.frames.reduce((a, f) => a + (f.t || 0), 0); }
+function refreshThumb(i) {
+  const t = strip.children[i];
+  if (!t) return;
+  thumbCanvas(face.frames[i].px, t.querySelector('canvas'));
+  t.querySelector('em').textContent = face.frames[i].t + ' ms';
+}
+function selectFrame(i, scroll) {
+  stopPlay();
+  cur = Math.max(0, Math.min(face.frames.length - 1, i));
+  [...strip.children].forEach((t, j) => t.classList.toggle('on', j === cur));
+  // scrolls the strip only: scrollIntoView would drag the whole page down to it
+  const t = strip.children[cur];
+  if (scroll !== false && t) {
+    if (t.offsetLeft < strip.scrollLeft) strip.scrollLeft = t.offsetLeft - 8;
+    else if (t.offsetLeft + t.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = t.offsetLeft + t.offsetWidth - strip.clientWidth + 8;
+  }
+  $('msInput').value = F().t;
+  $('moveLeft').disabled = cur === 0;
+  $('moveRight').disabled = cur === face.frames.length - 1;
+  $('delFrame').disabled = face.frames.length === 1;
+  render(); renderPreview();
+}
+function refreshFrame() {   // the current frame's pixels changed
+  render(); refreshThumb(cur); renderPreview(); touched();
+}
+function refreshAll() {
+  buildStrip(); selectFrame(cur); updatePanelBar(); showFace();
+  $('undoBtn').disabled = !undoStack.length; $('redoBtn').disabled = !redoStack.length;
+}
+function addFrame(copy) {
+  checkpoint();
+  const src = F();
+  const fr = copy ? {t: src.t, px: src.px.slice(), orig: src.orig, keys: src.keys, extra: JSON.parse(JSON.stringify(src.extra))}
+                  : blankFrame(src.t);
+  face.frames.splice(cur + 1, 0, fr);
+  cur++;
+  buildStrip(); selectFrame(cur);
+}
+$('addFrame').addEventListener('click', () => addFrame(false));
+$('dupFrame').addEventListener('click', () => addFrame(true));
+$('delFrame').addEventListener('click', () => {
+  if (face.frames.length < 2) return;
+  checkpoint();
+  face.frames.splice(cur, 1);
+  cur = Math.min(cur, face.frames.length - 1);
+  buildStrip(); selectFrame(cur);
+  toast('Frame deleted', false, {label: 'Undo', run: undo});
+});
+function moveFrame(from, to) {
+  if (to < 0 || to >= face.frames.length || to === from) return;
+  checkpoint();
+  const [fr] = face.frames.splice(from, 1);
+  face.frames.splice(to, 0, fr);
+  cur = to;
+  buildStrip(); selectFrame(cur);
+}
+$('moveLeft').addEventListener('click', () => moveFrame(cur, cur - 1));
+$('moveRight').addEventListener('click', () => moveFrame(cur, cur + 1));
+$('msInput').addEventListener('change', () => {
+  const v = Math.max(10, Math.min(60000, parseInt($('msInput').value, 10) || 0));
+  $('msInput').value = v;
+  if (v === F().t) return;
+  checkpoint(); F().t = v; refreshThumb(cur); buildStripCount();
+});
+$('msAll').addEventListener('click', () => {
+  const v = Math.max(10, Math.min(60000, parseInt($('msInput').value, 10) || 0));
+  if (!confirm('Show every frame for ' + v + ' ms?')) return;
+  checkpoint(); face.frames.forEach(f => { f.t = v; }); buildStrip(); selectFrame(cur);
+});
+function buildStripCount() { $('frameCount').textContent = face.frames.length + (face.frames.length === 1 ? ' frame' : ' frames') + ' · ' + totalMs() + ' ms'; }
+
+// Tap to pick a frame; long-press, then drag, to move it. A quick swipe still scrolls the strip.
+let drag = null;
+strip.addEventListener('pointerdown', ev => {
+  const t = ev.target.closest('.thumb[data-i]');
+  if (!t) return;
+  const i = +t.dataset.i;
+  drag = {i, x: ev.clientX, y: ev.clientY, lifted: false, id: ev.pointerId, el: t, to: i};
+  drag.timer = setTimeout(() => {
+    if (!drag) return;
+    drag.lifted = true;
+    t.classList.add('lifted');
+    try { strip.setPointerCapture(drag.id); } catch (e) {}
+    if (navigator.vibrate) navigator.vibrate(12);
+  }, 350);
+});
+strip.addEventListener('pointermove', ev => {
+  if (!drag) return;
+  if (!drag.lifted) {
+    if (Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) > 8) { clearTimeout(drag.timer); drag = null; }   // a scroll
+    return;
+  }
+  ev.preventDefault();
+  const thumbs = [...strip.querySelectorAll('.thumb[data-i]')];
+  let to = thumbs.length - 1;
+  for (let j = 0; j < thumbs.length; j++) {
+    const r = thumbs[j].getBoundingClientRect();
+    if (ev.clientX < r.left + r.width / 2) { to = j; break; }
+  }
+  if (to > drag.i) to--;   // counted with the lifted frame still in place
+  drag.to = Math.max(0, to);
+  strip.querySelectorAll('.drop-mark').forEach(m => m.remove());
+  const mark = document.createElement('div'); mark.className = 'drop-mark';
+  const ref = thumbs[drag.to >= drag.i ? drag.to + 1 : drag.to];
+  strip.insertBefore(mark, ref || strip.querySelector('.thumb.add'));
+  const r = strip.getBoundingClientRect();   // edge scroll
+  if (ev.clientX < r.left + 30) strip.scrollLeft -= 12; else if (ev.clientX > r.right - 30) strip.scrollLeft += 12;
+});
+function endDrag(ev) {
+  if (!drag) return;
+  clearTimeout(drag.timer);
+  const d = drag; drag = null;
+  strip.querySelectorAll('.drop-mark').forEach(m => m.remove());
+  d.el.classList.remove('lifted');
+  if (d.lifted) { if (d.to !== d.i) moveFrame(d.i, d.to); else selectFrame(d.i, false); }
+  else if (ev.type === 'pointerup') selectFrame(d.i, false);
+}
+strip.addEventListener('pointerup', endDrag);
+strip.addEventListener('pointercancel', endDrag);
+strip.addEventListener('contextmenu', ev => ev.preventDefault());
+// once a frame is lifted the finger moves it, not the strip
+strip.addEventListener('touchmove', ev => { if (drag && drag.lifted) ev.preventDefault(); }, {passive: false});
+strip.addEventListener('keydown', ev => {
+  const t = ev.target.closest('.thumb[data-i]');
+  if (t && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); selectFrame(+t.dataset.i); }
+});
+
+/* ---------- preview and playback ---------- */
+const pcv = $('preview');
+let pctx = null, PG = null;
+let playing = false, playAt = 0, playTimer = null;
+function renderPreview() {
+  if (!PG) { PG = geometry(4, false); pctx = sizeCanvas(pcv, PG); pcv.style.width = ''; pcv.style.height = ''; }
+  drawFace(pctx, PG, (playing ? face.frames[playAt] : F()).px);
+}
+function tick() {
+  if (!playing) return;
+  playAt = (playAt + 1) % face.frames.length;
+  step();
+}
+function step() {
+  render(); renderPreview();
+  [...strip.children].forEach((t, j) => t.classList.toggle('playing', j === playAt));
+  playTimer = setTimeout(tick, Math.max(16, face.frames[playAt].t || 0));
+}
+function startPlay() {
+  if (playing || face.frames.length < 1) return;
+  playing = true; playAt = cur;
+  $('playBtn').innerHTML = icon('stop') + '<span>Stop</span>';
+  step();
+}
+function stopPlay() {
+  if (!playing) return;
+  playing = false; clearTimeout(playTimer);
+  $('playBtn').innerHTML = icon('play') + '<span>Play</span>';
+  [...strip.children].forEach(t => t.classList.remove('playing'));
+  render(); renderPreview();
+}
+$('playBtn').addEventListener('click', () => playing ? stopPlay() : startPlay());
+
+/* ---------- talking to the mask ---------- */
+async function post(url, fields) {
+  const form = new FormData();
+  for (const k in fields) form.append(k, fields[k]);
+  const r = await fetch(url, {method: 'POST', body: form, redirect: 'manual', cache: 'no-store'});
+  if (r.type === 'opaqueredirect' || (r.status >= 300 && r.status < 400)) return;   // the firmware answers success with a redirect
+  const text = await r.text();
+  throw new Error(text || ('The mask answered ' + r.status));
+}
+$('tryBtn').addEventListener('click', async () => {
+  const b = $('tryBtn'); b.disabled = true;
+  try { await post('/change', {anim: faceJSON()}); toast('Playing on the mask. It isn\'t saved yet.'); }
+  catch (e) { toast(e.message.includes('fetch') ? 'Could not reach the mask' : e.message, true); }
+  b.disabled = false;
+});
+
+async function faceNames() {
+  const parts = (await (await fetch('/getfiles', NO_CACHE)).text()).split(';');
+  parts.pop();     // trailing ';'
+  parts.shift();   // the face showing now, which can be empty
+  return parts.filter(Boolean);
+}
+
+function cleanName(v) { return v.trim().replace(/\.json$/i, ''); }
+function nameProblem(n) {
+  if (!n) return 'Give the face a name first';
+  if (!/^[A-Za-z0-9 _-]{1,30}$/.test(n)) return 'Names can use letters, numbers, spaces, - and _';
+  return '';
+}
+$('saveBtn').addEventListener('click', async () => {
+  const name = cleanName($('nameInput').value);
+  const problem = nameProblem(name);
+  if (problem) { toast(problem, true); $('nameInput').focus(); return; }
+  if (STANDALONE) { download(name); return; }
+  const b = $('saveBtn'); b.disabled = true;
+  try {
+    const names = await faceNames().catch(() => []);
+    if (names.includes(name + '.json') && face.file !== name + '.json' &&
+        !confirm('There is already a face called "' + name + '". Replace it?')) { b.disabled = false; return; }
+    await post('/savefile', {file: name, content: faceJSON()});
+    face.name = name; face.file = name + '.json'; dirty = false;
+    saveDraft(); showFace();
+    toast('Saved as ' + name);
+  } catch (e) { toast(e.message.includes('fetch') ? 'Could not reach the mask' : e.message, true); }
+  b.disabled = false;
+});
+function download(name) {
+  name = name || cleanName($('nameInput').value) || 'face';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([faceJSON()], {type: 'application/json'}));
+  a.download = name + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  if (STANDALONE) { dirty = false; saveDraft(); }
+}
+$('exportBtn').addEventListener('click', () => download());
+$('nameInput').addEventListener('input', () => { saveDraft(); showFace(); });
+$('blinkToggle').addEventListener('change', () => { checkpoint(); face.canBlink = $('blinkToggle').checked; });
+
+function showFace() {
+  const n = cleanName($('nameInput').value) || face.name;
+  $('faceTitle').textContent = (n || 'New face') + (dirty ? ' · not saved' : '');
+  document.title = (n ? n + ' · ' : '') + (STANDALONE ? 'Face maker' : 'BittenOS Animator');
+  $('blinkToggle').checked = !!face.canBlink;
+}
+
+/* ---------- menu, open, import ---------- */
+document.querySelectorAll('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+document.querySelectorAll('dialog').forEach(d => d.addEventListener('click', ev => { if (ev.target === d) d.close(); }));
+$('menuBtn').addEventListener('click', () => $('menuDlg').showModal());
+function okToDiscard() { return !dirty || confirm('Your changes to this face aren\'t saved. Carry on anyway?'); }
+
+$('newBtn').addEventListener('click', () => {
+  $('menuDlg').close();
+  if (!okToDiscard()) return;
+  stopPlay(); newFace(); $('nameInput').value = ''; clearDraft(); refreshAll();
+});
+$('importBtn').addEventListener('click', () => { $('fileInput').click(); });
+$('fileInput').addEventListener('change', async () => {
+  const f = $('fileInput').files[0];
+  $('fileInput').value = '';
+  $('menuDlg').close();
+  if (!f || !okToDiscard()) return;
+  try {
+    const name = f.name.replace(/\.json$/i, '');
+    openDoc(JSON.parse(await f.text()), name);
+    face.file = '';   // imported, not yet on the mask
+    toast('Imported ' + name);
+  } catch (e) { toast(e instanceof SyntaxError ? "That file isn't valid JSON" : e.message, true); }
+});
+$('keysBtn').addEventListener('click', () => { $('menuDlg').close(); $('keysDlg').showModal(); });
+
+function openDoc(doc, name) {
+  stopPlay();
+  loadDoc(doc, name);
+  $('nameInput').value = name || '';
+  saveDraft(); refreshAll();
+}
+async function openFromMask(file) {
+  try {
+    const doc = await (await fetch('/anims/' + encodeURIComponent(file), NO_CACHE)).json();
+    openDoc(doc, file.replace(/\.json$/, ''));
+    return true;
+  } catch (e) { toast('Could not open ' + file, true); return false; }
+}
+$('openBtn').addEventListener('click', async () => {
+  $('menuDlg').close();
+  const list = $('faceList');
+  list.innerHTML = '<p class="hint" style="margin:0">Loading…</p>';
+  $('openDlg').showModal();
+  let names;
+  try { names = await faceNames(); } catch (e) { list.innerHTML = '<p class="hint" style="margin:0">Could not reach the mask.</p>'; return; }
+  list.innerHTML = names.length ? '' : '<p class="hint" style="margin:0">No faces on the mask yet.</p>';
+  const tiles = names.map(file => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'face-pick' + (file === face.file ? ' cur' : '');
+    b.innerHTML = '<canvas></canvas><span></span>';
+    b.querySelector('span').textContent = file.replace(/\.json$/, '');
+    b.addEventListener('click', async () => {
+      if (!okToDiscard()) return;
+      if (await openFromMask(file)) $('openDlg').close();
     });
+    list.appendChild(b);
+    return [file, b];
+  });
+  // one at a time, so the mask isn't flooded
+  for (const [file, b] of tiles) {
+    if (!$('openDlg').open) break;
+    try {
+      const doc = await (await fetch('/anims/' + encodeURIComponent(file), NO_CACHE)).json();
+      const px = new Uint8Array(L.n * 8);
+      const leds = (doc.visor && doc.visor.frames && doc.visor.frames[0] && doc.visor.frames[0].leds) || [];
+      for (let p = 0; p < L.n; p++) hexToRows(leds[p], px, p * 8);
+      thumbCanvas(px, b.querySelector('canvas'));
+    } catch (e) {}
   }
+});
 
-  //loads visor type files
-  function loadVisorConfig(part) {
-    $.ajax({
-      type: "GET",
-      url: "/visType.txt",
-      async: false,
-      success: function(response){
-        visType = response;
-      },
-      error: function(XMLHttpRequest, textStatus, errorThrown) {
-        alert("Couldn't load /visType.txt");
-      }
-    });
-    $.ajax({
-      type: "GET",
-      url: "/visTypeMouth.txt",
-      async: false,
-      success: function(response){
-        visTypeMouth = response;
-      },
-      error: function(XMLHttpRequest, textStatus, errorThrown) {
-        alert("Couldn't load /visTypeMouth.txt");
-      }
-    });
-  }
+/* ---------- layout (face maker only: on the mask the layout is the mask's own) ---------- */
+$('layoutBtn').addEventListener('click', () => {
+  $('menuDlg').close();
+  $('layoutText').value = L.txt;
+  $('mouthText').value = JSON.stringify(L.mouth);
+  $('layoutDlg').showModal();
+});
+$('layoutReset').addEventListener('click', () => { $('layoutText').value = MASK_LAYOUT; $('mouthText').value = JSON.stringify(MASK_MOUTH); });
+$('layoutApply').addEventListener('click', () => {
+  let next;
+  try { next = parseLayout($('layoutText').value, $('mouthText').value); } catch (e) { toast(e.message, true); return; }
+  if (!okToDiscard()) return;
+  const doc = buildDoc(), name = face.name;
+  L = next;
+  try { localStorage.setItem('faceMakerLayout', JSON.stringify({txt: L.txt, mouth: L.mouth})); } catch (e) {}
+  openDoc(doc, name);
+  $('layoutDlg').close();
+  setMirror(mirrorOn || localStorage.getItem('animMirror') !== '0');
+  toast(L.n + ' panels');
+});
 
-  //loads all available animations
-  function loadFiles() {
-    $.ajax({
-      type: "GET",
-      url: "/getfiles",
-      async: false,
-      success: function(response){
-        var partsArray = response.split(';');
-        partsArray.pop();
-        var arrayLength = partsArray.length;
-        for (var i = 1; i < arrayLength; i++) {
-          var x = document.getElementById("avaibleanims");
-          var option = document.createElement("option");
-          option.innerHTML = partsArray[i];
-          option.value = partsArray[i];
-          document.getElementById("avaibleanims").options.add(option);
-        }
-        $("#footerForm").append('<p>3. <button type="button" onclick="postAnim()">Try animation</button></p>4. <input type="submit" value="Save to SPIFFS"/>');
-      },
-      error: function(XMLHttpRequest, textStatus, errorThrown) {
-        $("#footerForm").append('3. <button type="button" onclick="saveToFile();">Save to PC</button>');
-        $("#espLoad").hide();
-      }
-    });
-  }
-  loadFiles();
-  $("#visorConfig").val("custom_file").change(); // open straight into this mask's layout
-  
-  function loadLocalFile() {
-    let fileInput = document.getElementById("localFile");
-    fileInput.onchange = function(e) {
-      let fileToLoad = e.target.files[0];
-      if(fileToLoad === undefined || !fileToLoad.name.includes(".json")) {
-        alert("No selected file or not a .json file!");
-      } else {
-        let fileReader = new FileReader();
-        fileReader.onload = function (fileLoadedEvent) {
-          $("#output").val(fileLoadedEvent.target.result);
-          loadAnim();
-        };
-        fileReader.readAsText(fileToLoad, "UTF-8");
-      }
-      fileInput.value = '';
-    };
-    fileInput.click();
-  }
-  
-  function saveToFile() {
-    var link = document.createElement('a');
-    link.href = 'data:text/plain;charset=UTF-8,' + escape($("#output").val());
-    link.download = $("#fileName").val()+".json";
-    link.click();
-  }
-  
-  function deleteFile() {
-    if(confirm("Delete selected animation?")) {
-      var xhr = new XMLHttpRequest();
-      xhr.open("GET", "/deletefile?file="+$("#avaibleanims").val(), true);
-      xhr.send(null);
-	  }
-	}
+/* ---------- keyboard ---------- */
+document.addEventListener('keydown', ev => {
+  if (ev.target.closest('input, textarea') || document.querySelector('dialog[open]')) return;
+  const k = ev.key, mod = ev.ctrlKey || ev.metaKey;
+  if (mod && (k === 'z' || k === 'Z')) { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
+  if (mod && (k === 'y' || k === 'Y')) { ev.preventDefault(); redo(); return; }
+  if (mod && (k === 'c' || k === 'C') && sel >= 0) { ev.preventDefault(); panelOp('copy'); return; }
+  if (mod && (k === 'v' || k === 'V') && sel >= 0 && clip) { ev.preventDefault(); panelOp('paste'); return; }
+  if (mod) return;
+  const tools = {p: 'pen', e: 'erase', l: 'line', b: 'rect', f: 'fill', s: 'select'};
+  if (tools[k.toLowerCase()]) { setTool(tools[k.toLowerCase()]); return; }
+  if (k === 'm' || k === 'M') setMirror(!mirrorOn);
+  else if (k === 'o' || k === 'O') setOnion(!onionOn);
+  else if (k === ',' || k === '<') selectFrame(cur - 1);
+  else if (k === '.' || k === '>') selectFrame(cur + 1);
+  else if (k === 'd' || k === 'D') addFrame(true);
+  else if (k === ' ') { ev.preventDefault(); playing ? stopPlay() : startPlay(); }
+  else if (k === '+' || k === '=') $('zoomIn').click();
+  else if (k === '-') $('zoomOut').click();
+  else if (k === '0') $('zoomFit').click();
+  else if (sel >= 0 && k.startsWith('Arrow')) { ev.preventDefault(); panelOp(k.slice(5).toLowerCase()); }
+  else if (sel >= 0 && (k === 'i' || k === 'I')) panelOp('invert');
+  else if (sel >= 0 && (k === 'Delete' || k === 'Backspace')) panelOp('clear');
+  else if (k === 'Escape' && sel >= 0) { sel = -1; updatePanelBar(); render(); }
+});
+$('undoBtn').addEventListener('click', undo);
+$('redoBtn').addEventListener('click', redo);
+window.addEventListener('beforeunload', ev => { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 
-  //loads animation from textarea or from file
-  function loadAnim(loadFrom) {
-    fillBlack();
-    fillBlackVisor();
-    var response;
-    if (loadFrom) {
-      response = $.ajax({
-        type: "GET",
-        url: "/anims/"+$("#avaibleanims").val(),
-        async: false
-      }).responseText;
-    } else {
-      response = $("#output").val();
+/* ---------- start ---------- */
+async function start() {
+  if (STANDALONE) {
+    $('backLink').hidden = true;
+    $('pageTitle').textContent = 'Face maker';
+    $('openBtn').hidden = true;
+    $('tryBtn').hidden = true;
+    $('layoutBtn').hidden = false;
+    $('saveLabel').textContent = 'Save .json';
+    $('exportBtn').hidden = true;
+    $('saveHint').textContent = 'Saves a .json file. Send it back, or put it on the mask with Upload faces on the System tab.';
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('faceMakerLayout') || 'null'); } catch (e) {}
+    try { L = saved ? parseLayout(saved.txt, JSON.stringify(saved.mouth)) : null; } catch (e) { L = null; }
+    if (!L) L = parseLayout(MASK_LAYOUT, JSON.stringify(MASK_MOUTH));
+  } else {
+    try {
+      const [lt, mt] = await Promise.all([fetch('/visType.txt', NO_CACHE).then(r => r.ok ? r.text() : Promise.reject()),
+                                          fetch('/visTypeMouth.txt', NO_CACHE).then(r => r.ok ? r.text() : '').catch(() => '')]);
+      L = parseLayout(lt, mt || JSON.stringify(MASK_MOUTH));
+    } catch (e) {
+      L = parseLayout(MASK_LAYOUT, JSON.stringify(MASK_MOUTH));
+      toast("Couldn't read the mask's panel layout, so this mask's is used", true);
     }
-    var obj = JSON.parse(response);
-    if (obj.ears.type == "custom" || obj.ears.type == "custom_glow") {
-      framesEars.length = 0;
-      $("#earsFramesP").html("");
-      $("#earsDiv").show();
-      $('#typeEars option[value="'+obj.ears.type+'"]').prop('selected', true);
-      for (var x = 0; x < obj.ears.frames.length; x++) {
-        framesEars.push(JSON.stringify(obj.ears.frames[x]));
-        $("#earsFramesP").append("<a id=\"" + (framesEars.length - 1) + "\">" + (framesEars.length - 1) + "</a>");
-      }
-    } else {
-      $('#typeEars option[value="'+obj.ears.type+'"]').prop('selected', true);
-      $("#earsDiv").hide();
-    }
-    framesVisor.length = 0;
-    $("#visorFramesP").html("");
-    $('#typeVisor option[value="'+obj.visor.type+'"]').prop('selected', true);
-    $("#canBlink").prop('checked', obj.visor.canBlink === true); //editing a face keeps its setting
-    for (var x = 0; x < obj.visor.frames.length; x++) {
-      framesVisor.push(JSON.stringify(obj.visor.frames[x]));
-      $("#visorFramesP").append("<a id=\"" + (framesVisor.length - 1) + "\">" + (framesVisor.length - 1) + "</a>");
-    }
-    alert("Loaded animation");
   }
+  $('mirrorLR').disabled = $('mirrorRL').disabled = !L.symmetric;
+  $('mirrorBtn').disabled = !L.symmetric;
+
+  let prefs = {};
+  try { prefs = {tool: localStorage.getItem('animTool'), mirror: localStorage.getItem('animMirror'), onion: localStorage.getItem('animOnion')}; } catch (e) {}
+  setTool(prefs.tool && document.querySelector('[data-tool="' + prefs.tool + '"]') ? prefs.tool : 'pen');
+  onionOn = prefs.onion === '1';
+  $('onionBtn').classList.toggle('on', onionOn);
+  mirrorOn = prefs.mirror !== '0' && canMirror();   // on unless turned off: nearly every face is a mirror image
+  $('mirrorBtn').classList.toggle('on', mirrorOn);
+  $('mirrorBtn').setAttribute('aria-pressed', mirrorOn);
+
+  newFace();
+  // ?face=name.json opens that face (the home page's Edit button); otherwise carry on from the draft
+  const want = new URLSearchParams(location.search).get('face');
+  const draft = readDraft();
+  if (want && !STANDALONE) {
+    if (draft && draft.dirty && draft.file !== want) {
+      await openFromMask(want);
+      toast('Your unsaved face is still kept', false, {label: 'Go back to it', run: () => { if (okToDiscard()) restoreDraft(draft); }});
+    } else if (!(await openFromMask(want)) && draft) restoreDraft(draft);
+  } else if (draft) {
+    restoreDraft(draft);
+  }
+  layoutCanvas(false);
+  refreshAll();
+}
+function restoreDraft(d) {
+  try {
+    loadDoc(d.doc, d.name || '');
+    face.file = d.file || '';
+    $('nameInput').value = d.name || '';
+    dirty = !!d.dirty;
+    refreshAll();
+  } catch (e) { newFace(); }
+}
+start();
 </script>
+</body>
+</html>
