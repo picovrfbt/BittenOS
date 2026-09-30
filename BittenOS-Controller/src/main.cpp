@@ -427,8 +427,18 @@ volatile bool bootReplayReq = false;     //play the startup bar and warm-up agai
 //From the ESP-NOW remote. Its packets arrive on the WiFi task, which must not touch the panels
 //or the filesystem, so a press is left here for loop() to act on - the same way BLE does it.
 volatile int8_t rmtBtnReq = -1;          //button index waiting to be acted on
-volatile uint8_t rmtEvtReq = 0;          //0 press, 1 hold
+volatile uint8_t rmtEvtReq = 0;          //0 press, 1 hold, 2 double tap
 volatile bool rmtPairedReq = false;      //a remote just paired: save the config from loop()
+volatile bool rmtInfoReq = false;        //tell the remote which gestures are configured
+//What the page shows about the link. The remote is the one thing on the mask with no wire to
+//check, so how well it is being heard is worth keeping rather than inferring from whether a
+//press worked.
+volatile int8_t rmtRssi = 0;             //dBm of the last packet heard; 0 = nothing yet
+volatile unsigned long rmtLastAt = 0;    //millis() of the last press, 0 = none since boot
+volatile int8_t rmtLastBtn = -1;         //which button it was
+volatile uint8_t rmtLastEvt = 0;         //and which gesture
+volatile uint32_t rmtHeard = 0;          //presses that arrived
+volatile uint32_t rmtLost = 0;           //presses that did not, counted from gaps in the sequence
 bool bootFlickPending = false;           //switched on: warm up as soon as the first frame is drawn
 bool bootBarHandover = false;            //the startup bar is playing; arm the warm-up when it ends
 bool bootBarBlanked = false;             //panels held dark until the bar's own first frame is in them
@@ -844,6 +854,7 @@ BLEAdvertising* pAdvertising;
 //Defined below this point in the file, so they need saying up front.
 void showPhrase(int slot);
 void doButtonAction(const String &action, const String &face, int phraseSlot);
+void rmtSendInfo();
 volatile bool bleSaveReq = false;     //config changed over BLE: save it from the loop task
 volatile int8_t bleDisplayReq = 0;    //1 = displays on, -1 = off
 volatile int8_t blePhraseReq = -1;    //quick phrase slot to play
@@ -1272,20 +1283,37 @@ void staStep() {
 #include <esp_wifi.h>            //for the channel the access point ended up on
 
 #define RMT_MAGIC 0x50524F54UL          //'PROT', shared with the remote
-#define RMT_PROTO 2
+#define RMT_PROTO 3                     //3 added the gestures byte. 2 was press and hold only.
 #define RMT_PAIR_SECS 30                //how long the pairing window stays open
-enum : uint8_t { RMT_PRESS = 0, RMT_PAIR_REQ = 1, RMT_PAIR_ACK = 2 };
+enum : uint8_t { RMT_PRESS = 0, RMT_PAIR_REQ = 1, RMT_PAIR_ACK = 2, RMT_INFO = 3 };
+enum : uint8_t { RMT_EV_PRESS = 0, RMT_EV_HOLD = 1, RMT_EV_DOUBLE = 2 };
 
 struct __attribute__((packed)) RmtPacket {
   uint32_t magic;
   uint8_t  proto;
   uint8_t  type;
   uint8_t  button;
-  uint8_t  event;       //0 press, 1 hold
+  uint8_t  event;       //RMT_EV_*
   uint8_t  battPct;
   uint8_t  channel;     //pair acknowledgement only: the channel the mask is on
+  //Which gestures are worth waiting for, sent by the mask: bits 0-2 say button 0-2 has a double
+  //tap action, bits 3-5 say it has a hold action. The remote decides press from hold from double
+  //before it transmits, so without this it would have to wait out the double-tap window on every
+  //single tap - a delay for a gesture that is not even configured.
+  uint8_t  gestures;
   uint32_t seq;
 };
+
+//An action of "none" or empty is nothing to wait for, which is what the mask's own button does
+//with cfg.btnDouble.
+static uint8_t rmtGestureBits() {
+  uint8_t g = 0;
+  for(int i = 0; i < 3; i++) {
+    if(cfg.rmtDAct[i] != "" && cfg.rmtDAct[i] != "none") g |= 1 << i;
+    if(cfg.rmtHAct[i] != "" && cfg.rmtHAct[i] != "none") g |= 1 << (i + 3);
+  }
+  return g;
+}
 
 unsigned long rmtPairUntil = 0;         //pairing closes at this time; 0 = not pairing
 static uint8_t rmtMacBytes[6];
@@ -1340,18 +1368,46 @@ static void rmtOnRecv(const esp_now_recv_info_t *info, const uint8_t *data, int 
     RmtPacket ack = p;
     ack.type = RMT_PAIR_ACK;
     ack.channel = ch;
+    ack.gestures = rmtGestureBits();    //so the very first press already knows what to wait for
     esp_now_send(rmtMacBytes, (uint8_t *)&ack, sizeof(ack));
     return;
   }
 
   if(p.type != RMT_PRESS || !rmtHaveMac) return;
   if(memcmp(info->src_addr, rmtMacBytes, 6) != 0) return;      //not our remote
+  //Taken before the duplicate check: a retry is still a fresh measurement of how well the remote
+  //is being heard, which is the one thing here that is worth knowing even about a repeat.
+  if(info->rx_ctrl) rmtRssi = (int8_t)info->rx_ctrl->rssi;
   //The MAC layer retries, so the same press can land twice. A seq below the last one seen means
   //the remote restarted - a battery change - rather than a repeat, so that one is let through.
   if(p.seq == rmtLastSeq) return;
+  //A gap in the sequence is presses that were sent and never arrived - the remote counts every
+  //press whether or not it was acknowledged. Worth having as a number, because the alternative is
+  //the wearer noticing the mask ignored them. A lower number means the remote restarted, when the
+  //count no longer refers to anything.
+  if(p.seq < rmtLastSeq) { rmtHeard = 0; rmtLost = 0; }
+  else if(rmtLastSeq && p.seq > rmtLastSeq + 1) rmtLost += p.seq - rmtLastSeq - 1;
   rmtLastSeq = p.seq;
+  rmtHeard++;
+  rmtLastAt = millis();
+  rmtLastBtn = (int8_t)p.button;
+  rmtLastEvt = p.event;
   rmtEvtReq = p.event;
   rmtBtnReq = (int8_t)p.button;
+  rmtInfoReq = true;                    //loop() sends the gestures back while it is still awake
+}
+
+//Tell the remote which gestures are configured. It caches the answer, so a button whose double
+//tap has just been set behaves as a plain press for one more press and is right from then on.
+void rmtSendInfo() {
+  if(!rmtStarted || !rmtHaveMac) return;
+  RmtPacket p = {};
+  p.magic = RMT_MAGIC;
+  p.proto = RMT_PROTO;
+  p.type = RMT_INFO;
+  p.battPct = 255;
+  p.gestures = rmtGestureBits();
+  esp_now_send(rmtMacBytes, (uint8_t *)&p, sizeof(p));
 }
 
 //Unpaired from the page. The MAC stays out of the peer table so a remote that is still holding
@@ -1455,6 +1511,9 @@ void startWiFiWeb() {
       cfg.getString(request, (k + "H").c_str(), cfg.rmtHAct[i]);
       cfg.getString(request, (k + "HFace").c_str(), cfg.rmtHFace[i]);
       if(cfg.getInt(request, (k + "HPhrase").c_str(), cfg.rmtHPhrase[i])) cfg.rmtHPhrase[i] = constrain(cfg.rmtHPhrase[i], 0, 5);
+      cfg.getString(request, (k + "D").c_str(), cfg.rmtDAct[i]);
+      cfg.getString(request, (k + "DFace").c_str(), cfg.rmtDFace[i]);
+      if(cfg.getInt(request, (k + "DPhrase").c_str(), cfg.rmtDPhrase[i])) cfg.rmtDPhrase[i] = constrain(cfg.rmtDPhrase[i], 0, 5);
     }
     //button
     cfg.getString(request, "btnShort", cfg.btnShort);
@@ -1720,6 +1779,13 @@ void startWiFiWeb() {
     st["staRssi"] = staJoined ? WiFi.RSSI() : 0;
     st["staName"] = cfg.staName;
     st["mdns"] = cfg.mdnsName;
+    st["rmtPaired"] = cfg.rmtMac.length() > 0;
+    st["rmtRssi"] = rmtRssi;
+    st["rmtAgoMs"] = rmtLastAt ? (long)(millis() - rmtLastAt) : -1;   //-1: nothing since boot
+    st["rmtBtn"] = rmtLastBtn;
+    st["rmtEvt"] = rmtLastEvt;
+    st["rmtHeard"] = rmtHeard;
+    st["rmtLost"] = rmtLost;
     st["tilt"] = tiltInitDone;
     st["boop"] = ToFInitDone;
     st["boops"] = cfg.boopCount;
@@ -4291,9 +4357,17 @@ void loop() {
     uint8_t ev = rmtEvtReq;
     rmtBtnReq = -1;
     if(b >= 0 && b < 3) {
-      if(ev == 1) doButtonAction(cfg.rmtHAct[b], cfg.rmtHFace[b], cfg.rmtHPhrase[b]);
-      else        doButtonAction(cfg.rmtAct[b], cfg.rmtFace[b], cfg.rmtPhrase[b]);
+      if(ev == RMT_EV_HOLD)        doButtonAction(cfg.rmtHAct[b], cfg.rmtHFace[b], cfg.rmtHPhrase[b]);
+      else if(ev == RMT_EV_DOUBLE) doButtonAction(cfg.rmtDAct[b], cfg.rmtDFace[b], cfg.rmtDPhrase[b]);
+      else                         doButtonAction(cfg.rmtAct[b], cfg.rmtFace[b], cfg.rmtPhrase[b]);
     }
+  }
+  //The remote stays awake a few seconds after a press, so this lands while it can still hear it.
+  //Sent from here rather than the receive callback because it reads the config, and it is only
+  //ever one small packet per press.
+  if(rmtInfoReq) {
+    rmtInfoReq = false;
+    rmtSendInfo();
   }
   if(rmtPairedReq) {
     rmtPairedReq = false;

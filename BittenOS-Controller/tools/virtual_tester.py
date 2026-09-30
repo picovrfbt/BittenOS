@@ -63,10 +63,13 @@ SAVECONFIG_KEYS = {
     'rmtMac': str,
     'rmt0': str, 'rmt0Face': str, 'rmt0Phrase': int,
     'rmt0H': str, 'rmt0HFace': str, 'rmt0HPhrase': int,
+    'rmt0D': str, 'rmt0DFace': str, 'rmt0DPhrase': int,
     'rmt1': str, 'rmt1Face': str, 'rmt1Phrase': int,
     'rmt1H': str, 'rmt1HFace': str, 'rmt1HPhrase': int,
+    'rmt1D': str, 'rmt1DFace': str, 'rmt1DPhrase': int,
     'rmt2': str, 'rmt2Face': str, 'rmt2Phrase': int,
     'rmt2H': str, 'rmt2HFace': str, 'rmt2HPhrase': int,
+    'rmt2D': str, 'rmt2DFace': str, 'rmt2DPhrase': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
     'aTilt': str, 'aTilt2': str, 'aBoop': str, 'aSleep': str,
@@ -284,6 +287,29 @@ def stats_dict():
         'boops': int(board.config.get('boopCount') or 0),
         'display': board.display_on, 'sleeping': board.sleeping,
         'anim': board.current, 'frame': 0, 'frames': frames,
+        # A pretend remote, so the signal readout and the indicator can both be seen without one.
+        # A press every eight seconds, cycling through the buttons and the three gestures, with the
+        # strength wandering a little the way a real one does.
+        **_fake_remote(),
+    }
+
+
+def _fake_remote():
+    """Shaped like the firmware's remote fields. Only the tester invents these."""
+    if not board.config.get('rmtMac'):
+        return {'rmtPaired': False, 'rmtRssi': 0, 'rmtAgoMs': -1,
+                'rmtBtn': -1, 'rmtEvt': 0, 'rmtHeard': 0, 'rmtLost': 0}
+    now = time.time()
+    n = int(now // 8)                      # which pretend press we are on
+    ago = int((now % 8) * 1000)
+    return {
+        'rmtPaired': True,
+        'rmtRssi': -52 - (n % 5) * 8,      # -52 down to -84: every band, four bars to one
+        'rmtAgoMs': ago,
+        'rmtBtn': n % 3,
+        'rmtEvt': (n // 3) % 3,
+        'rmtHeard': n % 97,
+        'rmtLost': (n % 97) // 20,
     }
 
 

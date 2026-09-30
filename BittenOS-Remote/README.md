@@ -53,6 +53,32 @@ The cost is the radio idling at a few tens of milliamps for those seconds, again
 and it is only paid while the remote is actually in someone's hand. `LINGER_MS` trades
 responsiveness against standby.
 
+### Press, hold and double tap
+
+The remote has to decide which of the three a press was **before** it transmits, because each one
+is a different action on the mask — sending a press first and correcting afterwards would run two
+of them. Holding the bottom button used to start the slot machine and then drop the dino game on
+top of it.
+
+Deciding means waiting, and waiting costs latency, so it is only paid where it buys something. The
+mask sends back which gestures are actually configured, in the `gestures` byte, and the remote
+caches it in RTC memory and NVS:
+
+| Button has | A single tap is sent |
+|---|---|
+| nothing but a plain press | **on the way down**, about 0 ms |
+| a hold | on release |
+| a double tap | on release, plus the 260 ms `DOUBLE_MS` window |
+
+That is the same bargain the mask's own button strikes with `cfg.btnDouble`: off means a single
+press acts the moment you let go. A hold still goes out at `HOLD_MS` while the finger is still
+there, so it lands immediately rather than on release.
+
+The mask answers **every** press with the gestures byte, so a double tap set in the web page is
+learned on the next press — the first press after the change still behaves the old way. A remote
+with nothing stored yet assumes every gesture exists, since being 260 ms slow once is a smaller
+fault than sending a hold as a plain press.
+
 Presses are **edge triggered**: `handlePress()` returns with the button still down once it has sent
 a hold, so polling for a low pin would read the same finger as a fresh press over and over.
 
@@ -98,17 +124,22 @@ rename the WiFi and the remote went deaf until reflashed. Nothing here names the
 ```c
 struct __attribute__((packed)) RemotePacket {
   uint32_t magic;    // 0x50524F54 ('PROT')
-  uint8_t  proto;    // 2
-  uint8_t  type;     // 0 press, 1 pair request, 2 pair acknowledgement
+  uint8_t  proto;    // 3
+  uint8_t  type;     // 0 press, 1 pair request, 2 pair acknowledgement, 3 gesture info
   uint8_t  button;   // 0..BUTTON_COUNT-1
-  uint8_t  event;    // 0 press, 1 hold
+  uint8_t  event;    // 0 press, 1 hold, 2 double tap
   uint8_t  battPct;  // 0-100, 255 = unknown (no divider wired yet)
   uint8_t  channel;  // pair acknowledgement only: the channel the mask is on
+  uint8_t  gestures; // from the mask: bits 0-2 "button has a double tap", bits 3-5 "has a hold"
   uint32_t seq;      // counts presses
 };
 ```
 
-14 bytes, well inside ESP-NOW v1's 250-byte limit, so the v1/v2 version split never comes into it.
+15 bytes, well inside ESP-NOW v1's 250-byte limit, so the v1/v2 version split never comes into it.
+
+Both ends drop a packet whose length isn't `sizeof(RemotePacket)`, so **adding a field is a flag
+day**: mask and remote have to be flashed together. Until both are, presses are ignored and the
+remote blinks three times. Proto 2 was press and hold with no `gestures` byte.
 
 `seq` lets the mask spot a repeat — ESP-NOW retries at the MAC layer and a press can arrive twice.
 It resets to 0 when the battery is changed or the remote is reflashed, so the mask should treat a
