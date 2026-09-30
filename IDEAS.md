@@ -3,6 +3,53 @@
 Things worth adding to the mask, parked here so they don't get lost. Roughly ordered by
 value-for-effort within each group.
 
+## The big one — masks other than this one
+
+**Want:** BittenOS should drive any protogen face, not only the FurBitten 14-panel.
+
+The layout already has a description — `data/visType.txt` — and both the web page and the virtual
+tester parse it. **The firmware does not.** That is the crux. Everything on the mask that needs to
+know where a panel sits has a number typed into `src/main.cpp` instead.
+
+What is nailed down today:
+
+| Where | What it assumes |
+|---|---|
+| `#define MATRIXESNUM 14` | fourteen panels, with `visorLedsNum` derived from it |
+| `mawStrips[2]` | the maw is panels 8,9,10,11 and 5,4,3,2, the left one mirrored |
+| `noseLeftPanel 7`, `noseRightPanel 6` | where the boop counter pops up |
+| blink eligibility | "eye panels are the ones that are neither mouth nor nose" |
+| every effect drawn across the maw | 32 columns of maw, 8 of nose |
+
+Face files already carry `isMouth[]` per panel, so mouth-or-not is solved. What is missing is
+everything else about a panel: which side it is on, whether it is eye, nose or maw, and which way
+round it reads.
+
+Roughly in order:
+
+1. **Let the firmware read `visType.txt`.** It is already the single source of truth for where
+   panels sit, already on the mask, already parsed by two other pieces of code. Panel count stops
+   being a `#define`.
+2. **Say what each panel *is*, not just where it sits.** visType gives geometry; nothing gives
+   roles. Either extend it or add a small companion file — eye / nose / maw, left / right,
+   mirrored or not. That one file would replace `mawStrips`, both nose defines and the blink rule.
+3. **Make the effects measure the maw instead of assuming it.** The slot reels, the dino ground,
+   the loading bar, the boop counter and the scrolling text are all sized to 32 columns today.
+   They need to ask how wide the maw actually is. Faces drawn to this mask's dimensions —
+   `warning`, `bsod` — would need generating per layout rather than shipping fixed.
+4. **Face sets per layout.** A face is a list of panels, so it belongs to a layout.
+   `tools/convert_mk2_to_14.py` already converts the stock 11-panel set to this one; that wants
+   generalising to any-to-any, driven by the role file rather than by a hand-written table. The
+   sets in `anims_original_11panel/` and `anims_14panel_v1/` are the test material for it.
+5. **The face maker asks rather than assumes.** `tools/face-maker.html` has this mask's visType
+   baked in. It wants a layout picker, or to load one from a file the way it loads a face.
+
+**Before starting:** the hard part is not the panel count, it is that "maw", "nose" and "eye" are
+currently opinions held in C rather than data — step 2 decides how hard the rest is. There is
+already a pattern to follow for layouts the firmware does not understand: several effects check
+`panel[k] >= numOfSegm` and bow out rather than draw somewhere that does not exist, so an unknown
+layout should lose its effects, not break.
+
 ## Done
 
 - [x] **Face manager** — Manage button on the Faces card, with Rename and Delete per face.

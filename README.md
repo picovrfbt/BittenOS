@@ -117,7 +117,7 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 
 | Change | Where | Why |
 |---|---|---|
-| Phone-friendly redesign, MAX7219 only | `data/index.html`, `data/animator.html` | Built for phones; RGB, ear-LED and other-helmet controls removed. The old pages are in `ui_backup/` and git tag `ui-before-redesign`. |
+| Phone-friendly redesign, MAX7219 only | `data/index.html`, `data/animator.html` | Built for phones; RGB, ear-LED and other-helmet controls removed. The old pages are in git tag `ui-before-redesign`. |
 | Tabbed layout, settings that save themselves | `data/index.html` | Mask, Settings and System tabs along the bottom. Settings are grouped rows by feature — switches, steppers and face pickers instead of a long form — and each sends only its own setting the moment it changes, going back if the mask doesn't accept it. Rows under a switch that's off are greyed. A Status screen group switches the SSD1306 OLED and its brightness; the microphone and remote have their own groups, with parts that aren't wired greyed and tagged *Not installed*. Tilt positions and WiFi keep a button, and Remote (BLE) still needs a restart, since BLE only starts at boot. |
 | Live sliders | `data/index.html`, `src/main.cpp` (`/brightness`) | Brightness and transition apply as you drag; the main loop drives the panels, since the web server can't safely do it mid-draw |
 | Face manager, scrolling text, power button, system card, home screen icon | `data/index.html`, `src/main.cpp` | See [What it does](#what-it-does) |
@@ -211,7 +211,6 @@ Pages are served live from `data/`, so edits show up on reload. Faces and settin
 | `BittenOS-Controller/16MB_ota.csv` | The partition table |
 | `BittenOS-Controller/anims_14panel_v1/` | The faces as they came, converted to 14 panels — the source of the original eyes and nose |
 | `BittenOS-Controller/anims_original_11panel/` | The stock faces before conversion |
-| `BittenOS-Controller/ui_backup/` | The web pages from before the redesign |
 | `MY_PROTOGEN_SETUP.md` | Full setup, flashing and usage guide for this mask |
 | `IDEAS.md` | Ideas not built yet, and decisions already made about them |
 | `BittenOS-Remote/` | Button remote for the mask: a XIAO ESP32C6 that sleeps until pressed, then sends over ESP-NOW |
