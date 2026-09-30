@@ -190,11 +190,11 @@ The full list, grouped by area, is in the [README](README.md#changes-from-upstre
 | `platformio.ini` | partitions | `16MB_ota.csv` | Uses the whole 16MB: two 3MB firmware slots, the filesystem, and a staging area for safe over-the-air updates |
 | `data/visType.txt` | layout | your chain order | See section 3 |
 | `data/visTypeMouth.txt` | mouth mask | 14 entries | Which panels move when talking |
-| `data/config.json` | speech, BLE, OLED | off | Parts not fitted (speech on with no mic makes the mouth flap randomly) |
-| `data/anims/*.json` | 12 faces | built by `tools/make_faces.py` | See section 7 |
+| `data/config.json` | speech, BLE, OLED | off | The repo defaults stay off so a fresh board is quiet. This mask has the mic and the screen fitted and both switched on; BLE is still unused. Speech on with no mic makes the mouth flap randomly, which is why it is not a default. |
+| `data/anims/*.json` | 14 faces | built by `tools/make_faces.py`, plus `warning`, `bsod` and `paneltest` | See section 7 |
 | `src/fileOp.cpp` | brightness default | `5` | MAX7219 brightness only goes to 15; stock used an RGB value of 100 |
 
-The firmware is 1.31MB, 44% of its 3MB slot.
+The firmware is 1.40MB, 47% of its 3MB slot.
 
 ---
 
@@ -266,7 +266,7 @@ A mask still on the old 8MB table needs one USB flash before over-the-air update
 2. On your phone, turn **mobile data off** and join `ProtoWiFi`, password `Proto1234`.
 3. Open `192.168.4.1`. The page has three tabs along the bottom:
     - **Mask** — face tiles, brightness and scrolling text. Tap a tile to show that face. Since nearly every face is a mirror image, each tile shows just the left half at twice the size; a face whose halves really are different is shown whole. The **Brightness** slider (0–15) changes the panels live and saves when you let go.
-    - **Settings** — grouped by feature: Boop, Boop counter, Face changes, Sleep, Tilt, Microphone, Remote and WiFi. Parts that aren't wired yet are greyed with a **Not installed** tag, rather than hidden. **Every setting saves the moment you change it** — there's no Save button, and if the mask doesn't accept a change, the control goes back to what the mask actually has. Rows that belong to a switch that's off are greyed out but can still be set. Three things still have their own button: tilt positions, WiFi (which asks first, since you'll need to reconnect), and Remote (BLE), which starts at the next restart.
+    - **Settings** — grouped by feature, in this order: Boop, Boop counter, Auto-brightness, Status screen, Microphone, Face changes, Sleep and startup, Button, Button remote, Tilt, The mask's own WiFi, Join a network, and Remote (the older BLE one). Parts that aren't wired are greyed with a **Not installed** tag, rather than hidden. **Every setting saves the moment you change it** — there's no Save button, and if the mask doesn't accept a change, the control goes back to what the mask actually has. Rows that belong to a switch that's off are greyed out but can still be set. Three things still have their own button: tilt positions, WiFi (which asks first, since you'll need to reconnect), and Remote (BLE), which starts at the next restart.
     - **System** — status readings and tools (Animator, faces and config upload/download, firmware update).
 4. Open `192.168.4.1/animator.html` to draw faces.
 5. To show a message, type it into **Scrolling text** and press Enter (up to 64 characters). It scrolls across the mouth panels while the eyes keep the current face. Before sending, pick a speed (Very slow, Slow, Normal or Fast) and **Repeat** or **Play once**. Repeat keeps going until you tap a face. Play once goes back to the face you had after one pass; the mask does that itself, so it works even if your phone locks.
@@ -488,9 +488,10 @@ Some features are switched on in the web page, but some need a firmware change f
 | BMI270 tilt sensor | already set up | calibrate, then flip Tilt on (section 6, step 8) |
 | Cheek LEDs (WS2812) | `blushPresent = true`, set `blushLedsNum`, and add the `blush0`–`blush3` cells back to `data/visType.txt` | none |
 | INA219 power meter | `INApresent = true` | none |
-| Microphone | none | wire its analog out to GPIO 4 and 3V3/GND, then flip Speech on (Settings > Microphone). Loudness is measured peak to peak over 25 ms — the highest reading minus the lowest — so there is no resting level to drift and nothing to get stuck on. Start with **Mic test**: two seconds of quiet, then talk for three, and it reports both swings, which settles whether the mic is working at all. Then **Measure loud** sets **Range** from normal speech and says if the gain pot is too low or clipping, and **Measure silence** sets the **Noise floor** that gets subtracted. The live **swing**, floor and raw mid-point are shown beside the level meter; the mid-point should sit near half the mic's supply (about 1860) if the wiring is good. |
-| OLED | none | the OLED switch was taken off the page since none is fitted: set `"oledEna": true` in `data/config.json` and upload the filesystem, or add the switch back to `data/index.html` |
-| Wireless remote | none | flip Remote (BLE) on (Settings > Remote), then restart the mask |
+| Microphone | already set up (**fitted**) | An SPH0645 digital mic on I2S: BCLK to GPIO 4, DOUT to GPIO 5, LRCL to GPIO 6, SEL to GND, 3V3 and GND. Flip Speech on (Settings > Microphone). Loudness is measured peak to peak over 25 ms — highest reading minus lowest — so there is no resting level to drift and nothing to get stuck on. Start with **Mic test**: two seconds of quiet, then talk for three, and it reports both swings, which settles whether the mic is working at all. **Measure loud** sets **Range** from normal speech; **Measure silence** sets the **Noise floor**. An analog mic (MAX4466, MAX9814) still works with `micMode "ANALOG"` on GPIO 4, but was abandoned here: it shares the 3V3 rail with fourteen MAX7219s and amplifies their switching noise, which measured 1170 counts of 4095 in a quiet room. |
+| OLED status screen | already set up (**fitted**) | A 0.96" 128x64 SSD1306 on the same I2C wires as the sensors (SDA GPIO 9, SCL GPIO 10, 3V3, address 0x3C). Switch it on under Settings > Status screen, with brightness and **Upside down**. Design what it shows at `/screen.html`. |
+| ESP-NOW button remote | already set up (**fitted**) | A XIAO ESP32C6 with three buttons, its own project in `BittenOS-Remote/`. Pair it under Settings > Button remote: press **Pair**, then hold all three buttons on the remote for three seconds. Set press, hold and double tap for each button there too. Same section shows signal strength and the last press. |
+| Wireless remote (BLE), instead | none | flip Remote (BLE) on (Settings > Remote), then restart the mask. This is the older upstream remote protocol and nothing here uses it. |
 
 See `BittenOS-Controller/readme.md` and `touchSensors.md` for sensor wiring.
 

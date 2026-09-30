@@ -9,7 +9,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 **Faces**
 
 - Drives all 14 panels as one face: 2 panels per eye, 4 per mouth side, 1 per nose side
-- 12 faces: default, happy, sad, angry, upset, confused, boop, boop2, heart, surprise, sleep and bsod. They keep the eyes and nose the mask came with, and every one animates, blinking or twitching every few seconds
+- 14 faces: default, happy, sad, angry, upset, confused, boop, boop2, heart, surprise, sleep, warning, bsod and paneltest. Most keep the eyes and nose the mask came with, and animate, blinking or twitching every few seconds. `warning` scrolls WARNING across both maws under a donated angry face; `bsod` lights every panel and punches ERROR and a cross through the eyes out of it, so the message is the unlit part; `paneltest` shows each panel its own number, for working out a layout
 - A short dip to black when the face changes, adjustable from 20 to 400 ms
 - Mouth bob: a switch that lifts the mouth a pixel every second or so, over any face
 - A sleeping face (closed eyes, breathing mouth) on demand, or by itself once the mask has been still for a while, waking when it moves
@@ -40,7 +40,30 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 
 - Over-the-air updates from the web page. A firmware update that doesn't run properly rolls itself back; a filesystem update keeps your settings
 
-A microphone, an OLED status screen and a three-button ESP-NOW remote are all fitted and working.
+**Fitted and working:** an SPH0645 digital microphone on I2S, an SSD1306 status screen inside the
+mask with its own layout designer, and a three-button ESP-NOW remote.
+
+**Button remote** — a XIAO ESP32C6 in deep sleep until pressed, paired to this mask alone
+
+- Press, hold and double tap on each of three buttons, nine actions, each picked in the web page
+- Paired by MAC, so it talks only to this mask and only this mask hears it. Pairing is all three
+  buttons held for three seconds, which needs no power cycle — the case is sealed
+- Finds the mask again by itself if its WiFi channel moves, because a unicast packet is
+  acknowledged where a broadcast is not
+- The web page shows how strongly it is being heard, what the last press was, and how many presses
+  went missing, with a small indicator that lights as each one lands
+- About 15 uA asleep, no power switch, and it stays awake four seconds after a press so a run of
+  them stays quick
+
+**For the fun of it**
+
+- A slot machine across the maw with real spinning reels, one spin in three landing triple sevens,
+  shown on the inside screen too so the wearer knows what the crowd just saw
+- A Chrome-style dino game on both maws, with the button or the remote to jump
+- Both reachable from the page, or from a burst of quick presses on the mask's own button
+- Boop sass: boop it too fast and it pulls a face at you
+- A fake boot sequence: a loading bar filling outward from the nose along both maws
+- A wake-up flicker, panels stuttering back on one at a time like an old CRT
 
 ## Hardware
 
@@ -51,6 +74,9 @@ A microphone, an OLED status screen and a three-button ESP-NOW remote are all fi
 | Tilt sensor | BMI270 on I2C (SDA GPIO 9, SCL GPIO 10), 3V3 |
 | Boop sensor | APDS-9930 on the same I2C wires, 3V3 — not 5V tolerant |
 | Button | Momentary button across GPIO 21 and 47 (optional) |
+| Microphone | SPH0645 digital mic on I2S: BCLK GPIO 4, DOUT GPIO 5, LRCL GPIO 6, 3V3 |
+| Status screen | 0.96" SSD1306 OLED on the same I2C wires as the sensors, address 0x3C |
+| Remote | Seeed XIAO ESP32C6, three buttons, its own project in `BittenOS-Remote/` |
 | Power | 5V. About 3W with the stock faces at brightness 5 |
 
 Wiring, to the first panel in the chain (left eye, back):
@@ -108,6 +134,10 @@ t11 t10 t9  t8   .   .  t5  t4  t3  t2      mouth
 | Status screen pages | `src/screen.cpp`, `src/main.cpp` (`screenTick`), `data/screen.html` | Up to eight pages, each with its own elements. Pages "in the rotation" are stepped by a button set to Next screen page or by a cycle timer; a page with a condition takes the screen over while that condition holds and lingers for a set time after, so a boop page doesn't vanish as the paw lifts. Layouts saved before pages existed are a flat element list, and both the firmware and the designer fold those into a single page, so nothing needs converting. Both save endpoints accept either shape. |
 | Quick phrases built on the mask | `src/main.cpp` (`showPhrase`), `data/index.html` | The homepage builds its scrolling text in JavaScript and posts it, which is no use to a button press with nobody holding a phone. Six phrases are stored in the config and rendered by the firmware itself, using the same 5x7 font as the status screen: the face's own panels stay as the eyes, the text scrolls along the mouth row, and Play once hands back to the face that was showing. |
 | Configurable button | `src/main.cpp` (`doButtonAction`), `data/index.html` | Short press, double press and hold are each set separately: nothing, next or previous face, displays on/off, sleep/wake, a chosen face, or a quick phrase. Defaults are what the button always did. Hold length is configurable, and the quarter-second wait needed to tell a single press from a double is only applied when double press is actually in use, so the single press stays instant otherwise. |
+| ESP-NOW button remote | `src/main.cpp` (`rmtBegin`, `rmtOnRecv`), `BittenOS-Remote/` | Upstream's remote is a BLE device the mask hosts. This one is a XIAO ESP32C6 asleep at 15 uA until a button is pressed, sending one ESP-NOW packet to this mask alone. Paired by MAC, because a unicast packet is acknowledged and a broadcast is not — which is what lets the remote tell a delivered press from a lost one, and go looking for the mask when its WiFi channel moves. Press, hold and double tap per button, decided on the remote before anything is sent, since each is a different action and correcting afterwards would run two of them. The mask sends back which gestures are configured, so a button with only a plain press on it fires on the way down instead of waiting. The page shows signal strength, the last press and how many went missing. |
+| Easter eggs on the maw | `src/main.cpp` (`slotTick`, the dino block), `data/index.html` | A slot machine with reels that spin down one after another, one spin in three landing triple sevens, drawn on the inside screen as well so the wearer knows what the crowd just saw. A Chrome-style dino game on both maws. Both start from the page, from a configurable burst of quick presses on the mask's own button, or from the remote. A running game swallows any button press as a jump, which the remote inherited for free. |
+| Boop sass and milestones | `src/main.cpp` (`boopIsSassy`, `boopFaceNow`) | Boop it too many times inside a set window and it pulls a face at you; a long flurry sasses every fifth boop rather than sticking, so the ordinary boop face comes back in between and it reads as a reaction. Every hundredth boop plays a face of your choosing instead. Both configurable, both off at 0. |
+| Fake boot sequence | `src/main.cpp` (`bootBar`) | A framed loading bar along both maws, filling outward from the nose and stuttering rather than creeping, played at startup alongside the wake-up flicker or on demand from a button. |
 | Deep sleep | `src/main.cpp` (`sleepEaseStep`) | An off-by-default deep sleep switches the panels off entirely after a set time asleep and restores them on waking, where the wake-up flicker takes over. Sleeping and waking themselves are instant: a gradual dim in and out was tried and removed, because watching the panels fade down read as the mask dying rather than dozing off. |
 | Wake-up flicker | `src/main.cpp` (`wakeFlickBegin`, `wakeFlickStep`) | Coming back from a deep sleep, the fourteen panels stutter on one at a time instead of together, each with its own timing and an unsteady brightness before it settles, and the picture tears while it warms up. Every MAX7219 takes its shutdown and intensity registers individually, so this is done without touching the face data at all; the tearing is a few throwaway rows and columns the next frame paints over. The wake order is deliberately random: the chain runs in wiring order rather than the order the panels sit on the face, so a sweep would look ragged. Everything that wants the panels back — a face change, the displays button, a transition, auto-brightness — cuts it short, and a backstop timer ends it even if a panel somehow never settles. The same warm-up runs at power-on when **Flicker on startup** is set: the panels are shut down as soon as `mx.begin()` returns and the warm-up is triggered by the first flushed frame rather than from `setup()`, so the chips already hold the face and the stutter reveals it instead of revealing nothing. |
 | Blinks, the face's or the mask's | `src/main.cpp` (`blinkCheckFace`, `setAllVisor`) | These faces are animations that blink themselves, so a blink drawn on top would collide with the face's own and stutter. **Blinks** picks: leave the face alone, or let the mask blink — which holds the face on its resting frame so only one blink system runs, and fires at random gaps of 2.5–7 s so it doesn't read as a metronome. A face can declare this itself: the face designer has a **The mask may blink this face** tick box that writes `visor.canBlink` into the face file, so a still face you draw needs no blink frames at all. Faces without the flag are judged by their timings instead — one long look plus a short blink can be held (one frame at least three times any other), while a face whose frames run evenly is a real animation and always plays itself. The blink squeezes the eye panels' artwork toward the middle at draw time, like mouth bob, so it works on hand-drawn faces too. |
@@ -186,8 +216,11 @@ All in `BittenOS-Controller/tools/`, run from the `BittenOS-Controller` folder.
 | `render_faces.py` | Draws the faces to a PNG, one dot per LED, to check them without the mask |
 | `make_sleep_face.py` | Builds the sleeping face |
 | `make_icons.py` | Draws the home screen icons (needs Pillow) |
+| `make_screen_font.py` | Builds `src/screen_font.h`, the 5x7 font used by the status screen and the scrolling text |
 | `convert_mk2_to_14.py` | Converts faces drawn for the 11-panel layout to this 14-panel one |
 | `virtual_tester.py` | Runs the web pages on your PC against a pretend mask (below) |
+| `face-maker.html` | The face designer as one standalone file, with this mask's layout baked in and saving as a download. Made to hand to other people, who send a `.json` back — it needs no mask, no server and no internet |
+| `tester.html`, `ble_control.html` | The virtual tester's own page, and a Web Bluetooth control page (parked: it needs https hosting) |
 
 Faces found online are usually drawn for the stock 11-panel "M16 mk2" layout. Put them in `data/anims/` and run `python tools/convert_mk2_to_14.py`: eyes are copied, each mouth side gains a fourth panel, and the single centre nose is split across the two nose panels. Faces that are already 14-panel are skipped.
 

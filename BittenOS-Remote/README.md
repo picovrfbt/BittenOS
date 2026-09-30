@@ -4,9 +4,6 @@ A few momentary buttons on a Seeed XIAO ESP32C6 that sit in deep sleep until pre
 ESP-NOW packet to the mask, and go back to sleep. **No power switch** — deep sleep is about 15 µA,
 so it can be left armed indefinitely and a small LiPo lasts months.
 
-> **The mask side does not exist yet.** This firmware transmits; nothing in
-> `BittenOS-Controller` listens for it. The packet format below is what a receiver has to match.
-
 ## Wiring
 
 Each button is a plain two-pin momentary: **one leg to the pin, the other to GND**. No resistors
@@ -33,13 +30,18 @@ removes the question entirely.
 
 | | |
 |---|---|
-| Press, from sleep | wakes, sends `EV_PRESS`, **one blink** — about 170 ms |
+| Press, from sleep | wakes and sends, **one blink** — about 170 ms |
 | Press, within 4 s of the last | sends straight away — about 10 ms |
-| Still held after 1.2 s | sends `EV_HOLD` as well, another blink |
+| Still held after 1.2 s | sends `EV_HOLD` **instead of** a press |
+| Two taps inside 260 ms | sends `EV_DOUBLE`, and no press |
+| All three held for 3 s | pairing, not a press |
 | Not paired, or couldn't reach the mask | **three blinks** |
 | Powered up, paired and armed | **one blink** |
 | Pairing: listening / paired | **two blinks** / **five blinks** |
 | Power-on or reflash | **two blinks**, then arms and sleeps without sending |
+
+Each press sends exactly one packet. Hold and double tap replace the press rather than arriving on
+top of it — see below for why that matters.
 
 One blink now genuinely means **the mask acknowledged it**, not merely that the packet was
 transmitted. That's the practical gain from pairing: with a broadcast there was no way to tell.
@@ -92,10 +94,15 @@ itself once the button clears rather than staying dead.
 The remote talks to **one mask**, addressed by its MAC. Nothing else hears it and it hears nothing
 else.
 
-**To pair:** hold **button 0** (D0) while powering the remote up — plugging in USB or inserting the
-battery — and put the mask into pairing mode at the same time. The remote blinks twice, calls on
-every channel for a few seconds, and blinks **five times** when a mask answers. Three blinks means
-nothing replied.
+**To pair:** open **Settings > Button remote > Pair** on the mask, then hold **all three buttons**
+on the remote together for **three seconds**. The remote blinks twice, calls on every channel for a
+few seconds, and blinks **five times** when the mask answers. Three blinks means nothing replied.
+The mask's window stays open for 30 seconds.
+
+It used to be one button held through a power-up. That assumed the battery could be reached, which
+stopped being true the moment the case was closed — there is no way to power cycle a sealed
+remote. Three buttons at once is something ordinary use never produces, and it works whenever the
+remote is in your hand, awake or asleep.
 
 The mask's MAC and channel are kept in NVS, so they survive a flat battery and a reflash. Pairing
 is only needed once, or again after you move the mask to a different board.
