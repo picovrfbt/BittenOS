@@ -220,10 +220,14 @@ Pages are served live from `data/`, so edits show up on reload. Faces and settin
 
 BittenOS is licensed under **GPL-3.0** — see [`LICENSE`](LICENSE).
 
-It began as a fork of **[ProtoESP (ProtogenHelmet-ESP32)](https://github.com/NCPlyn/ProtogenHelmet-ESP32)** by **[NCPlyn](https://github.com/NCPlyn)**, and has been rebuilt far enough since that he was happy for the credit line to come out of the firmware itself — so it lives here instead. None of this would exist without his work, and the licence comes from there too.
+It began as a fork of **[ProtoESP (ProtogenHelmet-ESP32)](https://github.com/NCPlyn/ProtogenHelmet-ESP32)** by **[NCPlyn](https://github.com/NCPlyn)**. None of this would exist without his work, and the licence comes from there too.
 
 If you want a protogen controller of your own rather than one bent around this particular mask, start with his: it supports WS2812 matrices, ear rings, blush LEDs and a good deal more hardware than this fork kept.
 
 The scrolling-text font is the system font from the [MD_MAX72XX](https://github.com/MajicDesigns/MD_MAX72XX) library by MajicDesigns (LGPL-2.1).
 
 The face hardware is by FurBitten Studios. Their firmware is not included here.
+
+---
+
+*An AI assistant was used to help write this firmware.*

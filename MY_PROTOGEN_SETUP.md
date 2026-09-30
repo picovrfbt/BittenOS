@@ -565,4 +565,4 @@ The last line prints the file and line number where it crashed. This only works 
   - The web pages from before the redesign are in `BittenOS-Controller/ui_backup/before-redesign-2026-09-11/` (see `RESTORE.txt` there), and in git tag `ui-before-redesign`.
   - `git checkout ProtoESP -- <file>` restores any file to its pre-fork state.
   - The Arduino Nano still has FurBitten's firmware. Plug it back in for the original mask.
-- License: GPL-3.0 (`LICENSE`). NCPlyn was happy for the credit line to come out of the firmware's own pages, so it lives at the end of the README instead. The licence stays with the code either way.
+- License: GPL-3.0 (`LICENSE`). The credit to NCPlyn is at the end of the README rather than in the firmware's own pages.
