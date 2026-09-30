@@ -17,7 +17,6 @@ Full documentation for this build — wiring, pins, settings, faces, flashing, r
 | `lib/`, `boards/` | vendored libraries and the board definition |
 | `anims_14panel_v1/`, `anims_original_11panel/` | face sets kept for reference |
 | `img/` | panel-order and schematic pictures, inherited from the project this forked from |
-| `ui_backup/` | a snapshot of the web page before the redesign |
 
 ## Build
 

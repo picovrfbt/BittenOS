@@ -562,7 +562,7 @@ The last line prints the file and line number where it crashed. This only works 
 - **Ideas not built yet**, and decisions already made about them, are in [IDEAS.md](IDEAS.md).
 - **Undo options:**
   - The faces as they first came, converted to 14 panels, are in `anims_14panel_v1/`. The stock 11-panel originals are in `anims_original_11panel/`.
-  - The web pages from before the redesign are in `BittenOS-Controller/ui_backup/before-redesign-2026-09-11/` (see `RESTORE.txt` there), and in git tag `ui-before-redesign`.
+  - The web pages from before the redesign are in git tag `ui-before-redesign`.
   - `git checkout ProtoESP -- <file>` restores any file to its pre-fork state.
   - The Arduino Nano still has FurBitten's firmware. Plug it back in for the original mask.
 - License: GPL-3.0 (`LICENSE`). The credit to NCPlyn is at the end of the README rather than in the firmware's own pages.
