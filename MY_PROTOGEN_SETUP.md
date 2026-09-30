@@ -354,27 +354,26 @@ If you change the WiFi name or password, both must be at least 9 characters. To 
 
 ### Drawing and testing a face in the Animator
 
-1. The Animator opens straight into your 14-panel layout. On a phone, turn it sideways for bigger pixels. The drawing area scrolls sideways if it doesn't fit.
-2. Tap pixels to toggle them one at a time, or press **Select**, tap a panel, then **Toggle** to light the whole panel. On a phone, drag your finger across pixels to draw. Start the drag on a lit pixel to erase instead. Drags that start between panels scroll the grid.
-3. Set **Timespan** (milliseconds the frame shows), then **Add frame**. Repeat for more frames.
-4. **1. Generate final JSON**
-5. **3. Try animation** plays it on the mask right away. It's lost on restart.
-6. To keep it, type a name in **2.** and press **4. Save to SPIFFS**.
+Open it from **Design > Face maker**, or press **Manage** on the Faces card and then **Edit** under a face to open that one.
 
-To edit an existing face: pick it under **Load animation**, press **Load selected anim**, edit, then save it again.
+1. **Mirror** is on to start with, because nearly every face is a mirror image: whatever you draw on one side is drawn on the other. On a phone, Mirror also shows just the left half, at twice the size. The preview beside the frames always shows the whole face.
+2. Pick a tool: **Pen**, **Eraser**, **Line**, **Box**, **Fill** (fills or empties the shape you tap, inside one panel) or **Panel**. Drag with one finger to draw. Pinch with two fingers to zoom, and drag with two to move around. **Fit** puts it back.
+3. **Panel** selects a single panel. That brings up shift, flip, rotate, invert, copy, paste and empty for that panel, and **Mouth**, which marks whether the panel moves when you talk.
+4. **Frames** shows every frame as a thumbnail. Tap one to edit it. **New** adds an empty frame, **Duplicate** copies this one, and the box beside **ms** sets how long the frame shows. Long-press a thumbnail and drag it to reorder. **Onion** shows the previous frame faintly underneath, which makes blinks and mouth movements easy to line up.
+5. **Play** runs it on the page. **On mask** plays it on the mask without saving; it's gone after a restart.
+6. Type a name and press **Save to mask**. It shows up on the home page straight away. **Download** saves a copy to your phone or PC.
+
+**Undo** and **redo** are at the top, and cover everything. Your work is kept if the page reloads or the phone locks, and the page asks before you leave with changes that aren't saved. The **⋯** menu opens a face from the mask, starts a new one, or imports a `.json` file. On a keyboard, the shortcuts are listed in that menu too.
+
+Opening a face and saving it again changes nothing in the file you didn't change yourself. Anything the editor doesn't draw, such as ear data or per-pixel colour, is kept as it was.
 
 ### Drawing without the mask
 
-The standalone face maker in `BittenOS-Controller/tools/face-maker.html` works with no hardware, and so does the copy on the mask. Set **Config** to **custom**, paste these two lines, then press **Load config**:
+`BittenOS-Controller/tools/face-maker.html` is the same editor as a single file that needs no mask, no server and no internet. It uses this mask's layout, and **Save .json** saves a download. Send the file back, or upload it from the phone with **Tools > Upload faces**, or put it in `data/anims/` and update the filesystem.
 
-```
-t13;t12;-;-;-;-;-;-;t1;t0;_;-;-;-;t7;-;-;t6;-;-;-;_;t11;t10;t9;t8;-;-;t5;t4;t3;t2
-```
-```
-[false,false,true,true,true,true,false,false,true,true,true,true,false,false]
-```
+For a mask with a different layout, the **⋯** menu has **Panel layout**, which takes the two lines from that mask's `visType.txt` and `visTypeMouth.txt`. The face maker remembers it, and **This mask's layout** puts this one back.
 
-Save the file to your PC, then upload it from the phone with **Tools > Upload faces**, or put it in `data/anims/` and update the filesystem.
+The face maker is built from `data/animator.html` by `python tools/make_face_maker.py`. Edit the Animator and run that, rather than changing the face maker directly.
 
 ---
 
