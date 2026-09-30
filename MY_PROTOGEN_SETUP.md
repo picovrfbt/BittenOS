@@ -356,7 +356,7 @@ If you change the WiFi name or password, both must be at least 9 characters. To 
 
 Open it from **Design > Face maker**, or press **Manage** on the Faces card and then **Edit** under a face to open that one.
 
-1. **Mirror** is on to start with, because nearly every face is a mirror image: whatever you draw on one side is drawn on the other. On a phone, Mirror also shows just the left half, at twice the size. The preview beside the frames always shows the whole face.
+1. **Mirror** is on to start with, because nearly every face is a mirror image: whatever you draw on one side is drawn on the other. On a phone held upright, Mirror also shows just the left half at twice the size, and **Half** lights up. Tap **Half** to see the whole face while you draw; Mirror still copies each side to the other. It follows Mirror again the next time Mirror is switched. The preview beside the frames always shows the whole face.
 2. Pick a tool: **Pen**, **Eraser**, **Line**, **Box**, **Fill** (fills or empties the shape you tap, inside one panel) or **Panel**. Drag with one finger to draw. Pinch with two fingers to zoom, and drag with two to move around. **Fit** puts it back.
 3. **Panel** selects a single panel. That brings up shift, flip, rotate, invert, copy, paste and empty for that panel, and **Mouth**, which marks whether the panel moves when you talk.
 4. **Frames** shows every frame as a thumbnail. Tap one to edit it. **New** adds an empty frame, **Duplicate** copies this one, and the box beside **ms** sets how long the frame shows. Long-press a thumbnail and drag it to reorder. **Onion** shows the previous frame faintly underneath, which makes blinks and mouth movements easy to line up.
