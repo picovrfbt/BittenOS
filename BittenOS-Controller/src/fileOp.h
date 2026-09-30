@@ -61,6 +61,8 @@ public:
   int rmtPhrase[3];
   String rmtHAct[3],rmtHFace[3];
   int rmtHPhrase[3];
+  String rmtDAct[3],rmtDFace[3];
+  int rmtDPhrase[3];
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
   int wakeFlickMs,wakeFlickGlitch;    //how long the warm-up runs, and how much the picture tears (0-2)
   int boopConfirm;                    //readings in a row over the line before it counts as a boop

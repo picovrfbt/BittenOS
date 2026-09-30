@@ -168,6 +168,14 @@
   .row.buttons { justify-content:flex-end; flex-wrap:wrap; min-height:0; }
   .row.buttons .row-text { flex-basis:100%; }
   .twoup { display:flex; gap:8px; flex:1; min-width:0; }
+  /* How well the remote is being heard, and a nudge when a press arrives. The remote is the one
+     part of the mask with no wire to check, so the link gets shown rather than inferred. */
+  .rmtev { display:flex; align-items:center; gap:9px; color:var(--dim); flex:none; }
+  .rmtev svg { display:block; transition:transform .12s ease; }
+  .rmtev .bars rect { fill:var(--line); transition:fill .15s; }
+  .rmtev .bars rect.on { fill:var(--accent); }
+  .rmtev.lit { color:var(--accent); }
+  .rmtev.lit svg:first-child { transform:scale(1.18); }
   .twoup label { flex:1 1 0; min-width:0; display:grid; gap:3px; font-size:12px; color:var(--dim); }
   .twoup select { width:100%; max-width:none; }
   @media (max-width:430px) { .row.rmt { display:grid; gap:8px; } .row.rmt .row-text { flex-basis:auto; } }
@@ -678,6 +686,19 @@
           <button class="btn small" type="button" id="pairBtn" onclick="pairToggle()">Pair</button></div>
         <div class="row" id="forgetRow" hidden><span class="row-text"><b>Forget it</b><small>Unpairs, so another remote can be paired instead</small></span>
           <button class="btn small danger" type="button" onclick="pairForget()">Forget</button></div>
+        <div class="row"><span class="row-text"><b>Signal</b><small id="rmtSig">Nothing paired yet</small></span>
+          <span class="rmtev" id="rmtEv" title="Lights up when a press arrives from the remote">
+            <svg width="16" height="22" viewBox="0 0 16 22" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <rect x="2.5" y="1" width="11" height="20" rx="3"/>
+              <circle cx="8" cy="6" r="1.8" fill="currentColor" stroke="none"/>
+            </svg>
+            <svg class="bars" width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">
+              <rect data-bar="1" x="0"  y="11" width="4" height="5"  rx="1"/>
+              <rect data-bar="2" x="6"  y="8"  width="4" height="8"  rx="1"/>
+              <rect data-bar="3" x="12" y="5"  width="4" height="11" rx="1"/>
+              <rect data-bar="4" x="18" y="2"  width="4" height="14" rx="1"/>
+            </svg>
+          </span></div>
         <div class="row" style="justify-content:center;padding-top:16px">
           <svg width="182" height="132" viewBox="0 0 182 132" role="img" aria-label="Outline of the remote: three buttons in a line down the board, top, middle and bottom">
             <rect x="12" y="6" width="82" height="120" rx="10" fill="none" stroke="var(--line)" stroke-width="2"/>
@@ -688,12 +709,18 @@
             <text x="104" y="69" fill="var(--dim)" font-size="11">Middle</text>
             <text x="104" y="101" fill="var(--dim)" font-size="11">Bottom</text>
           </svg></div>
+        <div class="row"><p class="hint" style="margin:0">A button with a double tap set waits a
+          moment after you let go to see whether a second tap follows, so its single press lands
+          that much later. Buttons left on <b>None</b> stay as sharp as they were. Changing this
+          takes effect from the remote's next press, which is when the mask tells it.</p></div>
         <div class="row rmt"><span class="row-text"><b>Top</b><small>D0</small></span>
           <div class="twoup">
             <label for="rmt0">Press
               <select id="rmt0" data-key="rmt0" data-label="Top press" aria-label="Top press" style="text-transform:none"></select></label>
             <label for="rmt0H">Hold
               <select id="rmt0H" data-key="rmt0H" data-label="Top hold" aria-label="Top hold" style="text-transform:none"></select></label>
+            <label for="rmt0D">Double
+              <select id="rmt0D" data-key="rmt0D" data-label="Top double tap" aria-label="Top double tap" style="text-transform:none"></select></label>
           </div></div>
         <div class="row" id="rmt0FaceRow" hidden><span class="row-text"><b>Top press face</b></span>
           <select id="rmt0Face" data-key="rmt0Face" data-label="Top press face" aria-label="Top press face"></select></div>
@@ -703,12 +730,18 @@
           <select id="rmt0HFace" data-key="rmt0HFace" data-label="Top hold face" aria-label="Top hold face"></select></div>
         <div class="row" id="rmt0HPhraseRow" hidden><span class="row-text"><b>Top hold phrase</b></span>
           <select id="rmt0HPhrase" data-key="rmt0HPhrase" data-label="Top hold phrase" aria-label="Top hold phrase" style="text-transform:none"></select></div>
+        <div class="row" id="rmt0DFaceRow" hidden><span class="row-text"><b>Top double tap face</b></span>
+          <select id="rmt0DFace" data-key="rmt0DFace" data-label="Top double tap face" aria-label="Top double tap face"></select></div>
+        <div class="row" id="rmt0DPhraseRow" hidden><span class="row-text"><b>Top double tap phrase</b></span>
+          <select id="rmt0DPhrase" data-key="rmt0DPhrase" data-label="Top double tap phrase" aria-label="Top double tap phrase" style="text-transform:none"></select></div>
         <div class="row rmt"><span class="row-text"><b>Middle</b><small>D1</small></span>
           <div class="twoup">
             <label for="rmt1">Press
               <select id="rmt1" data-key="rmt1" data-label="Middle press" aria-label="Middle press" style="text-transform:none"></select></label>
             <label for="rmt1H">Hold
               <select id="rmt1H" data-key="rmt1H" data-label="Middle hold" aria-label="Middle hold" style="text-transform:none"></select></label>
+            <label for="rmt1D">Double
+              <select id="rmt1D" data-key="rmt1D" data-label="Middle double tap" aria-label="Middle double tap" style="text-transform:none"></select></label>
           </div></div>
         <div class="row" id="rmt1FaceRow" hidden><span class="row-text"><b>Middle press face</b></span>
           <select id="rmt1Face" data-key="rmt1Face" data-label="Middle press face" aria-label="Middle press face"></select></div>
@@ -718,12 +751,18 @@
           <select id="rmt1HFace" data-key="rmt1HFace" data-label="Middle hold face" aria-label="Middle hold face"></select></div>
         <div class="row" id="rmt1HPhraseRow" hidden><span class="row-text"><b>Middle hold phrase</b></span>
           <select id="rmt1HPhrase" data-key="rmt1HPhrase" data-label="Middle hold phrase" aria-label="Middle hold phrase" style="text-transform:none"></select></div>
+        <div class="row" id="rmt1DFaceRow" hidden><span class="row-text"><b>Middle double tap face</b></span>
+          <select id="rmt1DFace" data-key="rmt1DFace" data-label="Middle double tap face" aria-label="Middle double tap face"></select></div>
+        <div class="row" id="rmt1DPhraseRow" hidden><span class="row-text"><b>Middle double tap phrase</b></span>
+          <select id="rmt1DPhrase" data-key="rmt1DPhrase" data-label="Middle double tap phrase" aria-label="Middle double tap phrase" style="text-transform:none"></select></div>
         <div class="row rmt"><span class="row-text"><b>Bottom</b><small>D2</small></span>
           <div class="twoup">
             <label for="rmt2">Press
               <select id="rmt2" data-key="rmt2" data-label="Bottom press" aria-label="Bottom press" style="text-transform:none"></select></label>
             <label for="rmt2H">Hold
               <select id="rmt2H" data-key="rmt2H" data-label="Bottom hold" aria-label="Bottom hold" style="text-transform:none"></select></label>
+            <label for="rmt2D">Double
+              <select id="rmt2D" data-key="rmt2D" data-label="Bottom double tap" aria-label="Bottom double tap" style="text-transform:none"></select></label>
           </div></div>
         <div class="row" id="rmt2FaceRow" hidden><span class="row-text"><b>Bottom press face</b></span>
           <select id="rmt2Face" data-key="rmt2Face" data-label="Bottom press face" aria-label="Bottom press face"></select></div>
@@ -733,6 +772,10 @@
           <select id="rmt2HFace" data-key="rmt2HFace" data-label="Bottom hold face" aria-label="Bottom hold face"></select></div>
         <div class="row" id="rmt2HPhraseRow" hidden><span class="row-text"><b>Bottom hold phrase</b></span>
           <select id="rmt2HPhrase" data-key="rmt2HPhrase" data-label="Bottom hold phrase" aria-label="Bottom hold phrase" style="text-transform:none"></select></div>
+        <div class="row" id="rmt2DFaceRow" hidden><span class="row-text"><b>Bottom double tap face</b></span>
+          <select id="rmt2DFace" data-key="rmt2DFace" data-label="Bottom double tap face" aria-label="Bottom double tap face"></select></div>
+        <div class="row" id="rmt2DPhraseRow" hidden><span class="row-text"><b>Bottom double tap phrase</b></span>
+          <select id="rmt2DPhrase" data-key="rmt2DPhrase" data-label="Bottom double tap phrase" aria-label="Bottom double tap phrase" style="text-transform:none"></select></div>
         <p class="hint" style="padding:0 16px 14px">To pair: press <b>Pair</b> here, then hold the <b>Top</b> button while powering the remote up. It blinks five times when it finds the mask. While a game is running, any remote button jumps instead of doing its usual job &mdash; the same as the mask's own button.</p>
       </div>
     </details>
@@ -940,9 +983,14 @@
     if (ok) $('blinkFaceName').textContent = name.replace(/\.json$/, '');
   }
 
+  // The remote's nine action slots: three buttons, each with a press, a hold and a double tap.
+  // Declared up here because FACE_PICKERS below is the first to read it, and a const is not
+  // reachable before its own line runs.
+  const RMT_SLOTS = ['rmt0','rmt0H','rmt0D','rmt1','rmt1H','rmt1D','rmt2','rmt2H','rmt2D'];
+
   const FACE_PICKERS = ['aTilt', 'aTilt2', 'aBoop', 'aSleep', 'aMilestone', 'aSass',
                         'btnShortFace', 'btnDoubleFace', 'btnHoldFace',
-                        ...['rmt0','rmt0H','rmt1','rmt1H','rmt2','rmt2H'].map(k => k + 'Face')];
+                        ...RMT_SLOTS.map(k => k + 'Face')];
 
   async function loadFiles() {
     const parts = (await (await fetch('/getfiles', NO_CACHE)).text()).split(';');
@@ -1361,7 +1409,7 @@
       lastStats = s;
       sendTime(s.clockMins === undefined ? false : s.clockMins < 0);   //never been told, or due again
       updateAutoBri(s);
-      if (currentView === 'settings') updateMic(s);
+      if (currentView === 'settings') { updateMic(s); updateRemote(s); }
       if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
       showStaStatus(s);
       $('boopTotal').textContent = s.boops === undefined ? '—' : s.boops;
@@ -1514,6 +1562,7 @@
                      'tilt2X', 'tilt2Y', 'tilt2Z'];
   const DEFAULTS = {transEna: true, boopCountEna: true, boopLightEna: true, boopShade: 30, boopConfirm: 5, tiltTrig: 0.6, eggPresses: 6, eggAction: 'slots',
                     rmtMac: '', rmt0: 'nextFace', rmt0H: 'displays', rmt1: 'prevFace', rmt1H: 'sleep', rmt2: 'slots', rmt2H: 'dino',
+                    rmt0D: 'none', rmt1D: 'none', rmt2D: 'none', rmt0DFace: '', rmt0DPhrase: 0, rmt1DFace: '', rmt1DPhrase: 0, rmt2DFace: '', rmt2DPhrase: 0,
                     rmt0Face: '', rmt0Phrase: 0, rmt0HFace: '', rmt0HPhrase: 0, rmt1Face: '', rmt1Phrase: 0, rmt1HFace: '', rmt1HPhrase: 0, rmt2Face: '', rmt2Phrase: 0, rmt2HFace: '', rmt2HPhrase: 0, transMs: 80, sleepTol: 0.2, sleepMins: 5,
                     autoBriEna: false, autoBriMode: 'blank', autoBriSecs: 60, autoBriMin: 1, autoBriMax: 8, bOled: 2,
                     autoBriDark: 5, autoBriBright: 400, oledFlip: false, mouthMode: 'shapes', boopMilestone: 100, aMilestone: 'heart.json', sassBoops: 5, sassSecs: 10, aSass: 'upset.json', blinkMode: 'face', blinkDoublePct: 25,
@@ -1654,7 +1703,7 @@
                        displays: 'Displays on/off', sleep: 'Sleep / wake', face: 'A chosen face',
                        phrase: 'A quick phrase', screen: 'Next screen page',
                        slots: 'Slot machine', dino: 'Dino game', boot: 'Boot sequence'};
-  const BTN_SLOTS = ['btnShort', 'btnDouble', 'btnHold', ...['rmt0','rmt0H','rmt1','rmt1H','rmt2','rmt2H']];
+  const BTN_SLOTS = ['btnShort', 'btnDouble', 'btnHold', ...RMT_SLOTS];
 
   function fillButtonPickers() {
     for (const id of BTN_SLOTS) {
@@ -1666,7 +1715,7 @@
     }
     // the phrase pickers list the six slots, showing their text so the choice means something
     for (const id of ['btnShortPhrase', 'btnDoublePhrase', 'btnHoldPhrase',
-                      ...['rmt0','rmt0H','rmt1','rmt1H','rmt2','rmt2H'].map(k => k + 'Phrase')]) {
+                      ...RMT_SLOTS.map(k => k + 'Phrase')]) {
       const sel = $(id), keep = sel.value;
       sel.innerHTML = '';
       for (let i = 0; i < 6; i++) {
@@ -1930,12 +1979,39 @@
   }
 
   /* ---------- the remote ---------- */
+  // Drawn from /stats, which Settings already polls a few times a second, so a press shows up
+  // about as fast as the mask acts on it.
+  const RMT_NAMES = ['Top', 'Middle', 'Bottom'], RMT_EVENTS = ['press', 'hold', 'double tap'];
+  function rmtBars(n) {
+    for (const r of document.querySelectorAll('#rmtEv .bars rect'))
+      r.classList.toggle('on', +r.dataset.bar <= n);
+  }
+  function updateRemote(s) {
+    const box = $('rmtEv'), hint = $('rmtSig');
+    const quiet = (msg) => { hint.textContent = msg; rmtBars(0); box.classList.remove('lit'); };
+    if (!s.rmtPaired) return quiet('Nothing paired yet');
+    if (s.rmtAgoMs === undefined) return quiet('Paired — older firmware, no signal reading');
+    if (s.rmtAgoMs < 0) return quiet('Paired, but nothing pressed since the mask started');
+    const ago = s.rmtAgoMs, r = s.rmtRssi;
+    // Rough bands. Past about -85 dBm is where ESP-NOW starts losing packets outright, so one
+    // bar is a warning rather than a floor.
+    rmtBars(r >= -55 ? 4 : r >= -68 ? 3 : r >= -80 ? 2 : 1);
+    box.classList.toggle('lit', ago < 1200);
+    const when = ago < 1200 ? 'just now'
+               : ago < 60000 ? Math.round(ago / 1000) + 's ago'
+               : Math.round(ago / 60000) + 'm ago';
+    hint.textContent = r + ' dBm · ' + (RMT_NAMES[s.rmtBtn] || '?') + ' '
+                     + (RMT_EVENTS[s.rmtEvt] || '?') + ' ' + when
+                     + ' · ' + s.rmtHeard + (s.rmtHeard === 1 ? ' press' : ' presses')
+                     + (s.rmtLost ? ', ' + s.rmtLost + ' lost' : '');
+  }
+
   let pairPoll = null;
   function showPair(s) {
     const on = !!(s && s.pairing);
     $('pairBtn').textContent = on ? 'Stop (' + (s.secsLeft || 0) + 's)' : (s && s.mac ? 'Pair again' : 'Pair');
     $('forgetRow').hidden = !(s && s.mac);
-    $('pairHint').textContent = on ? 'Listening — hold the first button on the remote while powering it up'
+    $('pairHint').textContent = on ? 'Listening — hold all three buttons on the remote for three seconds'
                                    : (s && s.mac ? 'Paired to ' + s.mac : 'Nothing paired yet');
     if (on && !pairPoll) pairPoll = setInterval(() => pairSend(''), 1000);
     if (!on && pairPoll) { clearInterval(pairPoll); pairPoll = null; }

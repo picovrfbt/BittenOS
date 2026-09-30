@@ -104,6 +104,10 @@ void Config::setDefault() {
   rmtHAct[1] = "sleep";    rmtHFace[1] = "";            rmtHPhrase[1] = 0;
   rmtAct[2] = "slots";     rmtFace[2] = "";             rmtPhrase[2] = 0;
   rmtHAct[2] = "dino";     rmtHFace[2] = "";            rmtHPhrase[2] = 0;
+  //Double tap off to begin with. It is not only a spare action: a button with one set makes the
+  //remote wait out the double-tap window before a single press counts, so leaving it off keeps
+  //every button as sharp as it was until it is asked for.
+  for(int i = 0; i < 3; i++) { rmtDAct[i] = "none"; rmtDFace[i] = ""; rmtDPhrase[i] = 0; }
   wakeFlickStyle = "crt";
   wakeFlickMs = 1800;    //how long the whole warm-up takes
   wakeFlickGlitch = 1;   //0 none, 1 a little tearing, 2 a lot
@@ -210,6 +214,9 @@ bool Config::save() {
     doc[k + "H"] = rmtHAct[i];
     doc[k + "HFace"] = rmtHFace[i];
     doc[k + "HPhrase"] = rmtHPhrase[i];
+    doc[k + "D"] = rmtDAct[i];
+    doc[k + "DFace"] = rmtDFace[i];
+    doc[k + "DPhrase"] = rmtDPhrase[i];
   }
   doc["wakeFlickStyle"] = wakeFlickStyle;
   doc["wakeFlickMs"] = wakeFlickMs;
@@ -389,6 +396,9 @@ bool Config::load() {
     rmtHAct[i] = doc[k + "H"] | (i == 0 ? "displays" : i == 1 ? "sleep" : "dino");
     rmtHFace[i] = doc[k + "HFace"] | "";
     rmtHPhrase[i] = doc[k + "HPhrase"] | 0;
+    rmtDAct[i] = doc[k + "D"] | "none";
+    rmtDFace[i] = doc[k + "DFace"] | "";
+    rmtDPhrase[i] = doc[k + "DPhrase"] | 0;
   }
   wakeFlickStyle = doc["wakeFlickStyle"] | "crt";
   wakeFlickMs = doc["wakeFlickMs"] | 1800;

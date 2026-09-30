@@ -46,19 +46,23 @@ static const gpio_num_t BUTTON_PIN[BUTTON_COUNT] = {
 //--------------------------------//The protocol
 //Shared with the mask. Anything without the magic is not ours and is dropped on sight.
 #define REMOTE_MAGIC 0x50524F54UL     //'PROT'
-#define REMOTE_PROTO 2                //2: paired unicast. 1 was the broadcast-to-everyone version.
+#define REMOTE_PROTO 3                //3 added the gestures byte. 2 was press and hold only.
 
-enum : uint8_t { MSG_PRESS = 0, MSG_PAIR_REQ = 1, MSG_PAIR_ACK = 2 };
-enum : uint8_t { EV_PRESS = 0, EV_HOLD = 1 };
+enum : uint8_t { MSG_PRESS = 0, MSG_PAIR_REQ = 1, MSG_PAIR_ACK = 2, MSG_INFO = 3 };
+enum : uint8_t { EV_PRESS = 0, EV_HOLD = 1, EV_DOUBLE = 2 };
 
 struct __attribute__((packed)) RemotePacket {
   uint32_t magic;
   uint8_t  proto;
   uint8_t  type;        //MSG_*
   uint8_t  button;      //index into BUTTON_PIN
-  uint8_t  event;       //EV_PRESS or EV_HOLD
+  uint8_t  event;       //EV_*
   uint8_t  battPct;     //0-100, or 255 when unknown
   uint8_t  channel;     //only meaningful in MSG_PAIR_ACK: the channel the mask is sitting on
+  //Sent by the mask, in MSG_PAIR_ACK and MSG_INFO: bits 0-2 say button 0-2 has a double tap
+  //action set, bits 3-5 say it has a hold action. See handlePress() for why the remote needs to
+  //be told rather than simply waiting.
+  uint8_t  gestures;
   uint32_t seq;         //counts presses, so a repeat can be spotted
 };
 
@@ -66,6 +70,7 @@ struct __attribute__((packed)) RemotePacket {
 #define DEBOUNCE_MS       15  //a press has to still be down this long to count
 #define CATCH_MS          40  //how long after waking to keep looking for the pin that did it
 #define HOLD_MS         1200  //still down this long and a second packet goes out as a hold
+#define DOUBLE_MS        260  //a second tap inside this is a double tap, not two presses
 #define ACK_WAIT_MS       60  //how long to wait for the mask to acknowledge a packet
 #define LINGER_MS       4000  //stay awake this long after a press, in case another follows
 #define CHANNEL_MAX       13  //channels to search; ones the region disallows are skipped
@@ -81,6 +86,11 @@ struct __attribute__((packed)) RemotePacket {
 //erase, because losing it would mean opening the case to pair again.
 RTC_DATA_ATTR uint32_t rtcSeq = 0;
 RTC_DATA_ATTR uint8_t rtcChannel = 0;     //last channel the mask answered on; 0 = not known
+//Which gestures the mask has configured, as the mask last told us. In RTC memory because it is
+//needed on the very first press after waking, and mirrored into NVS because losing it would mean
+//a button behaving differently until the next press taught it again.
+RTC_DATA_ATTR uint8_t rtcGestures = 0;
+static volatile bool gestDirty = false;   //a fresh gestures byte arrived: consider saving it
 
 static unsigned long lastActivity = 0;    //when the last press was dealt with
 //Which buttons were already down last time round. handlePress() can return with the button
@@ -106,9 +116,17 @@ static void onRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len
   if(len != (int)sizeof(RemotePacket)) return;
   RemotePacket p;
   memcpy(&p, data, sizeof(p));
-  if(p.magic != REMOTE_MAGIC || p.type != MSG_PAIR_ACK) return;
+  if(p.magic != REMOTE_MAGIC || p.proto != REMOTE_PROTO) return;
+  //The mask answers every press with this, so a button whose double tap was just set in the web
+  //page behaves as a plain press for one more press and is right from then on.
+  if(p.type == MSG_INFO) {
+    if(p.gestures != rtcGestures) { rtcGestures = p.gestures; gestDirty = true; }
+    return;
+  }
+  if(p.type != MSG_PAIR_ACK) return;
   memcpy(pairMac, info->src_addr, 6);
   pairChannel = p.channel;
+  if(p.gestures != rtcGestures) { rtcGestures = p.gestures; gestDirty = true; }
   gotPairAck = true;
 }
 
@@ -159,6 +177,10 @@ static bool loadPair() {
   prefs.begin("remote", true);
   size_t n = prefs.getBytes("mac", maskMac, 6);
   if(rtcChannel == 0) rtcChannel = prefs.getUChar("ch", 0);
+  //0x3F = assume every button has both a hold and a double tap. Only until the mask says
+  //otherwise, which it does on the first press: being 260 ms slow once is a far smaller fault
+  //than sending a hold as a plain press because nothing had said a hold existed yet.
+  if(rtcGestures == 0) rtcGestures = prefs.getUChar("gest", 0x3F);
   prefs.end();
   havePair = (n == 6);
   return havePair;
@@ -172,6 +194,16 @@ static void savePair(const uint8_t *mac, uint8_t channel) {
   memcpy(maskMac, mac, 6);
   rtcChannel = channel;
   havePair = true;
+}
+
+//Written back only when the byte actually changed, and never from the radio callback, for the same
+//wear reason as the channel: a press happens far more often than a setting does.
+static void saveGestures() {
+  if(!gestDirty) return;
+  gestDirty = false;
+  prefs.begin("remote", false);
+  if(prefs.getUChar("gest", 255) != rtcGestures) prefs.putUChar("gest", rtcGestures);
+  prefs.end();
 }
 
 //The channel is written back whenever it changes, not only at pairing, so a mask that has moved
@@ -221,6 +253,7 @@ static RemotePacket makePacket(uint8_t type, uint8_t button, uint8_t event, bool
   p.event = event;
   p.battPct = 255;            //no battery divider wired on this board yet
   p.channel = 0;
+  p.gestures = 0;             //the mask sends this one, not us
   p.seq = bumpSeq ? ++rtcSeq : rtcSeq;
   return p;
 }
@@ -274,19 +307,52 @@ static bool runPairing() {
 
 //One press, from send to release. Called for the press that woke the chip and for any that follow
 //while it is still awake.
-static void handlePress(int b) {
-  //Nothing goes out on the way down. A press and a hold are two different actions on the mask, so
-  //sending the press first and the hold after would run both: holding the bottom button started
-  //the slot machine and then the dino game on top of it. Waiting to see which gesture this is
-  //costs a tap the time it takes to lift a finger, which is the cheaper of the two prices.
-  unsigned long holdAt = millis() + HOLD_MS;
-  bool held = true;
-  while(millis() < holdAt) {
-    if(!pressed(b)) { held = false; break; }
-    delay(10);
-  }
-  blink(sendPress((uint8_t)b, held ? EV_HOLD : EV_PRESS) ? 1 : 3);
+//
+//Nothing goes out on the way down when there is more than one gesture in play. Press, hold and
+//double tap are three different actions on the mask, so sending the press first and correcting
+//afterwards would run two of them - holding the bottom button used to start the slot machine and
+//then the dino game on top of it.
+//
+//Waiting costs latency, so it is only paid where it buys something. The mask sends over which
+//gestures it actually has configured, and a button with nothing but a plain press on it fires the
+//instant it goes down. That is the same bargain the mask's own button strikes with cfg.btnDouble:
+//off means a single press acts the moment you let go.
+static void sendEvent(int b, uint8_t event) {
+  blink(sendPress((uint8_t)b, event) ? 1 : 3);
   lastActivity = millis();
+}
+
+static void handlePress(int b) {
+  bool hasHold   = (rtcGestures >> (b + 3)) & 1;
+  bool hasDouble = (rtcGestures >> b) & 1;
+
+  if(!hasHold && !hasDouble) { sendEvent(b, EV_PRESS); return; }   //nothing to tell it apart from
+
+  //Wait for the release, but no longer than a hold takes to declare itself.
+  unsigned long start = millis();
+  while(pressed(b) && millis() - start < HOLD_MS) delay(10);
+
+  if(pressed(b)) {
+    //Still down. A hold goes out now rather than on release, so it lands while the finger is
+    //still there; with no hold configured a long press is simply a press, and no second tap can
+    //be coming while the button is held.
+    sendEvent(b, hasHold ? EV_HOLD : EV_PRESS);
+    return;
+  }
+
+  if(hasDouble) {
+    unsigned long until = millis() + DOUBLE_MS;
+    while(millis() < until) {
+      if(pressed(b)) {
+        delay(DEBOUNCE_MS);
+        if(!pressed(b)) continue;                 //bounce on the way up, not a second tap
+        sendEvent(b, EV_DOUBLE);
+        return;
+      }
+      delay(5);
+    }
+  }
+  sendEvent(b, EV_PRESS);
 }
 
 //All three held for three seconds. Returns true if pairing was attempted, so the caller knows to
@@ -311,6 +377,7 @@ static bool maybePair() {
 //it is left out of the wake mask and a short timer wake is added instead, so the remote comes back
 //to itself once the button finally clears rather than staying dead.
 static void sleepNow() {
+  saveGestures();                       //RTC memory survives sleep, a flat battery does not
   unsigned long until = millis() + RELEASE_MAX_MS;
   bool anyDown = true;
   while(anyDown && millis() < until) {
@@ -394,6 +461,7 @@ void loop() {
       wasDown[i] = false;
     }
   }
+  saveGestures();
   if(millis() - lastActivity > LINGER_MS) sleepNow();
   delay(5);
 }
