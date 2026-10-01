@@ -41,8 +41,9 @@ Roughly in order:
    `tools/convert_mk2_to_14.py` already converts the stock 11-panel set to this one; that wants
    generalising to any-to-any, driven by the role file rather than by a hand-written table. The
    sets in `anims_original_11panel/` and `anims_14panel_v1/` are the test material for it.
-5. **The face maker asks rather than assumes.** `tools/face-maker.html` has this mask's visType
-   baked in. It wants a layout picker, or to load one from a file the way it loads a face.
+5. **The face maker asks rather than assumes.** Done for the editor itself (2026-09-30): the
+   Animator reads the mask's own `visType.txt`, and the standalone face maker has a Panel layout
+   editor. Mirror drawing works out which panel faces which from the layout.
 
 **Before starting:** the hard part is not the panel count, it is that "maw", "nose" and "eye" are
 currently opinions held in C rather than data — step 2 decides how hard the rest is. There is

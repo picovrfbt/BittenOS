@@ -85,11 +85,13 @@
              font:inherit; font-size:13px; font-weight:600; padding:4px 6px; margin:0 -6px 12px 0; border-radius:8px; }
   .face-wrap { display:flex; flex-direction:column; gap:6px; }
   .face-actions { display:none; gap:6px; }
-  .managing .face-actions { display:flex; }
-  .face-actions .mini { flex:1; appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:var(--bg);
+  .managing .face-actions { display:grid; grid-template-columns:1fr 1fr; }
+  .face-actions .mini:first-child { grid-column:1 / -1; }
+  .face-actions .mini { min-width:0; appearance:none; -webkit-appearance:none; border:1px solid var(--line); background:var(--bg);
              color:var(--dim); border-radius:9px; min-height:36px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
   .face-actions .mini:active { transform:scale(.97); }
   .face-actions .mini.danger { color:var(--bad); }
+  .face-actions a.mini { display:flex; align-items:center; justify-content:center; text-decoration:none; }
 
   /* sliders */
   .control { display:grid; gap:6px; }
@@ -1013,13 +1015,16 @@
       // buttons can't be nested, so the manage row is a sibling of the tile, hidden until Manage is on
       const acts = document.createElement('div');
       acts.className = 'face-actions';
+      const edit = document.createElement('a');
+      edit.className = 'mini'; edit.textContent = 'Edit';
+      edit.href = '/animator.html?face=' + encodeURIComponent(name);
       const ren = document.createElement('button');
       ren.type = 'button'; ren.className = 'mini'; ren.textContent = 'Rename';
       ren.addEventListener('click', () => renameFace(name));
       const del = document.createElement('button');
       del.type = 'button'; del.className = 'mini danger'; del.textContent = 'Delete';
       del.addEventListener('click', () => deleteFace(name));
-      acts.append(ren, del);
+      acts.append(edit, ren, del);
       wrap.appendChild(acts);
       grid.appendChild(wrap);
     }
