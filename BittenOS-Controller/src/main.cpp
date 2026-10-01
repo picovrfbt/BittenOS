@@ -91,7 +91,7 @@ ezButton hwBtn(animBtn);
 #include "fileOp.h" //CRC + Config variables store/save/load/default
 Config cfg;
 
-#include "Misc.h" //Misc/helping functions
+#include "misc.h" //Misc/helping functions (lower case: the file is misc.h, and Linux and macOS care)
 
 #include "oled.h"
 #include "screen.h"
@@ -631,18 +631,30 @@ void finishMicLoud() {
 }
 
 //--------------------------------//getting stored anims names and count
+#define MAX_ANIMS 50   //the size of availAnims
+//Runs on the web task (/getfiles) while the loop task steps through availAnims for the button, so
+//the list is read from disk first and only swapped in under the mutex.
 void getFilesFunc() {
-  getfilesCache = "";
-  totalAnims = 0;
+  String names[MAX_ANIMS];
+  String cache = "";
+  uint8_t count = 0;
   File root = LittleFS.open("/anims");
   File file = root.openNextFile();
-  while(file){
-    availAnims[totalAnims] = String(file.name());
-    getfilesCache += availAnims[totalAnims] + ";";
-    totalAnims++;
+  while(file) {
+    String name = String(file.name());
+    if(count < MAX_ANIMS && !file.isDirectory() && name.endsWith(".json")) {
+      names[count++] = name;
+      cache += name + ";";
+    }
     file = root.openNextFile();
   }
+  if(count == MAX_ANIMS) logPrint("[E] More than " + String(MAX_ANIMS) + " faces: only the first " + String(MAX_ANIMS) + " are listed");
+  xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+  for(int i = 0; i < MAX_ANIMS; i++) availAnims[i] = names[i];
+  totalAnims = count;
+  getfilesCache = cache;
   getfilesProper = false;
+  xSemaphoreGive(animQueueMutex);
 }
 
 //--------------------------------//Structs for anims in psram
@@ -768,12 +780,14 @@ bool loadAnim(String anim, String temp) {
         break;
       }
     }
-    //Ears anim load
+    //Ears anim load. calloc, not malloc: a frame that lists fewer LEDs than there are would
+    //otherwise show whatever the memory held before.
     earsNow->numOfFrames = doc["ears"]["frames"].size();
-    earsNow->frames = (FramesEars*) ps_malloc(sizeof(FramesEars) * earsNow->numOfFrames);
+    earsNow->frames = earsNow->numOfFrames ? (FramesEars*) ps_calloc(earsNow->numOfFrames, sizeof(FramesEars)) : nullptr;
+    if(earsNow->numOfFrames && !earsNow->frames) earsNow->numOfFrames = 0;
     for(int x = 0; x < earsNow->numOfFrames; x++) {
       earsNow->frames[x].timespan = doc["ears"]["frames"][x]["timespan"].as<int>();
-      for(int y = 0; y < doc["ears"]["frames"][x]["leds"].size(); y++) {
+      for(int y = 0; y < (int)doc["ears"]["frames"][x]["leds"].size() && y < earLedsNum; y++) {
         earsNow->frames[x].ledColor[y] = strtol(doc["ears"]["frames"][x]["leds"][y].as<String>().c_str(), NULL, 16);
       }
     }
@@ -787,17 +801,34 @@ bool loadAnim(String anim, String temp) {
     //One-shot animations (e.g. scrolling text set to play once) name the face to go back to
     visorThen = doc["visor"]["then"] | "";
     //isMouth
-    for(int y = 0; y < doc["visor"]["isMouth"].size(); y++) {
-      visorNow->isMouth[y] = doc["visor"]["isMouth"][y].as<bool>();
+    //Everything below is indexed by panel, so a face drawn for a bigger mask is cut to this one
+    //rather than allowed to write past the end of the arrays.
+    for(int y = 0; y < MATRIXESNUM; y++) {
+      visorNow->isMouth[y] = y < (int)doc["visor"]["isMouth"].size() && doc["visor"]["isMouth"][y].as<bool>();
     }
     //canBlink: the face designer's "The mask may blink this face". Faces drawn before this existed
     //say nothing, and those fall back to judging by the frame timings.
     visorNow->saysBlink = !doc["visor"]["canBlink"].isNull();
     visorNow->canBlink = doc["visor"]["canBlink"] | false;
     //Visor anim load
+    //At least one frame: the renderer reads frames[0] whatever the file said. Zeroed, so panels
+    //and colours a frame leaves out come out dark rather than as leftover memory.
     visorNow->numOfFrames = doc["visor"]["frames"].size();
-    visorNow->frames = (FramesVisor*) ps_malloc(sizeof(FramesVisor) * visorNow->numOfFrames);
-    for(int x = 0; x < visorNow->numOfFrames; x++) {
+    int visorAlloc = visorNow->numOfFrames > 0 ? visorNow->numOfFrames : 1;
+    visorNow->frames = (FramesVisor*) ps_calloc(visorAlloc, sizeof(FramesVisor));
+    if(!visorNow->frames) {
+      logPrint(F("[E] Not enough PSRAM for that animation"));
+      visorNow->numOfFrames = 0;
+      xSemaphoreTake(animQueueMutex, portMAX_DELAY);
+      currentAnim = "";
+      xSemaphoreGive(animQueueMutex);
+      return false;
+    }
+    if(visorNow->numOfFrames == 0) {
+      visorNow->numOfFrames = 1;
+      visorNow->frames[0].timespan = 1000;
+    }
+    for(int x = 0; x < (int)doc["visor"]["frames"].size(); x++) {
       visorNow->frames[x].timespan = doc["visor"]["frames"][x]["timespan"].as<int>();
       numAnimBlush = (uint8_t)doc["visor"]["frames"][x]["ledsBlush"].size();
       for(int y = 0; y < numAnimBlush; y++) {
@@ -805,21 +836,22 @@ bool loadAnim(String anim, String temp) {
           visorNow->frames[x].ledsBlush[y] = strtol(doc["visor"]["frames"][x]["ledsBlush"][y].as<String>().c_str(), NULL, 16);
         }
       }
-      numOfSegm = doc["visor"]["frames"][x]["leds"].size();
+      numOfSegm = min((int)doc["visor"]["frames"][x]["leds"].size(), MATRIXESNUM);
       for(int y = 0; y < numOfSegm; y++) {
         visorNow->frames[x].fColor[y] = strtol(doc["visor"]["frames"][x]["fColor"][y].as<String>().c_str(), NULL, 16); //should return 0 if not present
         visorNow->frames[x].leds[y] = strtoull(doc["visor"]["frames"][x]["leds"][y].as<String>().c_str(), NULL, 16); //string to uint64
       }
-      for(int i = 0; i < MATRIXESNUM; i++) { //wipe ppColor data
-        for(int o = 0; o < 64; o++) {
-          visorNow->frames[x].ppColor[i][o] = 0;
-        }
-      }
+      //ppColor is already zero from calloc
       int numOfpp = doc["visor"]["frames"][x]["ppColor"].size();
       for(int y = 0; y < numOfpp; y++) {
-        int numOfppData = doc["visor"]["frames"][x]["ppColor"][y]["data"].size();
+        JsonVariant pp = doc["visor"]["frames"][x]["ppColor"][y];
+        int m = pp["mIndex"].as<int>();
+        if(m < 0 || m >= MATRIXESNUM) continue;
+        int numOfppData = pp["data"].size();
         for(int z = 0; z < numOfppData; z++) { //ppColor[matrix][pixel] = color
-          visorNow->frames[x].ppColor[doc["visor"]["frames"][x]["ppColor"][y]["mIndex"].as<int>()][doc["visor"]["frames"][x]["ppColor"][y]["data"][z][0].as<int>()] = strtol(doc["visor"]["frames"][x]["ppColor"][y]["data"][z][1].as<String>().c_str(), NULL, 16);
+          int px = pp["data"][z][0].as<int>();
+          if(px < 0 || px >= 64) continue;
+          visorNow->frames[x].ppColor[m][px] = strtol(pp["data"][z][1].as<String>().c_str(), NULL, 16);
         }
       }
     }
@@ -1433,6 +1465,14 @@ void rmtBegin() {
   }
 }
 
+//A face name from the page goes straight into a path under /anims, so it must not be able to leave
+//that folder: "../config.json" would otherwise overwrite or delete the settings.
+static bool animNameOk(const String &name) {
+  if(name.length() == 0 || name.length() > 40) return false;
+  if(name.indexOf("..") >= 0 || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0) return false;
+  return true;
+}
+
 void startWiFiWeb() {
   //AP_STA runs both at once: the mask's own access point stays up whatever happens to the network
   //it is asked to join, so a wrong password here can never lock you out of your own mask.
@@ -1448,9 +1488,9 @@ void startWiFiWeb() {
       getFilesFunc();
     }
     xSemaphoreTake(animQueueMutex, portMAX_DELAY);
-    String cur = currentAnim;
+    String out = currentAnim + ";" + getfilesCache;
     xSemaphoreGive(animQueueMutex);
-    request->send(200, "text/plain", cur+";"+getfilesCache);
+    request->send(200, "text/plain", out);
   });
 
   server.on("/saveconfig", HTTP_GET, [](AsyncWebServerRequest *request){ //saves config
@@ -1605,6 +1645,10 @@ void startWiFiWeb() {
 
   server.on("/savefile", HTTP_POST, [](AsyncWebServerRequest *request){ //saves data from POST to file
     if(request->hasParam("file", true) && request->hasParam("content", true)) {
+      if(!animNameOk(request->getParam("file", true)->value())) {
+        request->send(200, "text/plain", F("That isn't a usable face name"));
+        return;
+      }
       File file = LittleFS.open("/anims/"+request->getParam("file", true)->value()+".json", "w");
       if (!file) {
         logPrint(F("[E] There was an error opening the file for saving an animation!"));
@@ -1624,6 +1668,10 @@ void startWiFiWeb() {
 
   server.on("/deletefile", HTTP_GET, [](AsyncWebServerRequest *request){ //deletes asked file
     if(request->hasParam("file")) {
+      if(!animNameOk(request->getParam("file")->value())) {
+        request->send(200, "text/plain", F("That isn't a usable face name"));
+        return;
+      }
       LittleFS.remove("/anims/"+request->getParam("file")->value());
       getfilesProper = true;
       request->redirect("/saved.html?main");
@@ -1635,7 +1683,7 @@ void startWiFiWeb() {
   server.on("/change", HTTP_GET, [](AsyncWebServerRequest *request){ //queues anim from selected avaible anims, loop() loads it
     if(request->hasParam("anim")) {
       String anim = request->getParam("anim")->value();
-      if(LittleFS.exists("/anims/"+anim)) {
+      if(animNameOk(anim) && LittleFS.exists("/anims/"+anim)) {
         xSemaphoreTake(animQueueMutex, portMAX_DELAY);
         animToLoad = anim;
         xSemaphoreGive(animQueueMutex);
@@ -2052,7 +2100,12 @@ void showPhrase(int slot) {
           for(int r = 0; r < 8; r++) if((col >> r) & 1) word |= 1ULL << (r * 8 + x);
         }
       }
-      out += "\"" + String((uint32_t)(word >> 32), HEX) + String((uint32_t)word, HEX) + "\"";
+      //Padded to 16 digits. Gluing the two halves unpadded dropped the leading zeros of the low
+      //word, so any column whose row 3 was dark shifted the whole panel's picture.
+      char hex[17];
+      snprintf(hex, sizeof(hex), "%08lX%08lX",
+               (unsigned long)(word >> 32), (unsigned long)(word & 0xFFFFFFFFUL));
+      out += "\"" + String(hex) + "\"";
     }
     out += "]}";
   }
@@ -2075,17 +2128,18 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
   if(slotActive) return;                           //the reels spin on their own: nothing to press
   if(action == "none" || action == "") return;
   if(action == "nextFace" || action == "prevFace") {
-    if(totalAnims <= 0) return;
+    xSemaphoreTake(animQueueMutex, portMAX_DELAY);   //the web task may be rebuilding the list
+    if(totalAnims <= 0) { xSemaphoreGive(animQueueMutex); return; }
     int at = btnNum;
     for(int i = 0; i < totalAnims; i++) {
       if(availAnims[i] == currentAnim) { at = i; break; }
     }
     btnNum = (action == "nextFace") ? (at + 1) % totalAnims
                                     : (at - 1 + totalAnims) % totalAnims;
-    xSemaphoreTake(animQueueMutex, portMAX_DELAY);
     animToLoad = availAnims[btnNum];
+    String picked = animToLoad;
     xSemaphoreGive(animQueueMutex);
-    logPrint("[I] Button: " + availAnims[btnNum]);
+    logPrint("[I] Button: " + picked);
     return;
   }
   if(action == "displays") {
@@ -2148,10 +2202,9 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
 //intensity registers while this is only picture, so the panels stutter to life revealing a bar
 //that is already filling. Nothing needed doing to make the two agree.
 //
-//Words are written as a padded 16-character hex string. loadAnim() reads them with strtoull, so
-//padding is safe - and it is safer than how showPhrase() writes them, which glues the two halves
-//together unpadded and would lose the low word of something like 0x0000000100000001. That is only
-//harmless there because scrolling text makes dense words; a bar makes sparse ones.
+//Words are written as a padded 16-character hex string, the same as showPhrase() writes them.
+//loadAnim() reads them with strtoull, so padding is safe, and without it the leading zeros of the
+//low word would be lost.
 //Builds and queues the bar. False means there is no bar to show, and the caller lights the panels
 //back up. Split in two because the cleanup cannot be reached by jumping past the locals below.
 static bool buildBootBar() {
@@ -3191,6 +3244,10 @@ void endBoop() { //the paw has gone: now pop the total up, over the face the boo
 }
 
 void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
+  //The games draw the panels themselves. Speech, mouth bob, blinks and the warm-up all repaint
+  //the face on their own timers, and without this they flashed it over the game between ticks.
+  if(dinoActive || slotActive) return;
+  if(!visorNow || !visorNow->frames || visorFrame < 0 || visorFrame >= visorNow->numOfFrames) return;
   uint64_t tempLeds[MATRIXESNUM];
   memcpy(tempLeds, visorNow->frames[visorFrame].leds, sizeof(tempLeds));
   if(speaking) {
@@ -3598,7 +3655,7 @@ void loop() {
   //--------------------------------//VISOR+BLUSH Leds render
   dinoStep();                              //while a game is running it owns the panels
   slotTick();                              //as does the slot machine
-  if(!dinoActive && !slotActive && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) { //custom
+  if(!dinoActive && !slotActive && visorNow->frames && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) { //custom
     if(blinkHoldsFace()) {                 //the mask is doing the blinking: sit on the resting frame
       if(currentVisorFrame != blinkRestFrame || instantReload) {
         currentVisorFrame = blinkRestFrame;

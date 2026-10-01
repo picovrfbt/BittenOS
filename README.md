@@ -24,7 +24,7 @@ The face originally came with an Arduino Nano running FurBitten's closed-source 
 - A live boop meter showing closeness and shadow against their trigger lines, for setting boops up
 - Brightness and transition sliders, and a power button that turns the displays off while the mask keeps running
 - A System tab: uptime, temperature, memory, storage, what's on the I2C bus, and raw sensor readings
-- The web Animator, with touch drawing
+- The Animator: draw faces on the phone with pen, line, box and fill, mirror drawing, onion skin, undo, a frame strip with drag to reorder, and a live preview. Opens and saves the faces already on the mask without changing what you didn't touch
 - Installs on a phone's home screen with its own icon
 
 **Sensors**
@@ -219,7 +219,8 @@ All in `BittenOS-Controller/tools/`, run from the `BittenOS-Controller` folder.
 | `make_screen_font.py` | Builds `src/screen_font.h`, the 5x7 font used by the status screen and the scrolling text |
 | `convert_mk2_to_14.py` | Converts faces drawn for the 11-panel layout to this 14-panel one |
 | `virtual_tester.py` | Runs the web pages on your PC against a pretend mask (below) |
-| `face-maker.html` | The face designer as one standalone file, with this mask's layout baked in and saving as a download. Made to hand to other people, who send a `.json` back — it needs no mask, no server and no internet |
+| `face-maker.html` | The Animator as one standalone file, with this mask's layout baked in (or any other, under Panel layout) and saving as a download. Made to hand to other people, who send a `.json` back — it needs no mask, no server and no internet |
+| `make_face_maker.py` | Builds `face-maker.html` from `data/animator.html`, so the two stay the same editor |
 | `tester.html`, `ble_control.html` | The virtual tester's own page, and a Web Bluetooth control page (parked: it needs https hosting) |
 
 Faces found online are usually drawn for the stock 11-panel "M16 mk2" layout. Put them in `data/anims/` and run `python tools/convert_mk2_to_14.py`: eyes are copied, each mouth side gains a fourth panel, and the single centre nose is split across the two nose panels. Faces that are already 14-panel are skipped.
