@@ -193,8 +193,7 @@ def eye_dot(c, ph):              # surprised
 # The nose the mask came with, copied pixel for pixel. It sits in the outer top corner, and
 # the right nose is an exact mirror of this, so mirroring reproduces it exactly.
 NOSE_ART = (
-    '######..',
-    '######..',
+    '####....',
     '####....',
     '##......',
 )
@@ -316,15 +315,26 @@ def mouth_flat(c, ph):           # upset: a slow sag towards the centre, then ba
     stroke(c, MX0, MX1, lambda s: 20.0 + t * (0.2 + 0.8 * s ** 1.5), thick=2, ymin=16, ymax=23)
 
 
-def mouth_zigzag_bold(c, ph):    # booped: three sharp peaks, from the same photo as eye_chevron
-    # Unlike mouth_zigzag the peaks stay put and only the height breathes, because the shape is
-    # the point here: sliding it would read as static rather than as a held expression.
-    a = 2.6 + 0.4 * math.sin(2 * math.pi * ph)
+#How steep the booped maw is, measured off the reference photo rather than judged by eye: the
+#board was rectified to kill the perspective, the LED lattice found inside the flat image, and the
+#lit LEDs read off it. The sawtooth there swings about six rows peak to trough with a peak every
+#six or seven columns - far sharper than a first eyeball of the picture suggested.
+ZIG_PERIOD = 6.6                 # columns from one peak to the next
+ZIG_SWING = 2.9                  # half the peak-to-trough height, in rows
+ZIG_MID = 19.9                   # the row the sawtooth is centred on
+
+
+def mouth_zigzag_bold(c, ph):    # booped: the sharp sawtooth from the reference photo
+    # The peaks stay put and only the height breathes. Sliding them, the way mouth_zigzag does,
+    # would read as static rather than as a held expression.
+    a = ZIG_SWING + 0.25 * math.sin(2 * math.pi * ph)
 
     def fy(s):
-        p = (s * 3.0) % 1.0                      # three peaks between the ear and the centre
-        return 20.2 - a * (1 - abs(2 * p - 1))
-    stroke(c, MX0, MX1, fy, thick=2, ymin=16, ymax=23)
+        p = (s * (MX1 - MX0 + 1) / ZIG_PERIOD) % 1.0
+        return ZIG_MID - a * (2 * abs(2 * p - 1) - 1)      # triangle wave, trough to peak
+    # Three thick, not two: on a slope this steep a 2px stroke breaks into scattered pixels,
+    # where the reference reads as solid bands.
+    stroke(c, MX0, MX1, fy, thick=3, ymin=16, ymax=23)
 
 
 def mouth_zigzag(c, ph):         # confused / angry: sharp peaks sliding along
