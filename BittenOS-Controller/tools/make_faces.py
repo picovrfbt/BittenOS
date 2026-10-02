@@ -163,6 +163,27 @@ def eye_heart(c, ph):            # heart: two lobes over a point, beating twice 
             put(c, x, y)
 
 
+# The booped face, redrawn from a photo of the same expression on a 32x16 panel: a bold
+# chevron pointing in towards the nose, two thick diagonal strokes meeting at a point. The
+# panel it was photographed on is a different shape to this mask, so the shape is kept and the
+# size is not - it is widened to fill the 16 columns an eye has here.
+EYE_CHEVRON = (
+    '###.............',
+    '######..........',
+    '...######.......',
+    '......######....',
+    '......######....',
+    '...######.......',
+    '######..........',
+    '###.............',
+)
+
+
+def eye_chevron(c, ph):          # booped: a sharp > aimed at the nose
+    # The point pushes in and back by a pixel, so a face that is held still is not dead still.
+    paint(c, EYE_CHEVRON, 1 if math.sin(2 * math.pi * ph) > 0 else 0, 0, ymin=0, ymax=7)
+
+
 def eye_dot(c, ph):              # surprised
     disc(c, EYE_CX, 3.5, 3.5 + 0.8 * math.sin(2 * math.pi * ph), ymin=0, ymax=7)
 
@@ -295,6 +316,17 @@ def mouth_flat(c, ph):           # upset: a slow sag towards the centre, then ba
     stroke(c, MX0, MX1, lambda s: 20.0 + t * (0.2 + 0.8 * s ** 1.5), thick=2, ymin=16, ymax=23)
 
 
+def mouth_zigzag_bold(c, ph):    # booped: three sharp peaks, from the same photo as eye_chevron
+    # Unlike mouth_zigzag the peaks stay put and only the height breathes, because the shape is
+    # the point here: sliding it would read as static rather than as a held expression.
+    a = 2.6 + 0.4 * math.sin(2 * math.pi * ph)
+
+    def fy(s):
+        p = (s * 3.0) % 1.0                      # three peaks between the ear and the centre
+        return 20.2 - a * (1 - abs(2 * p - 1))
+    stroke(c, MX0, MX1, fy, thick=2, ymin=16, ymax=23)
+
+
 def mouth_zigzag(c, ph):         # confused / angry: sharp peaks sliding along
     def fy(s):
         p = (s * 2.0 + ph) % 1.0
@@ -329,9 +361,9 @@ FACES = {
     'angry':    dict(eye='original', step=30,  mouth=mouth_zigzag),   # its twitch frame is 25ms
     'upset':    dict(eye='original', step=120, mouth=mouth_flat,  hold=1800),
     'confused': dict(eye='original', step=90,  mouth=mouth_zigzag),
-    'boop':     dict(eye='original', step=80,  mouth=mouth_open,  hold=700),
+    'boop':     dict(eye=eye_chevron, step=90,  mouth=mouth_zigzag_bold, n=10),
     #the same boop eyes and snout with the mouth left dark
-    'boop2':    dict(eye='original', eyeFrom='boop', step=80, mouth=None, hold=700),
+    'boop2':    dict(eye=eye_chevron, step=90,  mouth=None, n=10),
     'heart':    dict(eye=eye_heart,  step=110, mouth=mouth_grin,  n=14),
     'surprise': dict(eye=eye_dot,    step=120, mouth=mouth_open,  n=12),
 }
