@@ -168,14 +168,14 @@ def eye_heart(c, ph):            # heart: two lobes over a point, beating twice 
 # panel it was photographed on is a different shape to this mask, so the shape is kept and the
 # size is not - it is widened to fill the 16 columns an eye has here.
 EYE_CHEVRON = (
-    '###.............',
-    '######..........',
-    '...######.......',
-    '......######....',
-    '......######....',
-    '...######.......',
-    '######..........',
-    '###.............',
+    '.##.............',
+    '.####...........',
+    '...####.........',
+    '.....####.......',
+    '.....####.......',
+    '...####.........',
+    '.####...........',
+    '.##.............',
 )
 
 
@@ -193,14 +193,22 @@ def eye_dot(c, ph):              # surprised
 # The nose the mask came with, copied pixel for pixel. It sits in the outer top corner, and
 # the right nose is an exact mirror of this, so mirroring reproduces it exactly.
 NOSE_ART = (
+    '######..',
+    '######..',
+    '####....',
+    '##......',
+)
+
+# A smaller snout, worn by the booped face alone. Every other face keeps NOSE_ART.
+NOSE_SMALL_ART = (
     '####....',
     '####....',
     '##......',
 )
 
 
-def nose(c):
-    paint(c, NOSE_ART, NX0, 8, ymin=8, ymax=15)
+def nose(c, art=NOSE_ART):
+    paint(c, art, NX0, 8, ymin=8, ymax=15)
 
 
 # ---------- mouths ----------
@@ -319,28 +327,31 @@ def mouth_flat(c, ph):           # upset: a slow sag towards the centre, then ba
 #board was rectified to kill the perspective, the LED lattice found inside the flat image, and the
 #lit LEDs read off it. The sawtooth there swings about six rows peak to trough with a peak every
 #six or seven columns - far sharper than a first eyeball of the picture suggested.
-#The booped maw, taken straight off the reference rather than fitted to a waveform. The board in
-#the photo was warped flat, the LED lattice found inside the rectified image, and the centre row of
-#the lit run measured column by column. Two earlier goes guessed a symmetric triangle wave and both
-#were wrong: the teeth point DOWN, the swing is 2.5 rows and not the 6 a first reading suggested
-#(that number was the lit height, which includes the 3px stroke and the entry ramp), and the shape
-#is not symmetric - it runs down a long ramp from the ear before the serration starts at all.
-#Rows here are within the maw panel, 0 at the top of it.
-MAW_REF = (1.0, 2.0, 3.0, 4.0, 5.0, 5.5, 4.5, 4.0, 3.0, 4.0,
-           5.0, 5.5, 4.5, 3.0, 3.0, 4.0, 5.0, 5.0, 4.0, 2.5)
+#The booped maw. The shape came off the reference photo - board warped flat, LED lattice found in
+#the rectified image, centre row of the lit run measured column by column - and is kept as the
+#corners it turns at rather than as the twenty measured samples. Interpolating the samples rounded
+#every tooth off, because the measurement has flat pairs in it and each one stretches to three
+#columns on a maw this wide. Straight runs between corners keep the points sharp.
+#
+#Reading it: a long ramp down from the ear, three teeth biting downwards, then a lift at the nose.
+#The teeth point DOWN - an earlier version had them as peaks, which is upside down.
+MAW_TOP = 17.2                   # the row the ramp starts and ends on
+MAW_BOT = 22.0                   # how far the teeth bite
+MAW_TIP = 17.8                   # how far it comes back up between them
 
 
-def mouth_zigzag_bold(c, ph):    # booped: the reference maw, stretched to the width this one has
-    # It breathes by a fraction of a pixel rather than changing shape, because the shape is the
-    # whole point of this one.
-    lift = 0.35 * math.sin(2 * math.pi * ph)
-
-    def fy(s):
-        x = s * (len(MAW_REF) - 1)
-        i = min(int(x), len(MAW_REF) - 2)
-        a, b = MAW_REF[i], MAW_REF[i + 1]
-        return 16.0 + a + (b - a) * (x - i) - lift
-    stroke(c, MX0, MX1, fy, thick=3, ymin=16, ymax=23)
+def mouth_zigzag_bold(c, ph):    # booped: the reference maw
+    # Breathes by a fraction of a pixel rather than changing shape; the shape is the point here.
+    d = 0.35 * math.sin(2 * math.pi * ph)
+    stroke(c, MX0, MX1, seg([
+        (0.000, MAW_TOP - d),
+        (0.263, MAW_BOT),            # first tooth
+        (0.421, MAW_TIP - d),
+        (0.579, MAW_BOT),            # second
+        (0.737, MAW_TIP - d),
+        (0.895, MAW_BOT),            # third
+        (1.000, MAW_TOP - d),
+    ]), thick=3, ymin=16, ymax=23)
 
 
 def mouth_zigzag(c, ph):         # confused / angry: sharp peaks sliding along
@@ -377,9 +388,9 @@ FACES = {
     'angry':    dict(eye='original', step=30,  mouth=mouth_zigzag),   # its twitch frame is 25ms
     'upset':    dict(eye='original', step=120, mouth=mouth_flat,  hold=1800),
     'confused': dict(eye='original', step=90,  mouth=mouth_zigzag),
-    'boop':     dict(eye=eye_chevron, step=90,  mouth=mouth_zigzag_bold, n=10),
+    'boop':     dict(eye=eye_chevron, step=90,  mouth=mouth_zigzag_bold, n=10, smallNose=True),
     #the same boop eyes and snout with the mouth left dark
-    'boop2':    dict(eye=eye_chevron, step=90,  mouth=None, n=10),
+    'boop2':    dict(eye=eye_chevron, step=90,  mouth=None, n=10, smallNose=True),
     'heart':    dict(eye=eye_heart,  step=110, mouth=mouth_grin,  n=14),
     'surprise': dict(eye=eye_dot,    step=120, mouth=mouth_open,  n=12),
 }
@@ -439,7 +450,7 @@ def face_frames(name):
         else:
             art, lift = track[i]
             paint(c, art, 0, 0, dy=lift)
-        nose(c)
+        nose(c, NOSE_SMALL_ART if spec.get('smallNose') else NOSE_ART)
         if spec['mouth'] is not None:      # some faces are eyes and snout only
             spec['mouth'](c, ph)
         mirror_half(c)
