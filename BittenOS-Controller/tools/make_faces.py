@@ -34,6 +34,7 @@ V1 = os.path.join(ROOT, 'anims_14panel_v1')      # the faces as they came, the s
 
 W, H = 80, 24                 # 10 panels across, 3 rows down
 EYE_CX = 7.5
+SPIRAL_TURNS = 1.9            # how many times the dizzy spiral wraps before it reaches the edge
 NX0 = 24                      # left nose panel starts here; x=31 is the inner edge
 MX0, MX1 = 0, 31              # left mouth; x=0 is the ear end, x=31 the centre
 
@@ -182,6 +183,21 @@ EYE_CHEVRON = (
 def eye_chevron(c, ph):          # booped: a sharp > aimed at the nose
     # The point pushes in and back by a pixel, so a face that is held still is not dead still.
     paint(c, EYE_CHEVRON, 1 if math.sin(2 * math.pi * ph) > 0 else 0, 0, ymin=0, ymax=7)
+
+
+def eye_spiral(c, ph):           # dizzy: a flat spiral, turning slowly
+    # From a photo of this same mask running FurBitten's original firmware. It reads as a circle
+    # in that photo, but the shot is from the side and foreshortens the visor by about half, so
+    # what is actually drawn is an oval twice as wide as it is tall - which is the shape an eye
+    # is here, 16 across and 8 down.
+    #
+    # Turning it is what makes it read as dizzy rather than as a target. Drawn point by point
+    # rather than as art, so the rotation costs nothing and never has to be redrawn by hand.
+    for i in range(400):
+        f = i / 399.0
+        th = 2 * math.pi * (SPIRAL_TURNS * f + ph)       # + ph: one whole turn over the loop
+        r = 0.55 + 2.85 * f
+        put(c, EYE_CX + r * 1.95 * math.cos(th), 3.5 + r * math.sin(th))
 
 
 def eye_dot(c, ph):              # surprised
@@ -395,6 +411,8 @@ FACES = {
     'boop':     dict(eye=eye_chevron, step=90,  mouth=mouth_zigzag_bold, n=10, smallNose=True),
     #the same boop eyes and snout with the mouth left dark
     'boop2':    dict(eye=eye_chevron, step=90,  mouth=None, n=10, smallNose=True),
+    #from a photo of this mask on FurBitten's original firmware: spiral eyes over the stock wave
+    'spiral':   dict(eye=eye_spiral, step=110, mouth=mouth_original, n=14),
     'heart':    dict(eye=eye_heart,  step=110, mouth=mouth_grin,  n=14),
     'surprise': dict(eye=eye_dot,    step=120, mouth=mouth_open,  n=12),
 }
