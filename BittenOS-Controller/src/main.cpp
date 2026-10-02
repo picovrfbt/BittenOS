@@ -450,8 +450,9 @@ volatile bool dinoStartReq = false, dinoJumpReq = false, dinoStopReq = false;
 //Rave mode: the mic drives the maw. Set from the page on the web task, acted on in loop().
 bool raveActive = false;
 uint8_t raveMode = 1;                     //0 VU bar, 1 spectrum
+bool raveUseMic = true;                   //off: a made-up groove, and the mic is not read at all
 volatile bool raveStartReq = false, raveStopReq = false;
-volatile int8_t raveModeReq = -1;
+volatile int8_t raveModeReq = -1, raveMicReq = -1;
 int dinoScore = 0;
 
 //Slot machine easter egg: same reason, /slots and the button both sit above the machine itself
@@ -1871,6 +1872,7 @@ void startWiFiWeb() {
     st["mic"] = cfg.speechEna ? micVolume : -1;                       //0-100; -1 when Speech is off
     st["rave"] = raveActive;
     st["raveMode"] = raveMode;
+    st["raveMic"] = raveUseMic;
     st["micRaw"] = micRawMid;                                         //middle of the swing: near half the supply if wired right
     st["micSwing"] = (int)(micSwing + 0.5f);                          //how loud it is, peak to peak over 25 ms
     st["micQuiet"] = (int)(micNoise + 0.5f);                          //the room's own noise floor
@@ -1931,11 +1933,13 @@ void startWiFiWeb() {
   server.on("/rave", HTTP_GET, [](AsyncWebServerRequest *request){ //rave mode: mode, go, stop
     if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels")); return; }
     if(request->hasParam("mode")) raveModeReq = (int8_t)constrain(request->getParam("mode")->value().toInt(), 0, 1);
+    if(request->hasParam("mic")) raveMicReq = request->getParam("mic")->value().toInt() ? 1 : 0;
     if(request->hasParam("go")) raveStartReq = true;
     else if(request->hasParam("stop")) raveStopReq = true;
     JsonDocument d;                         //answers with what was asked for: loop() applies it next
     d["on"] = raveStopReq ? false : (raveStartReq || raveActive);
     d["mode"] = raveModeReq >= 0 ? raveModeReq : raveMode;
+    d["mic"] = raveMicReq >= 0 ? (raveMicReq == 1) : raveUseMic;
     String out;
     serializeJson(d, out);
     request->send(200, "application/json", out);
@@ -3419,6 +3423,31 @@ static void raveScreen() {
   raveScreenDrawn = true;
 }
 
+//Without the mic, a made-up groove instead, so rave mode still looks alive with the mic left alone:
+//120 beats a minute, the bass end thumping on each beat and a wave rolling out along the rest. It
+//writes the same raveLevel and raveBand the mic path does, so the drawing never knows the difference.
+static void raveComputeSynth() {
+  float t = millis() / 1000.0f;
+  float beat = expf(-fmodf(t, 0.5f) * 7.0f);         //a thump that dies away before the next
+  if(raveMode == 0) {
+    raveLevel = 0.30f + 0.62f * beat;
+    raveHold = max(raveLevel * 32.0f, raveHold - 0.6f);
+  } else {
+    for(int b = 0; b < RAVE_BANDS; b++) {
+      float x = (float)b / RAVE_BANDS;                  //0 at the nose, nearly 1 at the ear
+      float wave = 0.5f + 0.5f * sinf(2.0f * PI * (1.3f * x - 0.7f * t));
+      raveBand[b] = constrain(0.18f + 0.42f * wave + 0.45f * beat * (1.0f - x), 0.0f, 1.0f);
+    }
+  }
+}
+
+//Forget what the room sounded like. On a start, and whenever the mic is switched back on: a floor
+//and a peak left over from before, or from the made-up groove, would be wrong for a while.
+static void raveReset() {
+  raveVuFloor = -1; raveVuPeak = 0; raveLevel = 0; raveHold = 0; raveSpecPeak = 0;
+  for(int b = 0; b < RAVE_BANDS; b++) { raveBandFloor[b] = -1; raveBand[b] = 0; }
+}
+
 static bool raveFaceDrawable() {
   return visorNow && visorNow->frames && !dinoActive && !slotActive &&
          (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"));
@@ -3429,14 +3458,14 @@ static void raveStart() {
   for(int t = 0; t < 2; t++)
     for(int k = 0; k < 4; k++)
       if(mawStrips[t].panel[k] >= numOfSegm) return;            //not this mask's layout
-  if(micIs("I2S") && !micI2SReady) micI2SReady = micI2SBegin();
-  if(micIs("I2S") && !micI2SReady) logPrint(F("[E] Rave mode: the mic did not start, so the maw will stay still"));
-  raveVuFloor = -1; raveVuPeak = 0; raveLevel = 0; raveHold = 0; raveSpecPeak = 0;
-  for(int b = 0; b < RAVE_BANDS; b++) { raveBandFloor[b] = -1; raveBand[b] = 0; }
+  if(raveUseMic && micIs("I2S") && !micI2SReady) micI2SReady = micI2SBegin();
+  if(raveUseMic && micIs("I2S") && !micI2SReady) logPrint(F("[E] Rave mode: the mic did not start, so the maw will stay still"));
+  raveReset();
   raveActive = true;
   raveScreenDrawn = false;
   raveLastFrame = 0;
-  logPrint(raveMode ? F("[I] Rave mode: spectrum") : F("[I] Rave mode: VU bar"));
+  logPrint(String(F("[I] Rave mode: ")) + (raveMode ? "spectrum" : "VU bar") +
+           (raveUseMic ? ", from the mic" : ", mic off"));
 }
 
 static void raveStop() {
@@ -4130,7 +4159,12 @@ void loop() {
     phraseRequest = -1;
     showPhrase(slot);
   }
-  if(cfg.speechEna || raveActive) {        //rave listens whether or not Speech is switched on
+  //Who reads the mic. Normally Speech, if it is on. While rave runs the maw is rave's and Speech
+  //cannot show anything, so the mic is read only if rave's Use mic is on - with it off, not one
+  //sample is pulled, whatever Speech says. A calibration asked for by hand still gets to listen.
+  bool micCalibrating = cfg.speechEna && (micCalUntil || micLoudUntil || micTestPhase == 1 || micTestPhase == 2);
+  bool micWanted = raveActive ? (raveUseMic || micCalibrating) : cfg.speechEna;
+  if(micWanted) {
     micCollect();
 
     if(millis() - micWinStart >= MIC_WINDOW_MS && micWinMax > MIC_WIN_HIGH) {
@@ -4205,11 +4239,24 @@ void loop() {
 
   //Rave mode: requests from the page, then a frame every RAVE_FRAME_MS
   if(raveModeReq >= 0) { raveMode = (uint8_t)raveModeReq; raveModeReq = -1; }
+  if(raveMicReq >= 0) {
+    bool want = raveMicReq;
+    raveMicReq = -1;
+    if(want != raveUseMic) {
+      raveUseMic = want;
+      if(raveActive) {
+        raveReset();
+        if(raveUseMic && micIs("I2S") && !micI2SReady) micI2SReady = micI2SBegin();
+        logPrint(raveUseMic ? F("[I] Rave mode: mic on") : F("[I] Rave mode: mic off"));
+      }
+    }
+  }
   if(raveStopReq) { raveStopReq = false; raveStartReq = false; if(raveActive) raveStop(); }
   if(raveStartReq) { raveStartReq = false; if(!raveActive) raveStart(); }
   if(raveActive && millis() - raveLastFrame >= RAVE_FRAME_MS) {
     raveLastFrame = millis();
-    if(raveMode == 0) raveComputeVu();
+    if(!raveUseMic) raveComputeSynth();
+    else if(raveMode == 0) raveComputeVu();
     else raveComputeSpectrum();
     if(raveFaceDrawable()) setAllVisor(visorLedsNEW, 0, currentVisorFrame);
   }

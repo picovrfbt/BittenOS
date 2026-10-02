@@ -78,7 +78,14 @@ Why it is built the way it is, because none of it is obvious from the code alone
   that never changes means `screenTick` pushes nothing at all, and the OLED blit is the one thing
   already proven to stutter the face.
 - **Speech stays separate.** Rave listens whether or not Speech is on, and with only rave on the
-  mouth never decides it is talking.
+  mouth never decides it is talking. It ignores the Speech calibration entirely - quiet and loud
+  gates tuned for a voice inside the mask are wrong for music across a room.
+- **Use mic off reads nothing.** A made-up groove drives the maw instead - a wave rolling out
+  from the nose, the bass thumping at 120 bpm - writing the same levels the mic path writes, so
+  the drawing cannot tell. While rave runs, who reads the mic is rave's call alone, because Speech
+  cannot show anything on a maw rave owns. The only exception is a calibration asked for by hand.
+- **The eyes are the face's.** Any face can be the eyes of a rave: change faces mid-rave and only
+  the eyes change. Boop it and the eyes go boop and the counter pops on the nose.
 
 Still to try on the real mask, since the virtual tester has no ears: whether `RAVE_VU_MIN_PEAK`
 and `RAVE_SPEC_MIN_PEAK` suit real music at a real distance, and how much current a busy spectrum
