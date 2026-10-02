@@ -51,6 +51,39 @@ already a pattern to follow for layouts the firmware does not understand: severa
 `panel[k] >= numOfSegm` and bow out rather than draw somewhere that does not exist, so an unknown
 layout should lose its effects, not break.
 
+## Rave mode - built (2026-10-02)
+
+The top bar's equaliser button opens a small panel: pick **VU bar** or **Spectrum**, then **Start**.
+While it runs the same button reads **Stop**, the icon stays lit, and switching looks applies at
+once. The trace was simulated and dropped in favour of these two.
+
+Why it is built the way it is, because none of it is obvious from the code alone:
+
+- **It only takes the maw.** It is drawn in `setAllVisor()` beside speech and mouth bob, so eyes,
+  nose, blinks, the boop counter and transitions all carry on underneath. The dino and the slots
+  take the whole face over; this deliberately does not.
+- **Auto-gain is the feature, not a refinement.** Music measured peak to peak sits near the bottom
+  of its range and spikes once a beat - over a test clip, median 12 and peak 95 - so a bar scaled
+  straight off it lies dead and twitches. Everything goes through a floor that follows the room, a
+  peak that jumps up and sinks back slowly, and a curve shaped like hearing.
+- **A quiet room has to stay dark,** and this one measures a swing of 0. At raw counts a gain keen
+  enough to wake a quiet bar also wakes silence; `RAVE_GATE` and the two minimum peaks are what stop
+  that. The firmware's maths was ported line for line into `sim_rave.py` and checked on raw counts
+  before it was written: silence dark in both modes, quiet talking showing, music filling the maw,
+  bass at the nose, and the hand-written FFT within 1e-13 of numpy.
+- **Every sample is kept now.** `micCollect()` used to take 64 samples and leave the rest, and
+  threw away a short read entirely. It drains the DMA each call, which an FFT needs - a block with a
+  hole in it is a spectrum of the hole - and which also makes Speech see every sample.
+- **The screen says RAVE MODE once and then stops.** Your idea, and it is a real saving: a picture
+  that never changes means `screenTick` pushes nothing at all, and the OLED blit is the one thing
+  already proven to stutter the face.
+- **Speech stays separate.** Rave listens whether or not Speech is on, and with only rave on the
+  mouth never decides it is talking.
+
+Still to try on the real mask, since the virtual tester has no ears: whether `RAVE_VU_MIN_PEAK`
+and `RAVE_SPEC_MIN_PEAK` suit real music at a real distance, and how much current a busy spectrum
+draws at high brightness - feed the panels from the supply rather than the board pin for that.
+
 ## Done
 
 - [x] **Face manager** — Manage button on the Faces card, with Rename and Delete per face.
