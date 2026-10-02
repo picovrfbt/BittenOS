@@ -139,6 +139,7 @@ class VirtualBoard:
         self.clock_24 = False
         self.rave_on = False           # /rave: the virtual face has no mic, so only the state is kept
         self.rave_mode = 1
+        self.rave_mic = True
         self.dino_on = False           # /dino: the game on the maw. The virtual face cannot play
         self.dino_score = 0            # it, so this is only enough state for the page to drive
         self.pair_until = 0.0          # /pair: a pairing window, with no radio to answer it
@@ -288,7 +289,7 @@ def stats_dict():
         'lightOk': True, 'boopsIgnored': 0, 'i2c': '0x39 0x68 (virtual)',
         'boops': int(board.config.get('boopCount') or 0),
         'display': board.display_on, 'sleeping': board.sleeping,
-        'rave': board.rave_on, 'raveMode': board.rave_mode,
+        'rave': board.rave_on, 'raveMode': board.rave_mode, 'raveMic': board.rave_mic,
         'anim': board.current, 'frame': 0, 'frames': frames,
         # A pretend remote, so the signal readout and the indicator can both be seen without one.
         # A press every eight seconds, cycling through the buttons and the three gestures, with the
@@ -566,13 +567,16 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/rave':   # rave mode. There is no mic here, so this keeps the state the page reads
             if 'mode' in q:
                 board.rave_mode = 1 if to_int(q['mode']) else 0
+            if 'mic' in q:
+                board.rave_mic = bool(to_int(q['mic']))
             if 'go' in q and not board.rave_on:
                 board.rave_on = True
                 board.log('[I] Rave mode: %s' % ('spectrum' if board.rave_mode else 'VU bar'))
             elif 'stop' in q and board.rave_on:
                 board.rave_on = False
                 board.log('[I] Rave mode: off')
-            return self.reply(200, json.dumps({'on': board.rave_on, 'mode': board.rave_mode}),
+            return self.reply(200, json.dumps({'on': board.rave_on, 'mode': board.rave_mode,
+                                               'mic': board.rave_mic}),
                               'application/json')
         if path == '/dino':   # the game on the maw. The virtual face cannot play it, so this only
             # tracks the state the page reads, enough to exercise Start, Jump, the score and Stop.
