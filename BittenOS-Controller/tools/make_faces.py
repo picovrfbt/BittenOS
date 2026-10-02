@@ -319,7 +319,7 @@ def mouth_flat(c, ph):           # upset: a slow sag towards the centre, then ba
 #board was rectified to kill the perspective, the LED lattice found inside the flat image, and the
 #lit LEDs read off it. The sawtooth there swings about six rows peak to trough with a peak every
 #six or seven columns - far sharper than a first eyeball of the picture suggested.
-ZIG_PERIOD = 6.6                 # columns from one peak to the next
+ZIG_PEAKS = 3                    # three across each maw, as the reference has
 ZIG_SWING = 2.9                  # half the peak-to-trough height, in rows
 ZIG_MID = 19.9                   # the row the sawtooth is centred on
 
@@ -330,7 +330,9 @@ def mouth_zigzag_bold(c, ph):    # booped: the sharp sawtooth from the reference
     a = ZIG_SWING + 0.25 * math.sin(2 * math.pi * ph)
 
     def fy(s):
-        p = (s * (MX1 - MX0 + 1) / ZIG_PERIOD) % 1.0
+        # The half turn puts a trough at each end, so three whole peaks sit between them rather
+        # than four half ones hanging off the edges.
+        p = (s * ZIG_PEAKS + 0.5) % 1.0
         return ZIG_MID - a * (2 * abs(2 * p - 1) - 1)      # triangle wave, trough to peak
     # Three thick, not two: on a slope this steep a 2px stroke breaks into scattered pixels,
     # where the reference reads as solid bands.
