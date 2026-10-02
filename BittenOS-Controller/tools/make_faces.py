@@ -335,9 +335,13 @@ def mouth_flat(c, ph):           # upset: a slow sag towards the centre, then ba
 #
 #Reading it: a long ramp down from the ear, three teeth biting downwards, then a lift at the nose.
 #The teeth point DOWN - an earlier version had them as peaks, which is upside down.
-MAW_TOP = 17.2                   # the row the ramp starts and ends on
+MAW_TOP = 17.2                   # the row the ramp starts on, at the ear
 MAW_BOT = 22.0                   # how far the teeth bite
 MAW_TIP = 17.8                   # how far it comes back up between them
+#The nose end stops a row short of the ear end. Both maws are mirrored, so whatever these ends do
+#happens twice side by side in the middle of the face: taking the ramp all the way up put a pair
+#of lone pixels at the very top there, reading as a spike rather than as the end of a mouth.
+MAW_INNER = 18.4
 
 
 def mouth_zigzag_bold(c, ph):    # booped: the reference maw
@@ -350,7 +354,7 @@ def mouth_zigzag_bold(c, ph):    # booped: the reference maw
         (0.579, MAW_BOT),            # second
         (0.737, MAW_TIP - d),
         (0.895, MAW_BOT),            # third
-        (1.000, MAW_TOP - d),
+        (1.000, MAW_INNER - d),
     ]), thick=3, ymin=16, ymax=23)
 
 
