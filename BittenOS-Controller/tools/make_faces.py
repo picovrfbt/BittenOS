@@ -319,23 +319,27 @@ def mouth_flat(c, ph):           # upset: a slow sag towards the centre, then ba
 #board was rectified to kill the perspective, the LED lattice found inside the flat image, and the
 #lit LEDs read off it. The sawtooth there swings about six rows peak to trough with a peak every
 #six or seven columns - far sharper than a first eyeball of the picture suggested.
-ZIG_PEAKS = 3                    # three across each maw, as the reference has
-ZIG_SWING = 2.9                  # half the peak-to-trough height, in rows
-ZIG_MID = 19.9                   # the row the sawtooth is centred on
+#The booped maw, taken straight off the reference rather than fitted to a waveform. The board in
+#the photo was warped flat, the LED lattice found inside the rectified image, and the centre row of
+#the lit run measured column by column. Two earlier goes guessed a symmetric triangle wave and both
+#were wrong: the teeth point DOWN, the swing is 2.5 rows and not the 6 a first reading suggested
+#(that number was the lit height, which includes the 3px stroke and the entry ramp), and the shape
+#is not symmetric - it runs down a long ramp from the ear before the serration starts at all.
+#Rows here are within the maw panel, 0 at the top of it.
+MAW_REF = (1.0, 2.0, 3.0, 4.0, 5.0, 5.5, 4.5, 4.0, 3.0, 4.0,
+           5.0, 5.5, 4.5, 3.0, 3.0, 4.0, 5.0, 5.0, 4.0, 2.5)
 
 
-def mouth_zigzag_bold(c, ph):    # booped: the sharp sawtooth from the reference photo
-    # The peaks stay put and only the height breathes. Sliding them, the way mouth_zigzag does,
-    # would read as static rather than as a held expression.
-    a = ZIG_SWING + 0.25 * math.sin(2 * math.pi * ph)
+def mouth_zigzag_bold(c, ph):    # booped: the reference maw, stretched to the width this one has
+    # It breathes by a fraction of a pixel rather than changing shape, because the shape is the
+    # whole point of this one.
+    lift = 0.35 * math.sin(2 * math.pi * ph)
 
     def fy(s):
-        # The half turn puts a trough at each end, so three whole peaks sit between them rather
-        # than four half ones hanging off the edges.
-        p = (s * ZIG_PEAKS + 0.5) % 1.0
-        return ZIG_MID - a * (2 * abs(2 * p - 1) - 1)      # triangle wave, trough to peak
-    # Three thick, not two: on a slope this steep a 2px stroke breaks into scattered pixels,
-    # where the reference reads as solid bands.
+        x = s * (len(MAW_REF) - 1)
+        i = min(int(x), len(MAW_REF) - 2)
+        a, b = MAW_REF[i], MAW_REF[i + 1]
+        return 16.0 + a + (b - a) * (x - i) - lift
     stroke(c, MX0, MX1, fy, thick=3, ymin=16, ymax=23)
 
 
