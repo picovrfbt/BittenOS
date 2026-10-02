@@ -447,6 +447,11 @@ unsigned long bootBlankAt = 0;           //when that blanking started, so it can
 //Dino game: the flags live up here because /dino and doButtonAction both sit above the game itself
 bool dinoActive = false;
 volatile bool dinoStartReq = false, dinoJumpReq = false, dinoStopReq = false;
+//Rave mode: the mic drives the maw. Set from the page on the web task, acted on in loop().
+bool raveActive = false;
+uint8_t raveMode = 1;                     //0 VU bar, 1 spectrum
+volatile bool raveStartReq = false, raveStopReq = false;
+volatile int8_t raveModeReq = -1;
 int dinoScore = 0;
 
 //Slot machine easter egg: same reason, /slots and the button both sit above the machine itself
@@ -551,17 +556,31 @@ bool micI2SBegin() {
 
 //Pulls whatever samples are waiting into the window. Never waits: the animation must not stall for
 //the mic, so a pass with nothing ready simply adds nothing.
+//Rave mode's spectrum needs the samples themselves, not just their extremes, and it needs them
+//unbroken: an FFT over a block with a hole in it is a spectrum of the hole. So the I2S read drains
+//everything the DMA is holding rather than taking 64 and leaving the rest, and a short read that
+//times out still keeps what it got instead of throwing it away. Speech gains from both - its
+//peak-to-peak now sees every sample in the window instead of a sample of them.
+#define RAVE_RING 512
+int16_t raveRing[RAVE_RING];
+uint16_t raveRingAt = 0;
+
 void micCollect() {
   if(micIs("I2S")) {
     if(!micI2SReady) return;
     int32_t buf[64];
-    size_t got = 0;
-    if(i2s_channel_read(micRxChan, buf, sizeof(buf), &got, 0) != ESP_OK) return;
-    int n = got / sizeof(int32_t);
-    for(int i = 0; i < n; i++) {
-      int v = (int)(buf[i] >> MIC_I2S_SHIFT);
-      if(v < micWinMin) micWinMin = v;
-      if(v > micWinMax) micWinMax = v;
+    for(int pass = 0; pass < 16; pass++) {         //64 ms of audio at most, well over a loop
+      size_t got = 0;
+      esp_err_t e = i2s_channel_read(micRxChan, buf, sizeof(buf), &got, 0);
+      int n = got / sizeof(int32_t);
+      for(int i = 0; i < n; i++) {
+        int v = (int)(buf[i] >> MIC_I2S_SHIFT);
+        if(v < micWinMin) micWinMin = v;
+        if(v > micWinMax) micWinMax = v;
+        raveRing[raveRingAt] = (int16_t)constrain(v, -32768, 32767);
+        raveRingAt = (raveRingAt + 1) % RAVE_RING;
+      }
+      if(e != ESP_OK || n < 64) return;              //drained
     }
     return;
   }
@@ -1850,6 +1869,8 @@ void startWiFiWeb() {
     st["booping"] = booping;
     st["oled"] = oledInitDone;
     st["mic"] = cfg.speechEna ? micVolume : -1;                       //0-100; -1 when Speech is off
+    st["rave"] = raveActive;
+    st["raveMode"] = raveMode;
     st["micRaw"] = micRawMid;                                         //middle of the swing: near half the supply if wired right
     st["micSwing"] = (int)(micSwing + 0.5f);                          //how loud it is, peak to peak over 25 ms
     st["micQuiet"] = (int)(micNoise + 0.5f);                          //the room's own noise floor
@@ -1905,6 +1926,19 @@ void startWiFiWeb() {
       displayDirty = true;
     }
     request->send(200, "text/plain", displayOn ? "on" : "off");
+  });
+
+  server.on("/rave", HTTP_GET, [](AsyncWebServerRequest *request){ //rave mode: mode, go, stop
+    if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels")); return; }
+    if(request->hasParam("mode")) raveModeReq = (int8_t)constrain(request->getParam("mode")->value().toInt(), 0, 1);
+    if(request->hasParam("go")) raveStartReq = true;
+    else if(request->hasParam("stop")) raveStopReq = true;
+    JsonDocument d;                         //answers with what was asked for: loop() applies it next
+    d["on"] = raveStopReq ? false : (raveStartReq || raveActive);
+    d["mode"] = raveModeReq >= 0 ? raveModeReq : raveMode;
+    String out;
+    serializeJson(d, out);
+    request->send(200, "application/json", out);
   });
 
   server.on("/dino", HTTP_GET, [](AsyncWebServerRequest *request){ //the game on the maw: go, jump, stop
@@ -3243,6 +3277,176 @@ void endBoop() { //the paw has gone: now pop the total up, over the face the boo
   boopShownAt = millis();
 }
 
+//--------------------------------//Rave mode
+//The mic drives a visualiser on the maw: a VU bar or a spectrum. Only the maw changes - eyes, nose,
+//blinks, the boop counter and transitions carry on underneath - so it is drawn in setAllVisor()
+//beside speech and mouth bob rather than taking the panels over the way the dino and the slots do.
+//
+//Both looks go through the same treatment: a floor that follows the room, a peak that jumps up
+//with a loud moment and sinks back slowly, and a curve shaped like hearing. Without it nothing
+//works. Music measured peak to peak sits near the bottom of its range almost all the time and
+//spikes once a beat, so a bar scaled straight off it lies dead and twitches. And this mask's room
+//measures a swing of 0, so a gain keen enough to wake a quiet bar also wakes silence; GATE and
+//the minimum peaks are what keep a quiet room dark.
+//
+//Every number below was checked in simulation against these raw counts before it was written:
+//silence dark in both modes, quiet talking showing, music filling the maw, bass at the nose.
+#define RAVE_FRAME_MS 33                  //30 frames a second
+#define RAVE_FFT 256                      //16 ms of audio, 62.5 Hz a bin
+#define RAVE_BANDS 16                     //one column each with a blank between: 32 wide
+#define RAVE_GATE 4.0f                    //counts of swing that never count as sound
+#define RAVE_VU_MIN_PEAK 60.0f
+#define RAVE_SPEC_MIN_PEAK 1500.0f
+#define RAVE_FALL 0.94f                   //how far the peak sinks back each frame
+#define RAVE_CURVE 0.5f
+//Log spaced, at least one bin a band. Bin 0 is the DC offset and is skipped.
+static const uint8_t RAVE_EDGES[RAVE_BANDS + 1] = {1, 2, 3, 4, 5, 6, 7, 8, 11, 15, 21, 28, 38, 52, 70, 94, 128};
+int raveSwingIn = 0;                      //the newest peak-to-peak window, from the speech block
+static float raveVuFloor = -1, raveVuPeak = 0, raveLevel = 0, raveHold = 0;
+static float raveBandFloor[RAVE_BANDS], raveBand[RAVE_BANDS], raveSpecPeak = 0;
+static float raveHann[RAVE_FFT], raveTilt[RAVE_BANDS];
+static bool raveTablesReady = false, raveScreenDrawn = false;
+static unsigned long raveLastFrame = 0;
+
+static void raveTables() {
+  for(int i = 0; i < RAVE_FFT; i++) raveHann[i] = 0.5f - 0.5f * cosf(2.0f * PI * i / (RAVE_FFT - 1));
+  //Music carries far more energy low than high. Lifting each band by the square root of its
+  //frequency is the usual correction, so hats can reach the ear end instead of the kick owning it.
+  for(int b = 0; b < RAVE_BANDS; b++) raveTilt[b] = sqrtf((RAVE_EDGES[b] + RAVE_EDGES[b + 1] - 1) / 2.0f);
+  raveTablesReady = true;
+}
+
+//Radix 2, in place. Checked against numpy in simulation, to 1e-13.
+static void raveFft(float *re, float *im) {
+  const int n = RAVE_FFT;
+  for(int i = 1, j = 0; i < n; i++) {
+    int bit = n >> 1;
+    for(; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if(i < j) { float a = re[i]; re[i] = re[j]; re[j] = a; a = im[i]; im[i] = im[j]; im[j] = a; }
+  }
+  for(int len = 2; len <= n; len <<= 1) {
+    float ang = -2.0f * PI / len, wr = cosf(ang), wi = sinf(ang);
+    for(int i = 0; i < n; i += len) {
+      float cr = 1.0f, ci = 0.0f;
+      for(int k = 0; k < len / 2; k++) {
+        int a = i + k, b = i + k + len / 2;
+        float xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi;
+        re[a] += xr; im[a] += xi;
+        float nt = cr * wr - ci * wi;
+        ci = cr * wi + ci * wr;
+        cr = nt;
+      }
+    }
+  }
+}
+
+static void raveComputeVu() {
+  float s = (float)raveSwingIn;
+  if(raveVuFloor < 0 || s < raveVuFloor) raveVuFloor = s;       //down at once
+  else raveVuFloor += (s - raveVuFloor) * 0.002f;               //up slowly: the room, not the music
+  float above = s - raveVuFloor - RAVE_GATE;
+  if(above < 0) above = 0;
+  raveVuPeak = max(above, max(raveVuPeak * RAVE_FALL, RAVE_VU_MIN_PEAK));
+  raveLevel = powf(min(1.0f, above / raveVuPeak), RAVE_CURVE);
+  raveHold = max(raveLevel * 32.0f, raveHold - 0.6f);           //the peak tick falls back slowly
+}
+
+static void raveComputeSpectrum() {
+  if(!raveTablesReady) raveTables();
+  static float re[RAVE_FFT], im[RAVE_FFT];                      //static: 2 KB off the loop's stack
+  for(int i = 0; i < RAVE_FFT; i++) {
+    re[i] = raveRing[(raveRingAt + RAVE_RING - RAVE_FFT + i) % RAVE_RING] * raveHann[i];
+    im[i] = 0.0f;
+  }
+  raveFft(re, im);
+  float raw[RAVE_BANDS], top = 0;
+  for(int b = 0; b < RAVE_BANDS; b++) {
+    float v = 0;
+    for(int k = RAVE_EDGES[b]; k < RAVE_EDGES[b + 1]; k++) v = max(v, sqrtf(re[k] * re[k] + im[k] * im[k]));
+    v *= raveTilt[b];
+    if(raveBandFloor[b] < 0 || v < raveBandFloor[b]) raveBandFloor[b] = v;
+    else raveBandFloor[b] += (v - raveBandFloor[b]) * 0.002f;
+    raw[b] = max(0.0f, v - raveBandFloor[b] * 1.5f - RAVE_GATE * 64.0f);
+    top = max(top, raw[b]);
+  }
+  raveSpecPeak = max(top, max(raveSpecPeak * RAVE_FALL, RAVE_SPEC_MIN_PEAK));
+  for(int b = 0; b < RAVE_BANDS; b++) raveBand[b] = powf(min(1.0f, raw[b] / raveSpecPeak), RAVE_CURVE);
+}
+
+//One lit pixel at distance d from the nose on both maws, so the picture radiates from the middle
+//of the face. The panel and column arithmetic is the slot machine's, which was checked on the real
+//panels: on the left maw the nose is at the right-hand end, on the right maw at the left-hand end.
+static void raveSet(uint64_t *w, int d, int r) {
+  if(d < 0 || d > 31 || r < 0 || r > 7) return;
+  for(int t = 0; t < 2; t++) {
+    int pos = (t == 0) ? 31 - d : d;
+    int p = mawStrips[t].mirrored ? (31 - pos) : pos;
+    uint8_t panel = mawStrips[t].panel[p / 8];
+    uint8_t col = mawStrips[t].mirrored ? (uint8_t)(7 - (p % 8)) : (uint8_t)(p % 8);
+    if(panel < numOfSegm) w[panel] |= 1ULL << (r * 8 + col);
+  }
+}
+
+static void raveDrawMaw(uint64_t *w) {
+  for(int t = 0; t < 2; t++)
+    for(int k = 0; k < 4; k++)
+      if(mawStrips[t].panel[k] < numOfSegm) w[mawStrips[t].panel[k]] = 0;
+  if(raveMode == 0) {                       //VU: a level out of the nose, with a peak tick
+    int lit = (int)(raveLevel * 32.0f + 0.5f);
+    for(int d = 0; d < lit; d++)
+      for(int r = 1; r <= 6; r++) raveSet(w, d, r);
+    int tick = min(31, (int)raveHold);
+    if(raveHold >= 0.5f) { raveSet(w, tick, 0); raveSet(w, tick, 7); }
+  } else {                                  //spectrum: bass at the nose, treble out at the ear
+    for(int b = 0; b < RAVE_BANDS; b++) {
+      int h = (int)(raveBand[b] * 8.0f + 0.5f);
+      for(int r = 0; r < h; r++) raveSet(w, b * 2, 7 - r);
+    }
+  }
+}
+
+//The inside screen says RAVE MODE and is then left alone. A picture that never changes means
+//screenTick() pushes nothing at all, and the OLED's blit is the one thing already proven to
+//stutter the face - so this hands the whole loop to the maw exactly when it needs it most.
+static void raveScreen() {
+  memset(screenBuf, 0, 128 * 8);
+  screenDrawText(screenBuf, F("RAVE"), (128 - screenTextWidth(F("RAVE"), 4)) / 2, 1, 4);
+  screenDrawText(screenBuf, F("MODE"), (128 - screenTextWidth(F("MODE"), 4)) / 2, 34, 4);
+  oled.blit(screenBuf);
+  screenPrevValid = false;                 //the layout redraws from scratch afterwards
+  raveScreenDrawn = true;
+}
+
+static bool raveFaceDrawable() {
+  return visorNow && visorNow->frames && !dinoActive && !slotActive &&
+         (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"));
+}
+
+static void raveStart() {
+  if(visorType != "MAX72XX" || !visorNow || numOfSegm == 0) return;
+  for(int t = 0; t < 2; t++)
+    for(int k = 0; k < 4; k++)
+      if(mawStrips[t].panel[k] >= numOfSegm) return;            //not this mask's layout
+  if(micIs("I2S") && !micI2SReady) micI2SReady = micI2SBegin();
+  if(micIs("I2S") && !micI2SReady) logPrint(F("[E] Rave mode: the mic did not start, so the maw will stay still"));
+  raveVuFloor = -1; raveVuPeak = 0; raveLevel = 0; raveHold = 0; raveSpecPeak = 0;
+  for(int b = 0; b < RAVE_BANDS; b++) { raveBandFloor[b] = -1; raveBand[b] = 0; }
+  raveActive = true;
+  raveScreenDrawn = false;
+  raveLastFrame = 0;
+  logPrint(raveMode ? F("[I] Rave mode: spectrum") : F("[I] Rave mode: VU bar"));
+}
+
+static void raveStop() {
+  raveActive = false;
+  raveScreenDrawn = false;
+  screenPrevValid = false;
+  if(raveFaceDrawable()) setAllVisor(visorLedsNEW, 0, currentVisorFrame);   //the face's own maw back
+  logPrint(F("[I] Rave mode: off"));
+}
+
 void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
   //The games draw the panels themselves. Speech, mouth bob, blinks and the warm-up all repaint
   //the face on their own timers, and without this they flashed it over the game between ticks.
@@ -3250,12 +3454,16 @@ void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
   if(!visorNow || !visorNow->frames || visorFrame < 0 || visorFrame >= visorNow->numOfFrames) return;
   uint64_t tempLeds[MATRIXESNUM];
   memcpy(tempLeds, visorNow->frames[visorFrame].leds, sizeof(tempLeds));
-  if(speaking) {
-    dynamicSpeak(tempLeds, visorNow->isMouth, micVolume);
-  }
-  if(bobUp) { //mouth bob: shift the mouth panels up a row. Row i sits in byte i, so >>8 is up.
-    for(int y = 0; y < numOfSegm; y++) {
-      if(visorNow->isMouth[y]) tempLeds[y] >>= 8;
+  if(raveActive) {
+    raveDrawMaw(tempLeds);                  //the maw is the visualiser's; speech and bob stand aside
+  } else {
+    if(speaking) {
+      dynamicSpeak(tempLeds, visorNow->isMouth, micVolume);
+    }
+    if(bobUp) { //mouth bob: shift the mouth panels up a row. Row i sits in byte i, so >>8 is up.
+      for(int y = 0; y < numOfSegm; y++) {
+        if(visorNow->isMouth[y]) tempLeds[y] >>= 8;
+      }
     }
   }
   if(blinkStep > 0) {
@@ -3412,13 +3620,19 @@ void screenTick() {
     oledFlipReq = false;
     oled.setFlip(cfg.oledFlip);
     screenPrevValid = false;
+    raveScreenDrawn = false;
     if(!screenHasLayout() && cfg.oledEna) { //the original screen doesn't redraw itself
       oled.speak(speaking);
       oled.writeSet(1);
       if(currentAnim.endsWith(".json")) oled.writeAnim(currentAnim.substring(0, currentAnim.length() - 5));
     }
   }
-  if(!cfg.oledEna || !oledInitDone || !screenHasLayout()) return;
+  if(!cfg.oledEna || !oledInitDone) return;
+  if(raveActive) {                         //RAVE MODE: drawn once, then nothing until it stops
+    if(!raveScreenDrawn) raveScreen();
+    return;
+  }
+  if(!screenHasLayout()) return;
   //A few times a second is plenty, and the screen shares I2C with the sensors. The unset clock
   //blinks on a 600 ms beat, so while it is blinking the draw has to come round faster than that or
   //it would stop on whichever half it last drew.
@@ -3916,12 +4130,13 @@ void loop() {
     phraseRequest = -1;
     showPhrase(slot);
   }
-  if(cfg.speechEna) {
+  if(cfg.speechEna || raveActive) {        //rave listens whether or not Speech is switched on
     micCollect();
 
     if(millis() - micWinStart >= MIC_WINDOW_MS && micWinMax > MIC_WIN_HIGH) {
       micWinStart = millis();
       int swing = micWinMax - micWinMin;   //peak to peak: the resting level cancels out of a difference
+      raveSwingIn = swing;
       micRawMid = (micWinMax + micWinMin) / 2;
       finalMicAvg = micRawMid;             //shown on the page as raw; near zero on a digital mic
       //Analog clipping is the signal hitting the ends of the ADC's range. A digital mic has no gain
@@ -3956,7 +4171,7 @@ void loop() {
       if(above < 0) above = 0;
       micVolume = constrain((int)(above * 100.0f / (float)max(20, cfg.spMax) + 0.5f), 0, 100);
 
-      if(micVolume > cfg.spTrig) {
+      if(cfg.speechEna && micVolume > cfg.spTrig) {
         if(!speaking) {
           speaking = true;
           if(oledLegacy()) {
@@ -3986,6 +4201,17 @@ void loop() {
         laskSpeakAnim = millis();
       }
     }
+  }
+
+  //Rave mode: requests from the page, then a frame every RAVE_FRAME_MS
+  if(raveModeReq >= 0) { raveMode = (uint8_t)raveModeReq; raveModeReq = -1; }
+  if(raveStopReq) { raveStopReq = false; raveStartReq = false; if(raveActive) raveStop(); }
+  if(raveStartReq) { raveStartReq = false; if(!raveActive) raveStart(); }
+  if(raveActive && millis() - raveLastFrame >= RAVE_FRAME_MS) {
+    raveLastFrame = millis();
+    if(raveMode == 0) raveComputeVu();
+    else raveComputeSpectrum();
+    if(raveFaceDrawable()) setAllVisor(visorLedsNEW, 0, currentVisorFrame);
   }
   //Serial.println(">SPK1:"+String(micros()-looptime));
 

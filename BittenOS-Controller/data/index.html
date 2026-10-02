@@ -63,6 +63,21 @@
   .display-off .power { border-color:var(--line); background:var(--surface2); color:var(--dim); box-shadow:none; }
   .power.ghost { border-color:var(--line); background:var(--surface2); color:var(--dim); box-shadow:none; }
   .power.ghost.on { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); box-shadow:0 0 14px rgba(77,163,255,.3); }
+  /* Rave mode: a small panel that drops from the top bar - pick a look, then Start. */
+  .topbar-in { position:relative; }
+  .ravepop { position:absolute; top:calc(100% - 2px); right:16px; width:272px; max-width:calc(100vw - 32px);
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px;
+    box-shadow:0 14px 34px rgba(0,0,0,.55); display:grid; gap:12px; z-index:30; }
+  .ravepop-head b { display:block; font-size:15px; }
+  .ravepop-head small { color:var(--dim); font-size:13px; }
+  .ravemodes { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .ravemode { -webkit-appearance:none; appearance:none; display:grid; justify-items:center; gap:7px; padding:12px 6px 10px;
+    border:1px solid var(--line); border-radius:12px; background:var(--surface2); color:var(--dim); font:inherit; font-size:13px; cursor:pointer; }
+  .ravemode svg { width:44px; height:24px; }
+  .ravemode[aria-checked="true"] { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
+  .ravemode:focus-visible, .ravego:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .ravego { width:100%; }
+  .ravehint { margin:0; color:var(--faint); font-size:12px; line-height:1.4; }
   .display-off .now { background:rgba(140,151,173,.12); color:var(--dim); }
   .display-off .dot { background:var(--faint); box-shadow:none; }
   .display-off .face canvas { opacity:.35; }
@@ -279,12 +294,28 @@
   <div class="topbar-in">
     <div class="brand">BittenOS<small>FurBitten 14-panel</small></div>
     <div class="now" title="Face on the mask now"><i class="dot"></i><span id="activeAnim">…</span></div>
+    <button class="power ghost" id="raveBtn" type="button" aria-label="Rave mode" aria-pressed="false" aria-haspopup="dialog" aria-expanded="false" aria-controls="ravePop" title="Rave mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 10v4"/><path d="M9.5 6v12"/><path d="M14.5 8.5v7"/><path d="M19 11v2"/></svg>
+    </button>
     <button class="power ghost" id="sleepBtn" type="button" aria-label="Sleep" aria-pressed="false" title="Show the sleeping face">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13.5A8 8 0 1 1 10.5 4a6.5 6.5 0 0 0 9.5 9.5z"/></svg>
     </button>
     <button class="power" id="powerBtn" type="button" aria-label="Display power" aria-pressed="true" title="Turn the displays off">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></svg>
     </button>
+    <div class="ravepop" id="ravePop" role="dialog" aria-label="Rave mode" hidden>
+      <div class="ravepop-head"><b>Rave mode</b><small>The mic drives the maw</small></div>
+      <div class="ravemodes" role="radiogroup" aria-label="Look">
+        <button type="button" class="ravemode" data-mode="0" role="radio" aria-checked="false">
+          <svg viewBox="0 0 44 24" aria-hidden="true"><rect x="2" y="7" width="26" height="10" rx="2" fill="currentColor"/><rect x="33" y="3" width="3" height="18" rx="1.5" fill="currentColor"/></svg>
+          <span>VU bar</span></button>
+        <button type="button" class="ravemode" data-mode="1" role="radio" aria-checked="true">
+          <svg viewBox="0 0 44 24" aria-hidden="true" fill="currentColor"><rect x="2" y="6" width="4" height="16" rx="1"/><rect x="9" y="2" width="4" height="20" rx="1"/><rect x="16" y="9" width="4" height="13" rx="1"/><rect x="23" y="13" width="4" height="9" rx="1"/><rect x="30" y="10" width="4" height="12" rx="1"/><rect x="37" y="17" width="4" height="5" rx="1"/></svg>
+          <span>Spectrum</span></button>
+      </div>
+      <button type="button" class="btn primary ravego" id="raveGo">Start</button>
+      <p class="ravehint">Only the maw changes: the eyes keep the face. The inside screen shows RAVE MODE and stays still while it runs.</p>
+    </div>
   </div>
 </header>
 
@@ -1296,6 +1327,54 @@
     }
   });
 
+  /* ---------- rave mode ---------- */
+  // The top-bar button opens a small panel: pick a look, then Start. While it runs the same
+  // button reads Stop, and the top-bar icon stays lit so it is plain from any tab - or any other
+  // phone, since the state comes back on /stats - that it is on. The chosen look is remembered on
+  // this phone between visits; the mask is told it when rave mode starts.
+  var raveOn = false, raveMode = 1;
+  try { const m = localStorage.getItem('raveMode'); if (m === '0' || m === '1') raveMode = +m; } catch (e) {}
+  function showRave(on, mode) {
+    raveOn = !!on;
+    if (mode === 0 || mode === 1) raveMode = mode;
+    $('raveBtn').classList.toggle('on', raveOn);
+    $('raveBtn').setAttribute('aria-pressed', String(raveOn));
+    $('raveBtn').title = raveOn ? 'Rave mode is on' : 'Rave mode';
+    $('raveGo').textContent = raveOn ? 'Stop' : 'Start';
+    $('raveGo').classList.toggle('primary', !raveOn);
+    $('raveGo').classList.toggle('danger', raveOn);
+    for (const b of document.querySelectorAll('.ravemode'))
+      b.setAttribute('aria-checked', String(+b.dataset.mode === raveMode));
+  }
+  async function raveSend(q) {
+    try {
+      const r = await (await fetch('/rave?' + q, NO_CACHE)).json();
+      showRave(r.on, r.mode);
+      return true;
+    } catch (e) { toast('Could not reach the mask', true); return false; }
+  }
+  function ravePop(open) {
+    $('ravePop').hidden = !open;
+    $('raveBtn').setAttribute('aria-expanded', String(open));
+  }
+  $('raveBtn').addEventListener('click', (e) => { e.stopPropagation(); ravePop($('ravePop').hidden); });
+  $('ravePop').addEventListener('click', (e) => e.stopPropagation());
+  document.addEventListener('click', () => ravePop(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ravePop(false); });
+  for (const b of document.querySelectorAll('.ravemode')) {
+    b.addEventListener('click', () => {
+      raveMode = +b.dataset.mode;
+      try { localStorage.setItem('raveMode', String(raveMode)); } catch (e) {}
+      showRave(raveOn, raveMode);
+      if (raveOn) raveSend('mode=' + raveMode);        // switching looks mid-rave takes effect at once
+    });
+  }
+  $('raveGo').addEventListener('click', async () => {
+    if (raveOn) { if (await raveSend('stop=1')) toast('Rave mode off'); }
+    else if (await raveSend('mode=' + raveMode + '&go=1')) { toast('Rave mode on'); ravePop(false); }
+  });
+  showRave(false, raveMode);
+
   /* ---------- display power ---------- */
   // Puts the MAX7219 panels into shutdown: the LEDs go dark, but the ESP32, WiFi and
   // the current face keep running, so turning them back on is instant.
@@ -1415,6 +1494,8 @@
       updateAutoBri(s);
       if (currentView === 'settings') { updateMic(s); updateRemote(s); }
       if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
+      // while it runs, show the look the mask is actually using; otherwise keep this phone's choice
+      if (typeof s.rave === 'boolean') showRave(s.rave, s.rave ? s.raveMode : raveMode);
       showStaStatus(s);
       $('boopTotal').textContent = s.boops === undefined ? '—' : s.boops;
       if (currentView === 'settings') updateBoopMeter(s);
