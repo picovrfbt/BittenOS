@@ -220,6 +220,25 @@ def mouth_spiral(c, ph):         # dizzy: the squiggle, as drawn
     paint(c, SPIRAL_MAW, 0, 16, ymin=16, ymax=23)
 
 
+#default's maw, drawn in the face maker (MAW Default Face.json). Left half only - the file's two
+#halves are exact mirrors. On trial: to go back to the stock wave, set default's mouth to
+#mouth_original in FACES below and rebuild.
+DEFAULT_MAW = (
+    '................................',
+    '................................',
+    '##..........###..##.....###.....',
+    '####....############...#######..',
+    '############...##..#####...####.',
+    '....####............###.......##',
+    '...............................#',
+    '................................',
+)
+
+
+def mouth_default(c, ph):        # default: the maw from the face maker
+    paint(c, DEFAULT_MAW, 0, 16, ymin=16, ymax=23)
+
+
 def eye_dot(c, ph):              # surprised
     disc(c, EYE_CX, 3.5, 3.5 + 0.8 * math.sin(2 * math.pi * ph), ymin=0, ymax=7)
 
@@ -445,7 +464,7 @@ def mouth_grin(c, ph):           # heart: a wide, happy curve
 # still eye may sit before the sequence moves on.
 
 FACES = {
-    'default':  dict(eye='original', step=90,  mouth=mouth_original),
+    'default':  dict(eye='original', step=90,  mouth=mouth_default),   # stock wave: mouth_original
     'happy':    dict(eye='original', step=90,  mouth=mouth_smile),
     'sad':      dict(eye='original', step=100, mouth=mouth_frown),
     'angry':    dict(eye='original', step=30,  mouth=mouth_zigzag),   # its twitch frame is 25ms
