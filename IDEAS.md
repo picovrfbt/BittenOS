@@ -51,6 +51,31 @@ already a pattern to follow for layouts the firmware does not understand: severa
 `panel[k] >= numOfSegm` and bow out rather than draw somewhere that does not exist, so an unknown
 layout should lose its effects, not break.
 
+## Colour panels (WS2812) - noted, nothing planned
+
+Two ways to get colour onto the face with WS2812 addressable LEDs, weighed 2026-10-03.
+
+**14 small boards, same layout as now.** NCPlyn designed a 32 x 32 mm RGB 8x8 board as a same-size
+replacement for the MAX7219 modules (v3: WS2812B-Mini, domed, 4-layer; v4: WS2812B-2020, square, cheaper,
+needs a diffuser). The production files are in history (removed in 40db374) and restored locally only -
+they are not in the repo. Every face, the face maker and the layout carry over, and the firmware still
+has a WS2812 path behind `visorType`, with per-panel and per-pixel colour still parsed from faces. To
+do: put colour controls back on the page, give `mawPush()` (slots, dino, boot bar) a WS2812 branch, and
+redo the wake flicker and the face-change fade, which lean on MAX7219 registers. About EUR 4.50-8 a
+board assembled at JLCPCB per his notes - and follow his solder-paste warning exactly.
+
+**Two big panels, one per side.** 16x16 or 8x32 flexible WS2812 sheets: they bend with the visor and
+wire with one data line a side, but at ~10 mm between LEDs a 16x16 side is 256 pixels against the 448
+there are now, so faces get blockier, and every face is redrawn for the new grid.
+
+**Either way, power is the cost.** WS2812 draws even when dark (~35 mA per 8x8 board, measured by
+NCPlyn), so 14 boards idle near 0.5 A and run around 2.8 A in normal use, against about 0.6 A today.
+Budget a stronger supply, thick wires to the panels, a brightness cap, and two data chains rather than
+one so a refresh does not stall the loop.
+
+For comparison, 2 x HUB75 64x32 P2.5 gives 2048 pixels a side at 2.5 mm, flat unless bought flexible,
+with every face redrawn and a new driver.
+
 ## Rave mode - built (2026-10-02)
 
 The top bar's equaliser button opens a small panel: pick **VU bar** or **Spectrum**, then **Start**.
