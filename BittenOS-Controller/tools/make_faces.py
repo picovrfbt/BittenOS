@@ -202,6 +202,24 @@ def eye_spiral(c, ph):           # dizzy: the swirl, as drawn
     paint(c, SWIRL_EYE, 0, 0, ymin=0, ymax=7)
 
 
+#The spiral face's maw, from the face maker like its eyes. Left half only; mirror_half() makes
+#the right, and the file's two halves were checked to be exact mirrors before this was taken.
+SPIRAL_MAW = (
+    '.............##.................',
+    '..............##................',
+    '...............#......#.........',
+    '................#....###.......#',
+    '................##..##.##.....##',
+    '.................####...##...##.',
+    '..................##.....#####..',
+    '..........................###...',
+)
+
+
+def mouth_spiral(c, ph):         # dizzy: the squiggle, as drawn
+    paint(c, SPIRAL_MAW, 0, 16, ymin=16, ymax=23)
+
+
 def eye_dot(c, ph):              # surprised
     disc(c, EYE_CX, 3.5, 3.5 + 0.8 * math.sin(2 * math.pi * ph), ymin=0, ymax=7)
 
@@ -212,19 +230,15 @@ def eye_dot(c, ph):              # surprised
 # the right nose is an exact mirror of this, so mirroring reproduces it exactly.
 NOSE_ART = (
     '...####.',
+    '...#####',
     '......##',
-    '.......#',
-    '.......#',
-    '.......#',
+    '......##',
+    '......##',
 )
 
-# The same snout with one pixel off the end of the stroke, worn by the booped face alone.
-NOSE_SMALL_ART = (
-    '...####.',
-    '......##',
-    '.......#',
-    '.......#',
-)
+# The booped face's snout: the same one, a row shorter at the end of the stroke. Taken from
+# NOSE_ART rather than drawn separately, so changing the nose changes boop's with it.
+NOSE_SMALL_ART = NOSE_ART[:-1]
 
 
 def nose(c, art=NOSE_ART):
@@ -416,7 +430,7 @@ FACES = {
     #the same boop eyes and snout with the mouth left dark
     'boop2':    dict(eye=eye_chevron, step=90,  mouth=None, n=10, smallNose=True),
     #from a photo of this mask on FurBitten's original firmware: spiral eyes over the stock wave
-    'spiral':   dict(eye=eye_spiral, step=500, mouth=mouth_original, n=1),
+    'spiral':   dict(eye=eye_spiral, step=500, mouth=mouth_spiral, n=1),
     'heart':    dict(eye=eye_heart,  step=110, mouth=mouth_grin,  n=14),
     'surprise': dict(eye=eye_dot,    step=120, mouth=mouth_open,  n=12),
 }
