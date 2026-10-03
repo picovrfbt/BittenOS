@@ -228,13 +228,38 @@ def eye_dot(c, ph):              # surprised
 
 # The nose the mask came with, copied pixel for pixel. It sits in the outer top corner, and
 # the right nose is an exact mirror of this, so mirroring reproduces it exactly.
-NOSE_ART = (
+# Every nose this mask has worn, kept so any of them can come back. NOSE_ART picks the one in use:
+# change that one line and run this script, then make_sleep_face.py, which copies its nose from
+# default.json. boop's shorter snout follows whichever is chosen.
+
+# The snout the mask came with, from FurBitten's own firmware - a filled wedge, matching the
+# original faces in anims_14panel_v1/ pixel for pixel. img/nose_original.jpg is the mask wearing it.
+NOSE_ORIGINAL_ART = (
+    '######..',
+    '######..',
+    '####....',
+    '##......',
+)
+
+# A thin outline: a short bar turning down the inner edge. From nose.json, drawn in the face maker.
+NOSE_OUTLINE_ART = (
+    '...####.',
+    '......##',
+    '.......#',
+    '.......#',
+    '.......#',
+)
+
+# The same outline, two thick. From "nose thicc.json". The one in use.
+NOSE_THICC_ART = (
     '...####.',
     '...#####',
     '......##',
     '......##',
     '......##',
 )
+
+NOSE_ART = NOSE_THICC_ART
 
 # The booped face's snout: the same one, a row shorter at the end of the stroke. Taken from
 # NOSE_ART rather than drawn separately, so changing the nose changes boop's with it.
