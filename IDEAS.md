@@ -153,6 +153,19 @@ Effects shown in a mock-up GIF (all mirrored, index 0 at the snout tip):
 - [ ] **Sleep** — a slow dim blue breath under the eyes.
 - [ ] **Status pings** — e.g. remote paired: two green pulses out to the ears.
 
+## Voice through the JBL Clip 3 - noted, not bought (2026-10-04)
+
+Separate from the mask: nothing connects to the ESP32 or the phone.
+- A Bluetooth mic can't pair to the Clip 3 directly (both are endpoints), and routing through a
+  phone adds ~150-250 ms of delay - an echo you hear inside the mask.
+- Plan: a **2.4 GHz (or UHF) wireless headset mic** whose receiver plugs into the Clip 3's built-in
+  3.5 mm AUX lead. ~10-20 ms delay.
+- When buying: headset/boom style (less feedback than a lav inside the mask); a 3-contact TRS
+  3.5 mm receiver output, not phone-style TRRS; an output volume control on the receiver (the Clip 3
+  has no gain of its own). Search "wireless headset microphone 2.4G 3.5mm receiver".
+- Feedback: speaker on the hip facing forward, mic gain no higher than needed.
+- Later, optionally: a small voice changer box between the receiver and the Clip 3 for the robot voice.
+
 ## Done
 
 - [x] **Face manager** — Manage button on the Faces card, with Rename and Delete per face.
