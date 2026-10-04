@@ -198,8 +198,25 @@ SWIRL_EYE = (
 )
 
 
-def eye_spiral(c, ph):           # dizzy: the swirl, as drawn
+# The spiral face animates itself rather than leaning on the mask: a blink drawn into its own
+# frames, so it blinks whatever the Blinks setting is, and a small bob of the maw. Positions in a
+# 44-frame loop at SPIRAL_STEP ms a frame.
+SPIRAL_FRAMES = 44
+SPIRAL_STEP = 90
+SPIRAL_BLINK = {31: 1, 32: 2, 33: 3, 34: 2, 35: 1}   # frame -> rows squeezed off top and bottom
+SPIRAL_BOB = set(range(0, 8)) | set(range(22, 30))    # frames where the maw sits a row higher
+
+
+def eye_spiral(c, ph):           # dizzy: the swirl, as drawn, blinking now and then
     paint(c, SWIRL_EYE, 0, 0, ymin=0, ymax=7)
+    k = SPIRAL_BLINK.get(int(round(ph * SPIRAL_FRAMES)), 0)
+    if k:
+        # Squeezed toward the middle rows, the way the mask's own blink closes an eye, so it
+        # reads the same as every other face's blink.
+        for y in range(8):
+            if y < k or y > 7 - k:
+                for x in range(16):
+                    c[y][x] = 0
 
 
 #The spiral face's maw, from the face maker like its eyes. Left half only; mirror_half() makes
@@ -216,8 +233,11 @@ SPIRAL_MAW = (
 )
 
 
-def mouth_spiral(c, ph):         # dizzy: the squiggle, as drawn
-    paint(c, SPIRAL_MAW, 0, 16, ymin=16, ymax=23)
+def mouth_spiral(c, ph):         # dizzy: the squiggle, as drawn, with a small bob
+    # Up a row on the bob, like the mask's own mouth bob; the tail's top tip tucks under the edge
+    # of the panel for those frames rather than the shape being redrawn.
+    lift = 1 if int(round(ph * SPIRAL_FRAMES)) in SPIRAL_BOB else 0
+    paint(c, SPIRAL_MAW, 0, 16 - lift, ymin=16, ymax=23)
 
 
 #default's maw, drawn in the face maker (MAW Default Face.json). Left half only - the file's two
@@ -474,7 +494,10 @@ FACES = {
     #the same boop eyes and snout with the mouth left dark
     'boop2':    dict(eye=eye_chevron, step=90,  mouth=None, n=10, smallNose=True),
     #from a photo of this mask on FurBitten's original firmware: spiral eyes over the stock wave
-    'spiral':   dict(eye=eye_spiral, step=500, mouth=mouth_spiral, n=1),
+    # canBlink False: the face blinks itself, so the mask must never freeze it on one frame to
+    # do its own - that would also stop the bob.
+    'spiral':   dict(eye=eye_spiral, step=SPIRAL_STEP, mouth=mouth_spiral, n=SPIRAL_FRAMES,
+                     canBlink=False),
     'heart':    dict(eye=eye_heart,  step=110, mouth=mouth_grin,  n=14),
     'surprise': dict(eye=eye_dot,    step=120, mouth=mouth_open,  n=12),
 }
@@ -564,8 +587,10 @@ def build(name, rows, count):
     for cell in rows[-1]:                      # the bottom row is the mouth
         if cell.startswith('t'):
             is_mouth[int(cell[1:])] = True
-    return {'ears': {'type': 'none'},
-            'visor': {'type': 'custom', 'isMouth': is_mouth, 'frames': frames}}
+    visor = {'type': 'custom', 'isMouth': is_mouth, 'frames': frames}
+    if 'canBlink' in spec:                     # the face designer's "the mask may blink this face"
+        visor['canBlink'] = spec['canBlink']
+    return {'ears': {'type': 'none'}, 'visor': visor}
 
 
 def show(canvas):
