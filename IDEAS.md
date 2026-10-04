@@ -136,6 +136,23 @@ Still to try on the real mask, since the virtual tester has no ears: whether `RA
 and `RAVE_SPEC_MIN_PEAK` suit real music at a real distance, and how much current a busy spectrum
 draws at high brightness - feed the panels from the supply rather than the board pin for that.
 
+## Cheek strip - being fitted (2026-10-04)
+
+One WS2812B 144/m strip on GPIO 8, wired as in MY_PROTOGEN_SETUP.md (in at the back of the left
+side as worn, along to the snout tip, back along the right). The outer 6 a side, under the eyes, are
+the blush; the rest is for effects. Firmware waits on the real LED count per side.
+
+Effects shown in a mock-up GIF (all mirrored, index 0 at the snout tip):
+- [ ] **Blush** — the outer 6 glow, gently breathing. The base everything else falls back to.
+- [ ] **Boop flare** — a flash runs from the snout tip back to the ears, then the blush comes on hot
+      and cools.
+- [ ] **Speech meter** — fills out from the snout with mic level, alongside the maw.
+- [ ] **Rave** — the same beat and wave as the maw, in colour along the strip.
+- [ ] **Scanner** — a comet bouncing snout to ear.
+- [ ] **Rainbow flow** — colour rolling back from the snout tip.
+- [ ] **Sleep** — a slow dim blue breath under the eyes.
+- [ ] **Status pings** — e.g. remote paired: two green pulses out to the ears.
+
 ## Done
 
 - [x] **Face manager** — Manage button on the Faces card, with Rename and Delete per face.
@@ -229,5 +246,3 @@ going back on, and the fan curve idea went with it. GPIO 13 is free.
       buttons, instant, no pairing). ESP-NOW is the better mask remote.
 - [ ] **INA219 power monitor** — real watts on the System tab, and a sane ceiling for
       auto-brightness's Highest setting. The OLED code already has a slot for it.
-- [ ] **Cheek LEDs (WS2812)** — `blushPresent` and the `blush0`–`blush3` cells exist in the
-      upstream code and `data/visType.txt`, unused here.
