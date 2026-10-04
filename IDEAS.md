@@ -51,6 +51,26 @@ already a pattern to follow for layouts the firmware does not understand: severa
 `panel[k] >= numOfSegm` and bow out rather than draw somewhere that does not exist, so an unknown
 layout should lose its effects, not break.
 
+## Outward screen inside the visor - parked
+
+**Want:** a screen behind the visor near the top, facing out, playing animations. Bigger than the
+stats screen. Leaning towards a **2.0" ST7789 IPS** (240x320, colour); a 2.42" SSD1309 OLED (128x64)
+is the easy fallback, since u8g2 and the screen designer already drive that size.
+
+- **SPI, on its own bus - never the I2C one.** The stats screen already stuttered the face pushing
+  1 KB over I2C; a colour frame is 150 KB. The S3's second SPI host is free, so it gets its own,
+  with DMA so a frame goes out without holding up the loop. Sharing the face panels' clock and
+  data would stall them the same way, so it does not do that either.
+- **Five wires:** VCC, GND, SCL (SPI clock), SDA (SPI data), DC. CS tied to GND (alone on its bus),
+  RES tied high (software reset), BLK tied high (full brightness, wanted behind a tint anyway).
+  The module's SCL/SDA labels are SPI, not I2C.
+- **Pick adjacent free pins on the Gold Edition** so it is one straight ribbon, like the panels.
+  The guide records only the HiLetgo header; a photo of the Gold Edition's labels is needed first.
+- **Test behind the visor before buying more.** The tint swallows an LCD's spread-out light far more
+  than the panels' point sources. A white screen at full backlight held behind it answers whether
+  it reads from outside. Mount it where the visor is flattest.
+- Still to decide: what it shows - GIFs uploaded from the page, the face scaled up, or emotes.
+
 ## Colour panels (WS2812) - noted, nothing planned
 
 Two ways to get colour onto the face with WS2812 addressable LEDs, weighed 2026-10-03.
