@@ -724,6 +724,19 @@ CRGB c2Leds[earLedsNum+blushLedsNum];
 
 CLEDController *ledController[2];
 
+// ---------------------------------------------------------------- cheek strip (WS2812B, GPIO 8)
+// One chain: in at the back of the left side as worn, forward to the snout tip, across, then back
+// along the right. Only the left side is fitted so far. This is a bench test - nothing is saved and
+// the page has no controls for it yet, so drive it from /strip.
+#define STRIP_MAX 64                 //registered once at this size, so the count can change without a reflash
+CRGB stripLeds[STRIP_MAX];
+CLEDController *stripCtl = nullptr;
+bool stripPresent = true;            //test build: on, so a bare boot already shows something
+uint8_t stripCount = 10;             //LEDs actually fitted
+uint8_t stripBri = 40;               //0-255; ten at 40 draw about 100mA, safe on USB
+uint8_t stripTest = 1;               //0 off, 1 rainbow, 2 walking dot, 3 solid red
+uint32_t stripLastFrame = 0;
+
 CRGB pixelBuffer[18];
 CRGB visorPixelBuffer[10];
 uint8_t noiseData[earLedsNum];
@@ -1945,6 +1958,18 @@ void startWiFiWeb() {
     request->send(200, "application/json", out);
   });
 
+  server.on("/strip", HTTP_GET, [](AsyncWebServerRequest *request){ //cheek strip bench test: on, n, bri, test
+    if(request->hasParam("n"))    stripCount = (uint8_t)constrain(request->getParam("n")->value().toInt(), 0, STRIP_MAX);
+    if(request->hasParam("bri"))  stripBri   = (uint8_t)constrain(request->getParam("bri")->value().toInt(), 0, 255);
+    if(request->hasParam("test")) stripTest  = (uint8_t)constrain(request->getParam("test")->value().toInt(), 0, 3);
+    if(request->hasParam("on"))   stripPresent = request->getParam("on")->value().toInt() != 0;
+    JsonDocument d;
+    d["on"] = stripPresent; d["n"] = stripCount; d["bri"] = stripBri; d["test"] = stripTest;
+    String out;
+    serializeJson(d, out);
+    request->send(200, "application/json", out);
+  });
+
   server.on("/dino", HTTP_GET, [](AsyncWebServerRequest *request){ //the game on the maw: go, jump, stop
     if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels")); return; }
     if(request->hasParam("go")) dinoStartReq = true;
@@ -2939,6 +2964,10 @@ void setup() {
   if(blushPresent) {
     ledController[2] = &FastLED.addLeds<WS2812B, DATA_PIN_BLUSH, RGB>(blushLeds, blushLedsNum);
   }*/
+  if(stripPresent) {   //GPIO 8 is free here: neither the ear nor the blush controller is registered on this mask
+    stripCtl = &FastLED.addLeds<WS2812B, DATA_PIN_EARS, GRB>(stripLeds, STRIP_MAX);
+    logPrint(String(F("[I] Cheek strip on GPIO 8, ")) + String(stripCount) + F(" LEDs"));
+  }
   FastLED.setCorrection(TypicalPixelString);
   FastLED.setDither(0);
 
@@ -3311,6 +3340,37 @@ static float raveBandFloor[RAVE_BANDS], raveBand[RAVE_BANDS], raveSpecPeak = 0;
 static float raveHann[RAVE_FFT], raveTilt[RAVE_BANDS];
 static bool raveTablesReady = false, raveScreenDrawn = false;
 static unsigned long raveLastFrame = 0;
+
+//The strip's own frame, 50 a second. Index 0 is the first LED after the solder joint, so the
+//walking dot says at a glance which physical end the firmware counts from and which way the chain
+//runs - the thing that has to be right before any of the real effects are worth writing.
+static void stripStep() {
+  if(!stripCtl) return;
+  if(millis() - stripLastFrame < 20) return;
+  stripLastFrame = millis();
+  uint8_t n = stripCount > STRIP_MAX ? STRIP_MAX : stripCount;
+  for(int i = 0; i < STRIP_MAX; i++) stripLeds[i] = CRGB::Black;   //past the fitted count stays dark
+  if(stripPresent && n) {
+    uint32_t t = millis();
+    switch(stripTest) {
+      case 1: {                      //a rainbow rolling from index 0 towards the far end
+        uint8_t head = (uint8_t)(t / 12);
+        uint8_t step = (uint8_t)(255 / n);
+        for(int i = 0; i < n; i++) stripLeds[i] = CHSV((uint8_t)(head + i * step), 255, 255);
+        break;
+      }
+      case 2: {                      //one white dot walking 0 -> n-1, a fifth of a second a step
+        stripLeds[(t / 200) % n] = CRGB::White;
+        break;
+      }
+      case 3:                        //solid red; if it comes out green the chain is RGB, not GRB
+        for(int i = 0; i < n; i++) stripLeds[i] = CRGB::Red;
+        break;
+      default: break;                //0: left dark
+    }
+  }
+  stripCtl->showLeds(stripBri);
+}
 
 static void raveTables() {
   for(int i = 0; i < RAVE_FFT; i++) raveHann[i] = 0.5f - 0.5f * cosf(2.0f * PI * i / (RAVE_FFT - 1));
@@ -3783,6 +3843,7 @@ void loop() {
   wakeFlickStep();
   staStep();
   screenTick();
+  stripStep();
   if(brightnessDirty && visorType == "MAX72XX") {
     brightnessDirty = false;
     if(transPhase == 0 && wakeFlickPhase == 0) mx.control(MD_MAX72XX::INTENSITY, visorBright()); //a transition or warm-up owns the intensity
