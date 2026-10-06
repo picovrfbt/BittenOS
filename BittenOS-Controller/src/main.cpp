@@ -82,6 +82,8 @@ ezButton hwBtn(animBtn);
 //#define FASTLED_RMT5 = 0 //doesnt compile
 #define FASTLED_ESP32_FLASH_LOCK 1
 #include <FastLED.h>
+#include "esp_cpu.h"          //cycle counter, for the hand-timed WS2812 on the cheek strip
+#include "soc/gpio_struct.h"  //out_w1ts / out_w1tc: setting a pin through the register, not digitalWrite
 #define ARDUINOJSON_USE_DOUBLE 0
 #include <ArduinoJson.h>
 
@@ -730,11 +732,11 @@ CLEDController *ledController[2];
 // the page has no controls for it yet, so drive it from /strip.
 #define STRIP_MAX 64                 //registered once at this size, so the count can change without a reflash
 CRGB stripLeds[STRIP_MAX];
-CLEDController *stripCtl = nullptr;
+bool stripReady = false;             //the pin has been set to an output
 bool stripPresent = true;            //test build: on, so a bare boot already shows something
 uint8_t stripCount = 10;             //LEDs actually fitted
 uint8_t stripBri = 40;               //0-255; ten at 40 draw about 100mA, safe on USB
-uint8_t stripTest = 1;               //0 off, 1 rainbow, 2 walking dot, 3 solid red
+uint8_t stripTest = 1;               //0 off, 1 rainbow, 2 walking dot, 3 solid red, 4 pin held high
 uint32_t stripLastFrame = 0;
 
 CRGB pixelBuffer[18];
@@ -1961,7 +1963,7 @@ void startWiFiWeb() {
   server.on("/strip", HTTP_GET, [](AsyncWebServerRequest *request){ //cheek strip bench test: on, n, bri, test
     if(request->hasParam("n"))    stripCount = (uint8_t)constrain(request->getParam("n")->value().toInt(), 0, STRIP_MAX);
     if(request->hasParam("bri"))  stripBri   = (uint8_t)constrain(request->getParam("bri")->value().toInt(), 0, 255);
-    if(request->hasParam("test")) stripTest  = (uint8_t)constrain(request->getParam("test")->value().toInt(), 0, 3);
+    if(request->hasParam("test")) stripTest  = (uint8_t)constrain(request->getParam("test")->value().toInt(), 0, 4);
     if(request->hasParam("on"))   stripPresent = request->getParam("on")->value().toInt() != 0;
     JsonDocument d;
     d["on"] = stripPresent; d["n"] = stripCount; d["bri"] = stripBri; d["test"] = stripTest;
@@ -2964,10 +2966,12 @@ void setup() {
   if(blushPresent) {
     ledController[2] = &FastLED.addLeds<WS2812B, DATA_PIN_BLUSH, RGB>(blushLeds, blushLedsNum);
   }*/
-  if(stripPresent) {   //GPIO 8 is free here: neither the ear nor the blush controller is registered on this mask
-    stripCtl = &FastLED.addLeds<WS2812B, DATA_PIN_EARS, GRB>(stripLeds, STRIP_MAX);
-    logPrint(String(F("[I] Cheek strip on GPIO 8, ")) + String(stripCount) + F(" LEDs"));
-  }
+  //GPIO 8 is free here: neither the ear nor the blush controller is ever registered on this mask,
+  //and the strip is clocked out by hand rather than by FastLED, so no controller is added for it.
+  pinMode(DATA_PIN_EARS, OUTPUT);
+  digitalWrite(DATA_PIN_EARS, LOW);
+  stripReady = true;
+  logPrint(String(F("[I] Cheek strip on GPIO 8, ")) + String(stripCount) + F(" LEDs, driven directly"));
   FastLED.setCorrection(TypicalPixelString);
   FastLED.setDither(0);
 
@@ -3341,11 +3345,41 @@ static float raveHann[RAVE_FFT], raveTilt[RAVE_BANDS];
 static bool raveTablesReady = false, raveScreenDrawn = false;
 static unsigned long raveLastFrame = 0;
 
+//WS2812B by hand: 800 kHz, a 1.25 us slot per bit, held high 0.4 us for a nought and 0.8 us for a
+//one, counted off the CPU cycle counter at 240 MHz. FastLED's RMT path never drove this pin at all,
+//so nothing of it is used here but the CRGB struct and scale8.
+//
+//Interrupts are off for the burst. A pause longer than about 50 us mid-frame latches the strip early
+//and the rest of the frame lands on the wrong LEDs. Ten LEDs is 240 bits, about 300 us, which is
+//short enough not to trouble WiFi on the other core.
+static void stripShow(uint8_t n, uint8_t bri) {
+  const uint32_t mask = 1UL << DATA_PIN_EARS;      //GPIO 8 is under 32, so one register covers it
+  const uint32_t T0H = 96;                         //0.40 us at 240 MHz
+  const uint32_t T1H = 192;                        //0.80 us
+  const uint32_t TOT = 300;                        //1.25 us, the whole slot
+  portDISABLE_INTERRUPTS();
+  for(uint8_t i = 0; i < n; i++) {
+    //the wire order is green, red, blue - most significant bit first
+    uint32_t word = ((uint32_t)scale8(stripLeds[i].g, bri) << 16) |
+                    ((uint32_t)scale8(stripLeds[i].r, bri) << 8)  |
+                     (uint32_t)scale8(stripLeds[i].b, bri);
+    for(int8_t bit = 23; bit >= 0; bit--) {
+      uint32_t high = (word & (1UL << bit)) ? T1H : T0H;
+      uint32_t start = esp_cpu_get_cycle_count();
+      GPIO.out_w1ts = mask;
+      while(esp_cpu_get_cycle_count() - start < high) {}
+      GPIO.out_w1tc = mask;
+      while(esp_cpu_get_cycle_count() - start < TOT) {}
+    }
+  }
+  portENABLE_INTERRUPTS();
+}
+
 //The strip's own frame, 50 a second. Index 0 is the first LED after the solder joint, so the
 //walking dot says at a glance which physical end the firmware counts from and which way the chain
 //runs - the thing that has to be right before any of the real effects are worth writing.
 static void stripStep() {
-  if(!stripCtl) return;
+  if(!stripReady) return;
   if(millis() - stripLastFrame < 20) return;
   stripLastFrame = millis();
   uint8_t n = stripCount > STRIP_MAX ? STRIP_MAX : stripCount;
@@ -3366,10 +3400,13 @@ static void stripStep() {
       case 3:                        //solid red; if it comes out green the chain is RGB, not GRB
         for(int i = 0; i < n; i++) stripLeds[i] = CRGB::Red;
         break;
+      case 4:                        //no data at all, just the pin held high: a multimeter reads 3.3V
+        GPIO.out_w1ts = 1UL << DATA_PIN_EARS;
+        return;
       default: break;                //0: left dark
     }
   }
-  stripCtl->showLeds(stripBri);
+  stripShow(n, stripBri);
 }
 
 static void raveTables() {
