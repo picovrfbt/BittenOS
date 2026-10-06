@@ -168,21 +168,33 @@ Separate from the mask: nothing connects to the ESP32 or the phone.
 
 ## Headpat detection - picked a sensor, not bought (2026-10-06)
 
-Wanted: detect a hand on/near the top and back of the visor, on the existing I2C bus (GPIO 9/10),
-with no reliance on light. Bus already holds 0x39 APDS-9930, 0x68/0x69 BMI270, 0x3C OLED.
+Wanted: detect a hand near the top/back of the visor, on the existing I2C bus (GPIO 9/10), with no
+reliance on ambient light. Bus already holds 0x39 APDS-9930, 0x68/0x69 BMI270, 0x3C OLED.
 
-- [ ] **MPR121 capacitive touch (0x5A) - the pick.** Copper-foil pads under the fur; fur is only a
-      dielectric spacer, so no aperture and nothing visible. No light of any kind, works in the dark
-      and in sun. 12 channels = zones (top / back / each cheek), plus a proximity mode that gangs all
-      12 for a hand hovering. Auto baseline tracking handles drift. ~GBP 6. Optional IRQ could use
-      GPIO 11 (the one spare pin), or just poll.
-      **Risk to test first:** capacitive noise from the MAX7219 drivers and the WS2812 cheek strip.
-      Bench it with panels and strip running before trusting it; keep pad wires off the strip data line.
-      Bonus: the same board could later do a snout boop pad, more reliable than IR on dark fur.
-- Rejected: **VL53L1X ToF (0x29)** - works in the dark and has selectable ROI, but needs a clear
-  window; fur in front reads as a permanent near object, so it can only go at an edge.
-- Rejected: **AMG8833 thermal (0x68/0x69)** - sees body heat with no light, but needs line of sight
-  like the ToF, ~GBP 25, and clashes with the BMI270 address.
+**Mounting (user, 2026-10-06): behind the thin plastic of the visor, aimed slightly backwards and
+mostly up. NOT under the fur.** That rules the fur objection out and makes it a directional job.
+
+- [ ] **VL53L1X time-of-flight (0x29) - the pick.** Aims: a real cone, with the field of view
+      narrowable in software so a shoulder or wall doesn't trip it. 4 m range, so it sees a hand
+      approaching rather than only landing. Fires its own 940 nm laser - works in total darkness;
+      sun shortens range but doesn't blind it. ~GBP 12, no address clash. Optional interrupt could
+      use GPIO 11 (the one spare pin).
+      **Evidence the visor passes IR:** the Ambient light readings already come through the tinted
+      visor, and the setup guide notes it passes infrared far better than visible light - same band.
+      **The real problem - crosstalk.** Behind a cover, some of its own laser reflects off the inner
+      face of the plastic back into the receiver and reads as an object right in front. Looks like a
+      dead sensor. Fix all three: (1) 2 mm+ air gap, plastic must not touch the chip; (2) a baffle
+      between emitter and receiver - black foam or tape across the middle of the chip, the big one;
+      (3) run the library's crosstalk calibration once with the plastic in place, at setup.
+      Escape hatch: a 2 mm hole in the plastic behind the sensor removes the problem entirely.
+- [ ] **MPR121 capacitive (0x5A) - fallback**, if the visor tint turns out to block IR. Plastic is
+      only a dielectric spacer, so it needs no aperture at all. Loses the aiming and the range (a
+      hand within a few cm, not metres) and senses in all directions, so the wearer's own head
+      behind the visor is part of what it sees - auto baseline handles a still head. 12 channels =
+      zones. ~GBP 6. Noise from the MAX7219 drivers and the WS2812 cheek strip would need bench
+      testing. Bonus: the same board could later do a snout boop pad, better than IR on dark fur.
+- Rejected: **AMG8833 thermal (0x68/0x69)** - sees body heat with no light, but ~GBP 25 and clashes
+  with the BMI270 address.
 - Not possible: a second APDS-9930. Its address is fixed at 0x39.
 
 ## Done
