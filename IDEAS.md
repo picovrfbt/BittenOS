@@ -166,6 +166,25 @@ Separate from the mask: nothing connects to the ESP32 or the phone.
 - Feedback: speaker on the hip facing forward, mic gain no higher than needed.
 - Later, optionally: a small voice changer box between the receiver and the Clip 3 for the robot voice.
 
+## Headpat detection - picked a sensor, not bought (2026-10-06)
+
+Wanted: detect a hand on/near the top and back of the visor, on the existing I2C bus (GPIO 9/10),
+with no reliance on light. Bus already holds 0x39 APDS-9930, 0x68/0x69 BMI270, 0x3C OLED.
+
+- [ ] **MPR121 capacitive touch (0x5A) - the pick.** Copper-foil pads under the fur; fur is only a
+      dielectric spacer, so no aperture and nothing visible. No light of any kind, works in the dark
+      and in sun. 12 channels = zones (top / back / each cheek), plus a proximity mode that gangs all
+      12 for a hand hovering. Auto baseline tracking handles drift. ~GBP 6. Optional IRQ could use
+      GPIO 11 (the one spare pin), or just poll.
+      **Risk to test first:** capacitive noise from the MAX7219 drivers and the WS2812 cheek strip.
+      Bench it with panels and strip running before trusting it; keep pad wires off the strip data line.
+      Bonus: the same board could later do a snout boop pad, more reliable than IR on dark fur.
+- Rejected: **VL53L1X ToF (0x29)** - works in the dark and has selectable ROI, but needs a clear
+  window; fur in front reads as a permanent near object, so it can only go at an edge.
+- Rejected: **AMG8833 thermal (0x68/0x69)** - sees body heat with no light, but needs line of sight
+  like the ToF, ~GBP 25, and clashes with the BMI270 address.
+- Not possible: a second APDS-9930. Its address is fixed at 0x39.
+
 ## Done
 
 - [x] **Face manager** — Manage button on the Faces card, with Rename and Delete per face.
