@@ -70,6 +70,9 @@ public:
   bool stripEna,stripRevA,stripRevB,stripBlushEna,stripIdleEna,stripRaveEna;
   int bStrip,stripNum,stripSplit,stripBlushNum,stripBlushMs;
   String stripBlushStr;
+  //Which LEDs are the blush, one character per LED along the chain, '1' for in. Empty means fall
+  //back to the outer stripBlushNum of each side, which is only a guess at how the chain was laid.
+  String stripBlushMap;
   unsigned long stripBlushCol;
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
   int wakeFlickMs,wakeFlickGlitch;    //how long the warm-up runs, and how much the picture tears (0-2)

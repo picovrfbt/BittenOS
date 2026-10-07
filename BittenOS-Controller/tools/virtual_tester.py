@@ -49,6 +49,7 @@ SAVECONFIG_KEYS = {
     'stripEna': bool, 'stripRevA': bool, 'stripRevB': bool, 'stripBlushEna': bool,
     'stripIdleEna': bool, 'stripRaveEna': bool, 'bStrip': int, 'stripNum': int,
     'stripSplit': int, 'stripBlushNum': int, 'stripBlushMs': int, 'stripBlush': str,
+    'stripBlushMap': str,
     'btnShort': str, 'btnDouble': str, 'btnHold': str,
     'btnShortFace': str, 'btnDoubleFace': str, 'btnHoldFace': str,
     'btnHoldMs': int, 'btnShortPhrase': int, 'btnDoublePhrase': int, 'btnHoldPhrase': int,
@@ -591,6 +592,8 @@ class Handler(BaseHTTPRequestHandler):
                     board.save_config()
             if 'boop' in q:
                 board.log('[I] Blush')
+            if 'id' in q:
+                board.log('[I] Strip LED %d' % to_int(q['id']))
             return self.reply(200, json.dumps({'on': board.config.get('stripEna', True),
                                                'n': board.config.get('stripNum', 20),
                                                'bri': board.config.get('bStrip', 77),

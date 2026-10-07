@@ -77,6 +77,15 @@
   .ravemode[aria-checked="true"] { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
   .ravemode:focus-visible, .ravego:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .ravego { width:100%; }
+  /* The cheek strip, drawn as the chain really is: one row of LEDs, numbered, tap to mark. */
+  .ledmap { display:flex; flex-wrap:wrap; gap:6px; padding:10px 0 2px; }
+  .ledmap button { -webkit-appearance:none; appearance:none; width:34px; height:34px; padding:0;
+    border:1px solid var(--line); border-radius:9px; background:var(--surface2); color:var(--dim);
+    font:inherit; font-size:12px; cursor:pointer; }
+  .ledmap button[aria-pressed="true"] { border-color:var(--blush,#ff2d96); color:#fff;
+    background:var(--blush,#ff2d96); box-shadow:0 0 10px rgba(255,45,150,.45); }
+  .ledmap button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .ledmap-keys { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
   .ravemic { display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; }
   .ravemic b { display:block; font-size:14px; font-weight:600; }
   .ravemic small { display:block; color:var(--dim); font-size:12px; }
@@ -444,8 +453,17 @@
         <div class="group dep" data-group="stripBlushEna">
           <div class="row dep"><span class="row-text"><b>Blush colour</b></span>
             <input type="color" id="stripBlush" data-key="stripBlush" data-label="Blush colour" value="#ff2d96" aria-label="Blush colour"></div>
-          <div class="row dep"><span class="row-text"><b>Blush LEDs a side</b><small>Counted back from the ear end, under the eye</small></span>
-            <div class="stepper" data-key="stripBlushNum" data-label="Blush LEDs a side" data-min="0" data-max="32" data-step="1"><button type="button" aria-label="Less">&minus;</button><output>6</output><button type="button" aria-label="More">+</button></div></div>
+          <div class="row stack dep">
+            <div class="control-head dep"><label><b>Which LEDs blush</b></label><output id="blushMapCount">0 of 20</output></div>
+            <small style="color:var(--faint);line-height:1.45">Each square is one LED, in the order the chain runs. Tap one and
+            it lights up white on the mask so you can see which it is, and turns pink here to mark it as blush. Tap again to clear it.</small>
+            <div class="ledmap" id="blushMap"></div>
+            <div class="ledmap-keys">
+              <button class="btn small" type="button" id="blushMapAll">All</button>
+              <button class="btn small" type="button" id="blushMapNone">None</button>
+              <button class="btn small" type="button" id="blushMapSave">Save</button>
+            </div>
+          </div>
           <div class="row dep"><span class="row-text"><b>How long it stays</b></span>
             <div class="stepper" data-key="stripBlushMs" data-label="How long it stays" data-min="500" data-max="10000" data-step="250" data-unit=" ms"><button type="button" aria-label="Less">&minus;</button><output>2500 ms</output><button type="button" aria-label="More">+</button></div></div>
           <div class="row dep"><span class="row-text"><b>Try it</b><small>Blush without touching the snout</small></span>
@@ -1630,6 +1648,43 @@
       .then(() => { if (okMsg) toast(okMsg); })
       .catch(() => toast('Could not reach the mask', true));
   }
+  // The blush map: one character an LED along the chain, '1' for in. Rather than reason about which
+  // way each side was laid - which cannot be known from here - the squares are tapped against the
+  // real mask, and each tap lights that LED white so there is no guessing.
+  var blushMap = '';
+  function blushMapLen() { const el = document.querySelector('[data-key="stripNum"]'); return el ? +stepperValue(el) || 20 : 20; }
+  function drawBlushMap() {
+    const n = blushMapLen(), box = $('blushMap');
+    while (blushMap.length < n) blushMap += '0';
+    blushMap = blushMap.slice(0, n);
+    box.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = i + 1;
+      b.setAttribute('aria-pressed', blushMap[i] === '1');
+      b.setAttribute('aria-label', 'LED ' + (i + 1));
+      b.addEventListener('click', () => {
+        blushMap = blushMap.slice(0, i) + (blushMap[i] === '1' ? '0' : '1') + blushMap.slice(i + 1);
+        b.setAttribute('aria-pressed', blushMap[i] === '1');
+        countBlushMap();
+        fetch('/strip?id=' + i, NO_CACHE).catch(() => {});   // light it, so which one is never in doubt
+      });
+      box.appendChild(b);
+    }
+    countBlushMap();
+  }
+  function countBlushMap() {
+    const on = (blushMap.match(/1/g) || []).length;
+    $('blushMapCount').textContent = on + ' of ' + blushMap.length;
+    const c = document.querySelector('[data-key="stripBlush"]');
+    if (c) $('blushMap').style.setProperty('--blush', c.value);
+  }
+  $('blushMapAll').addEventListener('click', () => { blushMap = '1'.repeat(blushMapLen()); drawBlushMap(); });
+  $('blushMapNone').addEventListener('click', () => { blushMap = '0'.repeat(blushMapLen()); drawBlushMap(); });
+  $('blushMapSave').addEventListener('click', () =>
+    saveParams('stripBlushMap=' + encodeURIComponent(blushMap), 'Blush LEDs saved'));
+
   var lastStripBri = null;
   function sendStripBri(save) {
     const v = +$('stripBri').value;
@@ -2081,6 +2136,8 @@
     for (const k of ['staName', 'staPass', 'mdnsName']) if (o[k] !== undefined && $(k)) $(k).value = o[k];
     if ($('mdnsHint')) $('mdnsHint').textContent = (o.mdnsName || 'protogen') + '.local';
     updateButtonRows();
+    blushMap = typeof o.stripBlushMap === 'string' ? o.stripBlushMap : '';
+    drawBlushMap();
     if (o.bStrip !== undefined) {          //no data-key on this one: it sends live, then saves on release
       const sb = Math.min(255, Math.max(0, o.bStrip));
       $('stripBri').value = sb;

@@ -126,6 +126,7 @@ void Config::setDefault() {
   stripBlushMs = 2500;
   stripBlushStr = "#ff2d96";
   stripBlushCol = strtol(stripBlushStr.c_str() + 1, NULL, 16);
+  stripBlushMap = "";    //nothing picked yet: the per-side guess stands until the diagram is used
   sassBoops = 5;         //this many boops inside sassSecs pulls the sass face; 0 turns it off
   sassSecs = 10;
   aSass = "upset.json";
@@ -248,6 +249,7 @@ bool Config::save() {
   doc["stripBlushNum"] = stripBlushNum;
   doc["stripBlushMs"] = stripBlushMs;
   doc["stripBlush"] = stripBlushStr;
+  doc["stripBlushMap"] = stripBlushMap;
   doc["sassBoops"] = sassBoops;
   doc["sassSecs"] = sassSecs;
   doc["aSass"] = aSass;
@@ -441,6 +443,7 @@ bool Config::load() {
   stripSplit = doc["stripSplit"] | 10;
   stripBlushNum = doc["stripBlushNum"] | 6;
   stripBlushMs = doc["stripBlushMs"] | 2500;
+  stripBlushMap = doc["stripBlushMap"] | "";
   stripBlushStr = doc["stripBlush"] | "#ff2d96";
   stripBlushCol = strtol(stripBlushStr.c_str() + 1, NULL, 16);
   sassBoops = doc["sassBoops"] | 5;
