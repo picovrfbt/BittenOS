@@ -119,6 +119,8 @@ void Config::setDefault() {
   stripBlushEna = true;  //a boop brings the blush up
   stripIdleEna = false;  //a soft blush the rest of the time, off by default
   stripRaveEna = true;   //the DJ meter while rave mode runs
+  stripFlareEna = false; //the sweep out from the snout reads as odd on the real mask, so off
+  stripBlushHold = true; //hold it while the paw is there; stripBlushMs is then the fade afterwards
   bStrip = 77;           //0-255, about 30%. Not a cap - set it wherever you like.
   stripNum = 20;
   stripSplit = 10;       //how many of those are on the first side
@@ -243,6 +245,8 @@ bool Config::save() {
   doc["stripBlushEna"] = stripBlushEna;
   doc["stripIdleEna"] = stripIdleEna;
   doc["stripRaveEna"] = stripRaveEna;
+  doc["stripFlareEna"] = stripFlareEna;
+  doc["stripBlushHold"] = stripBlushHold;
   doc["bStrip"] = bStrip;
   doc["stripNum"] = stripNum;
   doc["stripSplit"] = stripSplit;
@@ -438,6 +442,8 @@ bool Config::load() {
   stripBlushEna = doc["stripBlushEna"] | true;
   stripIdleEna = doc["stripIdleEna"] | false;
   stripRaveEna = doc["stripRaveEna"] | true;
+  stripFlareEna = doc["stripFlareEna"] | false;
+  stripBlushHold = doc["stripBlushHold"] | true;
   bStrip = doc["bStrip"] | 77;
   stripNum = doc["stripNum"] | 20;
   stripSplit = doc["stripSplit"] | 10;

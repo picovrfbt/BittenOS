@@ -49,7 +49,7 @@ SAVECONFIG_KEYS = {
     'stripEna': bool, 'stripRevA': bool, 'stripRevB': bool, 'stripBlushEna': bool,
     'stripIdleEna': bool, 'stripRaveEna': bool, 'bStrip': int, 'stripNum': int,
     'stripSplit': int, 'stripBlushNum': int, 'stripBlushMs': int, 'stripBlush': str,
-    'stripBlushMap': str,
+    'stripBlushMap': str, 'stripFlareEna': bool, 'stripBlushHold': bool,
     'btnShort': str, 'btnDouble': str, 'btnHold': str,
     'btnShortFace': str, 'btnDoubleFace': str, 'btnHoldFace': str,
     'btnHoldMs': int, 'btnShortPhrase': int, 'btnDoublePhrase': int, 'btnHoldPhrase': int,
