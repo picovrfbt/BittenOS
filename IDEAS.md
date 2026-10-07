@@ -136,22 +136,25 @@ Still to try on the real mask, since the virtual tester has no ears: whether `RA
 and `RAVE_SPEC_MIN_PEAK` suit real music at a real distance, and how much current a busy spectrum
 draws at high brightness - feed the panels from the supply rather than the board pin for that.
 
-## Cheek strip - being fitted (2026-10-04)
+## Cheek strip - built (2026-10-07)
 
-One WS2812B 144/m strip on GPIO 8, wired as in MY_PROTOGEN_SETUP.md (in at the back of the left
-side as worn, along to the snout tip, back along the right). The outer 6 a side, under the eyes, are
-the blush; the rest is for effects. Firmware waits on the real LED count per side.
+Fitted and working: 20 WS2812B (10 a side) in one chain, **data on GPIO 18** (not 8 - the wire was
+traced to 18 on the bench), 5V and GND from the fan's own PSU with the grounds bonded to the board.
+FastLED's RMT path drives it; a hand-timed fallback lives on `/strip?drv=1`.
 
-Effects shown in a mock-up GIF (all mirrored, index 0 at the snout tip):
-- [ ] **Blush** — the outer 6 glow, gently breathing. The base everything else falls back to.
-- [ ] **Boop flare** — a flash runs from the snout tip back to the ears, then the blush comes on hot
-      and cools.
-- [ ] **Speech meter** — fills out from the snout with mic level, alongside the maw.
-- [ ] **Rave** — the same beat and wave as the maw, in colour along the strip.
-- [ ] **Scanner** — a comet bouncing snout to ear.
-- [ ] **Rainbow flow** — colour rolling back from the snout tip.
-- [ ] **Sleep** — a slow dim blue breath under the eyes.
-- [ ] **Status pings** — e.g. remote paired: two green pulses out to the ears.
+Built: blush on a boop (flare out from the snout, then the cheeks hold and cool), a DJ-style audio
+meter in rave mode (green/yellow/red with a falling peak mark), a resting glow, manual brightness
+with no cap, and a Cheek strip section on the settings page.
+
+Still to do:
+- [ ] **Confirm the chain layout.** Press Show ends: green should be at the snout, red at the ear,
+      on both sides. Flip the per-side reverse switches until it is.
+- [ ] **Speech meter** - fill out from the snout with mic level, alongside the maw.
+- [ ] **Scanner** - a comet bouncing snout to ear.
+- [ ] **Rainbow flow** - colour rolling back from the snout tip.
+- [ ] **Sleep breath** - a slow dim blue under the eyes (the strip currently just goes dark asleep).
+- [ ] **Status pings** - e.g. remote paired: two green pulses out to the ears.
+- [ ] **Per-face blush** - which faces blush, rather than all of them.
 
 ## Voice through the JBL Clip 3 - noted, not bought (2026-10-04)
 
