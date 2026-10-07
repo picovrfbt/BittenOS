@@ -732,11 +732,20 @@ CLEDController *ledController[2];
 // the page has no controls for it yet, so drive it from /strip.
 #define STRIP_MAX 64                 //registered once at this size, so the count can change without a reflash
 CRGB stripLeds[STRIP_MAX];
-bool stripReady = false;             //the pin has been set to an output
+//Every pin nothing else is using. All of them carry the same waveform until the wire is traced.
+const uint8_t STRIP_PINS[] = {7, 8, 11, 15, 16, 17, 18};
+uint8_t stripPin = 18;               //the pad the wire is really on; 8 was the guess, 18 was right
+uint32_t stripMask = 0;              //which pins to drive, normally just the one
+uint8_t stripBytes[STRIP_MAX * 3];   //the frame, already scaled: the timed loop touches only DRAM
+#define STRIP_FASTLED_PIN 18         //FastLED needs the pin at compile time; this is the traced one
+CLEDController *stripCtl = nullptr;  //the RMT path, when the chosen pin is the one above
+uint8_t stripDrv = 0;                //0 FastLED/RMT, 1 hand-timed. FastLED wins: on the bench the
+                                     //hardware-timed waveform was visibly steadier than counting cycles.
+bool stripReady = false;             //the pins have been set to outputs
 bool stripPresent = true;            //test build: on, so a bare boot already shows something
-uint8_t stripCount = 10;             //LEDs actually fitted
-uint8_t stripBri = 40;               //0-255; ten at 40 draw about 100mA, safe on USB
-uint8_t stripTest = 1;               //0 off, 1 rainbow, 2 walking dot, 3 solid red, 4 pin held high
+uint8_t stripCount = 20;             //LEDs fitted: 10 a side, both sides in one chain
+uint8_t stripBri = 77;               //0-255, so about 30%; twenty at that draw ~0.4A, easy for the fan PSU
+uint8_t stripTest = 1;               //0 off, 1 rainbow, 2 walking dot, 3 solid red, 4 pins held high
 uint32_t stripLastFrame = 0;
 
 CRGB pixelBuffer[18];
@@ -1965,8 +1974,28 @@ void startWiFiWeb() {
     if(request->hasParam("bri"))  stripBri   = (uint8_t)constrain(request->getParam("bri")->value().toInt(), 0, 255);
     if(request->hasParam("test")) stripTest  = (uint8_t)constrain(request->getParam("test")->value().toInt(), 0, 4);
     if(request->hasParam("on"))   stripPresent = request->getParam("on")->value().toInt() != 0;
+    if(request->hasParam("drv")) {            //flip drivers on the bench without a reflash
+      stripDrv = request->getParam("drv")->value().toInt() ? 1 : 0;
+      if(stripDrv) { pinMode(stripPin, OUTPUT); }   //RMT leaves the pin to itself; take it back
+    }
+    if(request->hasParam("pin")) {            //255 = back to all of them; otherwise one of the candidates
+      int want = request->getParam("pin")->value().toInt();
+      uint32_t m = 0;
+      for(uint8_t i = 0; i < sizeof(STRIP_PINS); i++)
+        if(want == 255 || want == STRIP_PINS[i]) { pinMode(STRIP_PINS[i], OUTPUT); m |= 1UL << STRIP_PINS[i]; }
+      if(m) {                                 //an unknown pin is ignored rather than leaving nothing driven
+        for(uint8_t i = 0; i < sizeof(STRIP_PINS); i++)
+          if(!(m & (1UL << STRIP_PINS[i]))) digitalWrite(STRIP_PINS[i], LOW);
+        stripMask = m;
+        if(want != 255) stripPin = (uint8_t)want;
+      }
+    }
     JsonDocument d;
     d["on"] = stripPresent; d["n"] = stripCount; d["bri"] = stripBri; d["test"] = stripTest;
+    d["drv"] = stripDrv ? "bitbang" : "fastled";
+    JsonArray pa = d["pins"].to<JsonArray>();
+    for(uint8_t i = 0; i < sizeof(STRIP_PINS); i++)
+      if(stripMask & (1UL << STRIP_PINS[i])) pa.add(STRIP_PINS[i]);
     String out;
     serializeJson(d, out);
     request->send(200, "application/json", out);
@@ -2966,12 +2995,15 @@ void setup() {
   if(blushPresent) {
     ledController[2] = &FastLED.addLeds<WS2812B, DATA_PIN_BLUSH, RGB>(blushLeds, blushLedsNum);
   }*/
-  //GPIO 8 is free here: neither the ear nor the blush controller is ever registered on this mask,
-  //and the strip is clocked out by hand rather than by FastLED, so no controller is added for it.
-  pinMode(DATA_PIN_EARS, OUTPUT);
-  digitalWrite(DATA_PIN_EARS, LOW);
+  //The strip is clocked out by hand rather than by FastLED, so no controller is added for it.
+  //Just the one pin now that the wire has been traced; /strip?pin=N moves it, 255 drives them all.
+  stripCtl = &FastLED.addLeds<WS2812B, STRIP_FASTLED_PIN, GRB>(stripLeds, STRIP_MAX);
+  pinMode(stripPin, OUTPUT);
+  digitalWrite(stripPin, LOW);
+  stripMask = 1UL << stripPin;
   stripReady = true;
-  logPrint(String(F("[I] Cheek strip on GPIO 8, ")) + String(stripCount) + F(" LEDs, driven directly"));
+  logPrint(String(F("[I] Cheek strip: ")) + String(stripCount) + F(" LEDs on GPIO ") + String(stripPin) +
+           F(", driver ") + (stripDrv ? F("hand-timed") : F("FastLED/RMT")));
   FastLED.setCorrection(TypicalPixelString);
   FastLED.setDither(0);
 
@@ -3352,19 +3384,19 @@ static unsigned long raveLastFrame = 0;
 //Interrupts are off for the burst. A pause longer than about 50 us mid-frame latches the strip early
 //and the rest of the frame lands on the wrong LEDs. Ten LEDs is 240 bits, about 300 us, which is
 //short enough not to trouble WiFi on the other core.
-static void stripShow(uint8_t n, uint8_t bri) {
-  const uint32_t mask = 1UL << DATA_PIN_EARS;      //GPIO 8 is under 32, so one register covers it
+//IRAM_ATTR is the whole point of splitting this out. Left in flash, a cache miss between raising
+//the pin and dropping it stretches that bit well past the 0.4/0.8 us the LED will accept, the chip
+//reads a nought as a one, and the rest of the frame lands on the wrong LEDs - which looks exactly
+//like random bright flashes. In IRAM there is nothing to miss.
+static void IRAM_ATTR stripBlast(const uint8_t *buf, uint16_t len, uint32_t mask) {
   const uint32_t T0H = 96;                         //0.40 us at 240 MHz
   const uint32_t T1H = 192;                        //0.80 us
   const uint32_t TOT = 300;                        //1.25 us, the whole slot
   portDISABLE_INTERRUPTS();
-  for(uint8_t i = 0; i < n; i++) {
-    //the wire order is green, red, blue - most significant bit first
-    uint32_t word = ((uint32_t)scale8(stripLeds[i].g, bri) << 16) |
-                    ((uint32_t)scale8(stripLeds[i].r, bri) << 8)  |
-                     (uint32_t)scale8(stripLeds[i].b, bri);
-    for(int8_t bit = 23; bit >= 0; bit--) {
-      uint32_t high = (word & (1UL << bit)) ? T1H : T0H;
+  for(uint16_t i = 0; i < len; i++) {
+    uint8_t b = buf[i];
+    for(uint8_t bit = 0; bit < 8; bit++, b <<= 1) {
+      uint32_t high = (b & 0x80) ? T1H : T0H;
       uint32_t start = esp_cpu_get_cycle_count();
       GPIO.out_w1ts = mask;
       while(esp_cpu_get_cycle_count() - start < high) {}
@@ -3373,6 +3405,23 @@ static void stripShow(uint8_t n, uint8_t bri) {
     }
   }
   portENABLE_INTERRUPTS();
+}
+
+//FastLED hands the frame to the RMT peripheral, which clocks it out in hardware - nothing the CPU
+//does afterwards can stretch a pulse. It can only drive the pin it was compiled for, so the
+//hand-timed path still covers any other pin while the wiring is being moved about.
+static void stripShow(uint8_t n, uint8_t bri) {
+  if(stripDrv == 0 && stripCtl && stripMask == (1UL << STRIP_FASTLED_PIN)) {
+    for(uint8_t i = n; i < STRIP_MAX; i++) stripLeds[i] = CRGB::Black;
+    stripCtl->showLeds(bri);
+    return;
+  }
+  for(uint8_t i = 0; i < n; i++) {                 //green, red, blue on the wire
+    stripBytes[i * 3 + 0] = scale8(stripLeds[i].g, bri);
+    stripBytes[i * 3 + 1] = scale8(stripLeds[i].r, bri);
+    stripBytes[i * 3 + 2] = scale8(stripLeds[i].b, bri);
+  }
+  stripBlast(stripBytes, (uint16_t)n * 3, stripMask);
 }
 
 //The strip's own frame, 50 a second. Index 0 is the first LED after the solder joint, so the
@@ -3400,8 +3449,8 @@ static void stripStep() {
       case 3:                        //solid red; if it comes out green the chain is RGB, not GRB
         for(int i = 0; i < n; i++) stripLeds[i] = CRGB::Red;
         break;
-      case 4:                        //no data at all, just the pin held high: a multimeter reads 3.3V
-        GPIO.out_w1ts = 1UL << DATA_PIN_EARS;
+      case 4:                        //no data at all, just the pins held high: a multimeter reads 3.3V
+        GPIO.out_w1ts = stripMask;
         return;
       default: break;                //0: left dark
     }
