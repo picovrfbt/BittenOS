@@ -746,6 +746,11 @@ uint8_t stripTest = 0;               //0 the real thing, 1 rainbow, 2 dot, 3 red
 uint32_t stripLastFrame = 0;
 uint32_t stripBoopAt = 0;            //when the last boop landed, for the flare and the hold
 float stripPeak = 0;                 //the meter's peak mark, falling back a little each frame
+int16_t stripIdAt = -1;              //one LED lit white, so tapping the diagram shows which is which
+uint32_t stripIdUntil = 0;
+CRGB stripSent[STRIP_MAX];           //what actually went out last time
+uint8_t stripSentBri = 255;
+bool stripSentOnce = false;
 
 CRGB pixelBuffer[18];
 CRGB visorPixelBuffer[10];
@@ -1561,6 +1566,8 @@ void startWiFiWeb() {
     if(cfg.getInt(request, "stripBlushMs", cfg.stripBlushMs)) cfg.stripBlushMs = constrain(cfg.stripBlushMs, 200, 20000);
     if(cfg.getString(request, "stripBlush", cfg.stripBlushStr))
       cfg.stripBlushCol = strtol(cfg.stripBlushStr.c_str() + 1, NULL, 16);
+    if(cfg.getString(request, "stripBlushMap", cfg.stripBlushMap) && cfg.stripBlushMap.length() > STRIP_MAX)
+      cfg.stripBlushMap = cfg.stripBlushMap.substring(0, STRIP_MAX);
     cfg.getBool(request, "boopLightEna", cfg.boopLightEna);
     if(cfg.getBool(request, "oledFlip", cfg.oledFlip)) oledFlipReq = true; //the loop task talks to the screen
     if(cfg.getInt(request, "boopShade", cfg.boopShade)) cfg.boopShade = constrain(cfg.boopShade, 5, 90);
@@ -1992,6 +1999,10 @@ void startWiFiWeb() {
     }
     if(request->hasParam("test")) stripTest = (uint8_t)constrain(request->getParam("test")->value().toInt(), 0, 5);
     if(request->hasParam("boop")) stripBoopAt = millis();     //try the blush without touching the snout
+    if(request->hasParam("id")) {       //light one LED white, so the diagram can say which is which
+      stripIdAt = (int16_t)constrain(request->getParam("id")->value().toInt(), -1, STRIP_MAX - 1);
+      stripIdUntil = millis() + 1200;
+    }
     if(request->hasParam("drv")) {            //flip drivers on the bench without a reflash
       stripDrv = request->getParam("drv")->value().toInt() ? 1 : 0;
       if(stripDrv) { pinMode(stripPin, OUTPUT); }   //RMT leaves the pin to itself; take it back
@@ -3471,6 +3482,18 @@ static void stripAdd(uint8_t side, int i, const CRGB &c) {   //keeps whichever c
   if(k >= 0 && k < STRIP_MAX) stripLeds[k] |= c;
 }
 
+//Is this LED part of the blush? The map is the answer once the diagram has been used. Before that,
+//fall back to the outer few of each side - right only if the chain happened to be laid that way.
+static bool stripIsBlush(int idx) {
+  int mapLen = cfg.stripBlushMap.length();
+  if(mapLen) return idx < mapLen && cfg.stripBlushMap[idx] == '1';
+  for(uint8_t s = 0; s < 2; s++) {
+    int len = stripSideLen(s), b = min((int)cfg.stripBlushNum, len);
+    for(int i = len - b; i < len; i++) if(stripIdx(s, i) == idx) return true;
+  }
+  return false;
+}
+
 //A DJ board's meter: green most of the way, yellow near the top, red at the very end. The scale
 //runs out from the nose, so the loudest moments reach the ear.
 static CRGB stripMeterColour(int i, int len) {
@@ -3563,25 +3586,36 @@ static void stripRender() {
 
   if(k > 0.003f) {
     uint8_t scale = (uint8_t)constrain((int)(k * 255.0f), 1, 255);
-    for(uint8_t s = 0; s < 2; s++) {
-      int len = stripSideLen(s);
-      int b = min((int)cfg.stripBlushNum, len);
-      for(int i = len - b; i < len; i++) {             //the blush sits at the ear end, under the eye
-        CRGB c = col;
-        c.nscale8_video(scale);
-        stripAdd(s, i, c);
-      }
+    for(int i = 0; i < n; i++) {
+      if(!stripIsBlush(i)) continue;
+      CRGB c = col;
+      c.nscale8_video(scale);
+      stripLeds[i] |= c;
     }
   }
 }
 
 static void stripStep() {
   if(!stripReady) return;
-  if(millis() - stripLastFrame < 20) return;
+  if(millis() - stripLastFrame < 33) return;        //thirty a second is plenty and leaves the panels alone
   stripLastFrame = millis();
   if(stripTest == 4) { GPIO.out_w1ts = stripMask; return; }   //pin held high for a multimeter
   stripRender();
-  stripShow(stripFitted(), (uint8_t)constrain(cfg.bStrip, 0, 255));
+  uint8_t n = stripFitted();
+  if(stripIdAt >= 0) {                              //tapping the diagram: that one LED, white
+    if(millis() < stripIdUntil) {
+      for(int i = 0; i < STRIP_MAX; i++) stripLeds[i] = CRGB::Black;
+      if(stripIdAt < n) stripLeds[stripIdAt] = CRGB::White;
+    } else stripIdAt = -1;
+  }
+  //Only push a frame that has actually changed. A dark or resting strip then costs nothing, which
+  //matters because every push is time the MAX7219 chain is not being written to - that was the stutter.
+  uint8_t bri = (uint8_t)constrain(cfg.bStrip, 0, 255);
+  if(stripSentOnce && bri == stripSentBri && memcmp(stripSent, stripLeds, sizeof(CRGB) * STRIP_MAX) == 0) return;
+  memcpy(stripSent, stripLeds, sizeof(CRGB) * STRIP_MAX);
+  stripSentBri = bri;
+  stripSentOnce = true;
+  stripShow(n, bri);
 }
 
 static void raveTables() {
