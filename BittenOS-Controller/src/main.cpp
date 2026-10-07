@@ -742,11 +742,10 @@ CLEDController *stripCtl = nullptr;  //the RMT path, when the chosen pin is the 
 uint8_t stripDrv = 0;                //0 FastLED/RMT, 1 hand-timed. FastLED wins: on the bench the
                                      //hardware-timed waveform was visibly steadier than counting cycles.
 bool stripReady = false;             //the pins have been set to outputs
-bool stripPresent = true;            //test build: on, so a bare boot already shows something
-uint8_t stripCount = 20;             //LEDs fitted: 10 a side, both sides in one chain
-uint8_t stripBri = 77;               //0-255, so about 30%; twenty at that draw ~0.4A, easy for the fan PSU
-uint8_t stripTest = 1;               //0 off, 1 rainbow, 2 walking dot, 3 solid red, 4 pins held high
+uint8_t stripTest = 0;               //0 the real thing, 1 rainbow, 2 dot, 3 red, 4 pin high, 5 ends
 uint32_t stripLastFrame = 0;
+uint32_t stripBoopAt = 0;            //when the last boop landed, for the flare and the hold
+float stripPeak = 0;                 //the meter's peak mark, falling back a little each frame
 
 CRGB pixelBuffer[18];
 CRGB visorPixelBuffer[10];
@@ -1548,6 +1547,20 @@ void startWiFiWeb() {
     cfg.getBool(request, "transEna", cfg.transEna);
     cfg.getBool(request, "bobEna", cfg.bobEna);
     cfg.getBool(request, "boopCountEna", cfg.boopCountEna);
+    //the cheek strip
+    cfg.getBool(request, "stripEna", cfg.stripEna);
+    cfg.getBool(request, "stripRevA", cfg.stripRevA);
+    cfg.getBool(request, "stripRevB", cfg.stripRevB);
+    cfg.getBool(request, "stripBlushEna", cfg.stripBlushEna);
+    cfg.getBool(request, "stripIdleEna", cfg.stripIdleEna);
+    cfg.getBool(request, "stripRaveEna", cfg.stripRaveEna);
+    if(cfg.getInt(request, "bStrip", cfg.bStrip)) cfg.bStrip = constrain(cfg.bStrip, 0, 255);
+    if(cfg.getInt(request, "stripNum", cfg.stripNum)) cfg.stripNum = constrain(cfg.stripNum, 0, STRIP_MAX);
+    if(cfg.getInt(request, "stripSplit", cfg.stripSplit)) cfg.stripSplit = constrain(cfg.stripSplit, 0, cfg.stripNum);
+    if(cfg.getInt(request, "stripBlushNum", cfg.stripBlushNum)) cfg.stripBlushNum = constrain(cfg.stripBlushNum, 0, STRIP_MAX);
+    if(cfg.getInt(request, "stripBlushMs", cfg.stripBlushMs)) cfg.stripBlushMs = constrain(cfg.stripBlushMs, 200, 20000);
+    if(cfg.getString(request, "stripBlush", cfg.stripBlushStr))
+      cfg.stripBlushCol = strtol(cfg.stripBlushStr.c_str() + 1, NULL, 16);
     cfg.getBool(request, "boopLightEna", cfg.boopLightEna);
     if(cfg.getBool(request, "oledFlip", cfg.oledFlip)) oledFlipReq = true; //the loop task talks to the screen
     if(cfg.getInt(request, "boopShade", cfg.boopShade)) cfg.boopShade = constrain(cfg.boopShade, 5, 90);
@@ -1896,6 +1909,8 @@ void startWiFiWeb() {
     st["mic"] = cfg.speechEna ? micVolume : -1;                       //0-100; -1 when Speech is off
     st["rave"] = raveActive;
     st["raveMode"] = raveMode;
+    st["strip"] = cfg.stripEna;
+    st["stripTest"] = stripTest;
     st["raveMic"] = raveUseMic;
     st["micRaw"] = micRawMid;                                         //middle of the swing: near half the supply if wired right
     st["micSwing"] = (int)(micSwing + 0.5f);                          //how loud it is, peak to peak over 25 ms
@@ -1970,10 +1985,13 @@ void startWiFiWeb() {
   });
 
   server.on("/strip", HTTP_GET, [](AsyncWebServerRequest *request){ //cheek strip bench test: on, n, bri, test
-    if(request->hasParam("n"))    stripCount = (uint8_t)constrain(request->getParam("n")->value().toInt(), 0, STRIP_MAX);
-    if(request->hasParam("bri"))  stripBri   = (uint8_t)constrain(request->getParam("bri")->value().toInt(), 0, 255);
-    if(request->hasParam("test")) stripTest  = (uint8_t)constrain(request->getParam("test")->value().toInt(), 0, 4);
-    if(request->hasParam("on"))   stripPresent = request->getParam("on")->value().toInt() != 0;
+    //bri is live so the slider can be dragged; save=1 writes it, the way /brightness does
+    if(request->hasParam("bri")) {
+      cfg.bStrip = constrain(request->getParam("bri")->value().toInt(), 0, 255);
+      if(request->hasParam("save") && !cfg.save()) { request->send(500, "text/plain", F("Could not save")); return; }
+    }
+    if(request->hasParam("test")) stripTest = (uint8_t)constrain(request->getParam("test")->value().toInt(), 0, 5);
+    if(request->hasParam("boop")) stripBoopAt = millis();     //try the blush without touching the snout
     if(request->hasParam("drv")) {            //flip drivers on the bench without a reflash
       stripDrv = request->getParam("drv")->value().toInt() ? 1 : 0;
       if(stripDrv) { pinMode(stripPin, OUTPUT); }   //RMT leaves the pin to itself; take it back
@@ -1991,7 +2009,7 @@ void startWiFiWeb() {
       }
     }
     JsonDocument d;
-    d["on"] = stripPresent; d["n"] = stripCount; d["bri"] = stripBri; d["test"] = stripTest;
+    d["on"] = cfg.stripEna; d["n"] = cfg.stripNum; d["bri"] = cfg.bStrip; d["test"] = stripTest;
     d["drv"] = stripDrv ? "bitbang" : "fastled";
     JsonArray pa = d["pins"].to<JsonArray>();
     for(uint8_t i = 0; i < sizeof(STRIP_PINS); i++)
@@ -3002,8 +3020,9 @@ void setup() {
   digitalWrite(stripPin, LOW);
   stripMask = 1UL << stripPin;
   stripReady = true;
-  logPrint(String(F("[I] Cheek strip: ")) + String(stripCount) + F(" LEDs on GPIO ") + String(stripPin) +
-           F(", driver ") + (stripDrv ? F("hand-timed") : F("FastLED/RMT")));
+  logPrint(String(F("[I] Cheek strip: ")) + String(cfg.stripNum) + F(" LEDs on GPIO ") + String(stripPin) +
+           F(", driver ") + (stripDrv ? F("hand-timed") : F("FastLED/RMT")) +
+           (cfg.stripEna ? F("") : F(" (switched off)")));
   FastLED.setCorrection(TypicalPixelString);
   FastLED.setDither(0);
 
@@ -3300,6 +3319,7 @@ unsigned long sassTimes[SASS_HISTORY];
 uint8_t sassHead = 0, sassFilled = 0;   //how many slots hold a real time, so no sentinel is needed
 
 void countBoop() { //the boop landed: count it, but don't show anything yet
+  stripBoopAt = millis();     //and the cheeks go pink, if the strip is fitted and set to
   cfg.boopCount++;
   boopCountDirty = true;      //saved from loop() a while later, not on every boop
   sassTimes[sassHead] = millis();
@@ -3424,38 +3444,144 @@ static void stripShow(uint8_t n, uint8_t bri) {
   stripBlast(stripBytes, (uint16_t)n * 3, stripMask);
 }
 
-//The strip's own frame, 50 a second. Index 0 is the first LED after the solder joint, so the
-//walking dot says at a glance which physical end the firmware counts from and which way the chain
-//runs - the thing that has to be right before any of the real effects are worth writing.
+static uint8_t stripFitted() { return (uint8_t)constrain(cfg.stripNum, 0, STRIP_MAX); }
+
+//How many LEDs are on each side. The split is where the chain crosses from one side to the other.
+static int stripSideLen(uint8_t side) {
+  int n = stripFitted(), split = constrain(cfg.stripSplit, 0, n);
+  return side ? n - split : split;
+}
+
+//Logical position -> the LED that actually is. i counts from the NOSE end out towards the ear, so
+//every effect can be written once and come out symmetrical, whichever way the chain was laid.
+static int stripIdx(uint8_t side, int i) {
+  int n = stripFitted(), split = constrain(cfg.stripSplit, 0, n);
+  int base = side ? split : 0, len = side ? n - split : split;
+  if(i < 0 || i >= len) return -1;
+  return base + ((side ? cfg.stripRevB : cfg.stripRevA) ? len - 1 - i : i);
+}
+
+static void stripSet(uint8_t side, int i, const CRGB &c) {
+  int k = stripIdx(side, i);
+  if(k >= 0 && k < STRIP_MAX) stripLeds[k] = c;
+}
+
+static void stripAdd(uint8_t side, int i, const CRGB &c) {   //keeps whichever channel is brighter
+  int k = stripIdx(side, i);
+  if(k >= 0 && k < STRIP_MAX) stripLeds[k] |= c;
+}
+
+//A DJ board's meter: green most of the way, yellow near the top, red at the very end. The scale
+//runs out from the nose, so the loudest moments reach the ear.
+static CRGB stripMeterColour(int i, int len) {
+  float f = len > 1 ? (float)i / (len - 1) : 0;
+  if(f < 0.60f) return CRGB(0, 255, 50);
+  if(f < 0.85f) return CRGB(255, 170, 0);
+  return CRGB(255, 0, 0);
+}
+
+//Everything the strip shows, worked out into stripLeds. Nothing here talks to the wire.
+static void stripRender() {
+  for(int i = 0; i < STRIP_MAX; i++) stripLeds[i] = CRGB::Black;
+  uint8_t n = stripFitted();
+  if(!n) return;
+  uint32_t t = millis();
+
+  if(stripTest) {                    //bench patterns, straight down the chain, mapping ignored
+    switch(stripTest) {
+      case 1: {                      //a rainbow rolling along the whole chain
+        uint8_t head = (uint8_t)(t / 12), step = (uint8_t)(255 / n);
+        for(int i = 0; i < n; i++) stripLeds[i] = CHSV((uint8_t)(head + i * step), 255, 255);
+        break;
+      }
+      case 2:                        //one white dot walking 0 -> n-1, a fifth of a second a step
+        stripLeds[(t / 200) % n] = CRGB::White;
+        break;
+      case 3:                        //solid red; if it comes out green the chain is RGB, not GRB
+        for(int i = 0; i < n; i++) stripLeds[i] = CRGB::Red;
+        break;
+      case 5:                        //ends: green at the nose, red at the ear, per the reverse switches
+        for(uint8_t s = 0; s < 2; s++) {
+          int len = stripSideLen(s);
+          for(int i = 0; i < 3 && i < len; i++) {
+            stripSet(s, i, CRGB(0, 255, 60));
+            stripSet(s, len - 1 - i, CRGB(255, 0, 0));
+          }
+        }
+        break;
+      default: break;
+    }
+    return;
+  }
+
+  //The display switch and the sleeping face both take the strip with them: with its own supply it
+  //would otherwise sit glowing on your cheek with the mask off.
+  if(!cfg.stripEna || !displayOn || sleeping) return;
+
+  if(raveActive && cfg.stripRaveEna) {
+    float lvl = raveLevel;
+    if(raveMode != 0) {              //the spectrum has no single level, so take the bands' average
+      lvl = 0;
+      for(int b = 0; b < RAVE_BANDS; b++) lvl += raveBand[b];
+      lvl /= RAVE_BANDS;
+    }
+    lvl = constrain(lvl, 0.0f, 1.0f);
+    stripPeak = max(lvl, stripPeak - 0.012f);          //the mark falls back the way a real one does
+    for(uint8_t s = 0; s < 2; s++) {
+      int len = stripSideLen(s);
+      int lit = (int)lroundf(lvl * len);
+      for(int i = 0; i < lit && i < len; i++) stripSet(s, i, stripMeterColour(i, len));
+      int pk = (int)lroundf(stripPeak * len) - 1;      //and sits just above the lit bar
+      if(pk >= lit && pk < len) stripSet(s, pk, stripMeterColour(pk, len));
+    }
+    return;
+  }
+
+  CRGB col = CRGB((cfg.stripBlushCol >> 16) & 0xFF, (cfg.stripBlushCol >> 8) & 0xFF, cfg.stripBlushCol & 0xFF);
+  float k = cfg.stripIdleEna ? 0.30f + 0.08f * sinf(t / 900.0f) : 0.0f;   //a slow breath when idle
+
+  //A boop: a pale flare runs out from the nose, then the blush comes up hot and cools back down.
+  uint32_t hold = (uint32_t)max(cfg.stripBlushMs, 200);
+  if(cfg.stripBlushEna && stripBoopAt && t - stripBoopAt < hold) {
+    uint32_t since = t - stripBoopAt, left = hold - since;
+    k = 1.0f;
+    if(since < 220) k = since / 220.0f;                //up fast
+    else if(left < 700) k = left / 700.0f;             //and back down at the end
+    for(uint8_t s = 0; s < 2; s++) {
+      int len = stripSideLen(s);
+      float head = since / 11.0f;                      //the flare, about 90 LEDs a second
+      for(int i = 0; i < len; i++) {
+        float d = head - i;
+        if(d >= 0 && d < 5) {
+          CRGB f = CRGB(255, 215, 240);
+          f.nscale8_video((uint8_t)(255.0f * (1.0f - d / 5.0f)));
+          stripAdd(s, i, f);
+        }
+      }
+    }
+  }
+
+  if(k > 0.003f) {
+    uint8_t scale = (uint8_t)constrain((int)(k * 255.0f), 1, 255);
+    for(uint8_t s = 0; s < 2; s++) {
+      int len = stripSideLen(s);
+      int b = min((int)cfg.stripBlushNum, len);
+      for(int i = len - b; i < len; i++) {             //the blush sits at the ear end, under the eye
+        CRGB c = col;
+        c.nscale8_video(scale);
+        stripAdd(s, i, c);
+      }
+    }
+  }
+}
+
 static void stripStep() {
   if(!stripReady) return;
   if(millis() - stripLastFrame < 20) return;
   stripLastFrame = millis();
-  uint8_t n = stripCount > STRIP_MAX ? STRIP_MAX : stripCount;
-  for(int i = 0; i < STRIP_MAX; i++) stripLeds[i] = CRGB::Black;   //past the fitted count stays dark
-  if(stripPresent && n) {
-    uint32_t t = millis();
-    switch(stripTest) {
-      case 1: {                      //a rainbow rolling from index 0 towards the far end
-        uint8_t head = (uint8_t)(t / 12);
-        uint8_t step = (uint8_t)(255 / n);
-        for(int i = 0; i < n; i++) stripLeds[i] = CHSV((uint8_t)(head + i * step), 255, 255);
-        break;
-      }
-      case 2: {                      //one white dot walking 0 -> n-1, a fifth of a second a step
-        stripLeds[(t / 200) % n] = CRGB::White;
-        break;
-      }
-      case 3:                        //solid red; if it comes out green the chain is RGB, not GRB
-        for(int i = 0; i < n; i++) stripLeds[i] = CRGB::Red;
-        break;
-      case 4:                        //no data at all, just the pins held high: a multimeter reads 3.3V
-        GPIO.out_w1ts = stripMask;
-        return;
-      default: break;                //0: left dark
-    }
-  }
-  stripShow(n, stripBri);
+  if(stripTest == 4) { GPIO.out_w1ts = stripMask; return; }   //pin held high for a multimeter
+  stripRender();
+  stripShow(stripFitted(), (uint8_t)constrain(cfg.bStrip, 0, 255));
 }
 
 static void raveTables() {

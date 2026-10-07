@@ -46,6 +46,9 @@ SAVECONFIG_KEYS = {
     'autoBriDark': int, 'autoBriBright': int, 'oledFlip': bool,
     'mouthMode': str, 'boopMilestone': int, 'aMilestone': str, 'blinkMode': str,
     'blinkDoublePct': int,
+    'stripEna': bool, 'stripRevA': bool, 'stripRevB': bool, 'stripBlushEna': bool,
+    'stripIdleEna': bool, 'stripRaveEna': bool, 'bStrip': int, 'stripNum': int,
+    'stripSplit': int, 'stripBlushNum': int, 'stripBlushMs': int, 'stripBlush': str,
     'btnShort': str, 'btnDouble': str, 'btnHold': str,
     'btnShortFace': str, 'btnDoubleFace': str, 'btnHoldFace': str,
     'btnHoldMs': int, 'btnShortPhrase': int, 'btnDoublePhrase': int, 'btnHoldPhrase': int,
@@ -139,6 +142,7 @@ class VirtualBoard:
         self.clock_24 = False
         self.rave_on = False           # /rave: the virtual face has no mic, so only the state is kept
         self.rave_mode = 1
+        self.strip_test = 0            # /strip: the cheek strip. The virtual face has no LEDs on it
         self.rave_mic = True
         self.dino_on = False           # /dino: the game on the maw. The virtual face cannot play
         self.dino_score = 0            # it, so this is only enough state for the page to drive
@@ -578,6 +582,19 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, json.dumps({'on': board.rave_on, 'mode': board.rave_mode,
                                                'mic': board.rave_mic}),
                               'application/json')
+        if path == '/strip':  # the cheek strip. Nothing to draw here, so this keeps the state only
+            if 'test' in q:
+                board.strip_test = to_int(q['test'])
+            if 'bri' in q:
+                board.config['bStrip'] = max(0, min(255, to_int(q['bri'])))
+                if 'save' in q:
+                    board.save_config()
+            if 'boop' in q:
+                board.log('[I] Blush')
+            return self.reply(200, json.dumps({'on': board.config.get('stripEna', True),
+                                               'n': board.config.get('stripNum', 20),
+                                               'bri': board.config.get('bStrip', 77),
+                                               'test': board.strip_test}), 'application/json')
         if path == '/dino':   # the game on the maw. The virtual face cannot play it, so this only
             # tracks the state the page reads, enough to exercise Start, Jump, the score and Stop.
             if 'go' in q:
