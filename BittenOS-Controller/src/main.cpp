@@ -745,6 +745,7 @@ bool stripReady = false;             //the pins have been set to outputs
 uint8_t stripTest = 0;               //0 the real thing, 1 rainbow, 2 dot, 3 red, 4 pin high, 5 ends
 uint32_t stripLastFrame = 0;
 uint32_t stripBoopAt = 0;            //when the last boop landed, for the flare and the hold
+bool stripBoopHeld = false;          //the paw is still there, so the blush stays up
 float stripPeak = 0;                 //the meter's peak mark, falling back a little each frame
 int16_t stripIdAt = -1;              //one LED lit white, so tapping the diagram shows which is which
 uint32_t stripIdUntil = 0;
@@ -1559,6 +1560,8 @@ void startWiFiWeb() {
     cfg.getBool(request, "stripBlushEna", cfg.stripBlushEna);
     cfg.getBool(request, "stripIdleEna", cfg.stripIdleEna);
     cfg.getBool(request, "stripRaveEna", cfg.stripRaveEna);
+    cfg.getBool(request, "stripFlareEna", cfg.stripFlareEna);
+    cfg.getBool(request, "stripBlushHold", cfg.stripBlushHold);
     if(cfg.getInt(request, "bStrip", cfg.bStrip)) cfg.bStrip = constrain(cfg.bStrip, 0, 255);
     if(cfg.getInt(request, "stripNum", cfg.stripNum)) cfg.stripNum = constrain(cfg.stripNum, 0, STRIP_MAX);
     if(cfg.getInt(request, "stripSplit", cfg.stripSplit)) cfg.stripSplit = constrain(cfg.stripSplit, 0, cfg.stripNum);
@@ -1998,7 +2001,7 @@ void startWiFiWeb() {
       if(request->hasParam("save") && !cfg.save()) { request->send(500, "text/plain", F("Could not save")); return; }
     }
     if(request->hasParam("test")) stripTest = (uint8_t)constrain(request->getParam("test")->value().toInt(), 0, 5);
-    if(request->hasParam("boop")) stripBoopAt = millis();     //try the blush without touching the snout
+    if(request->hasParam("boop")) { stripBoopAt = millis(); stripBoopHeld = false; }  //try it without the snout
     if(request->hasParam("id")) {       //light one LED white, so the diagram can say which is which
       stripIdAt = (int16_t)constrain(request->getParam("id")->value().toInt(), -1, STRIP_MAX - 1);
       stripIdUntil = millis() + 1200;
@@ -3331,6 +3334,7 @@ uint8_t sassHead = 0, sassFilled = 0;   //how many slots hold a real time, so no
 
 void countBoop() { //the boop landed: count it, but don't show anything yet
   stripBoopAt = millis();     //and the cheeks go pink, if the strip is fitted and set to
+  stripBoopHeld = true;
   cfg.boopCount++;
   boopCountDirty = true;      //saved from loop() a while later, not on every boop
   sassTimes[sassHead] = millis();
@@ -3375,6 +3379,10 @@ String boopFaceNow() {
 
 void endBoop() { //the paw has gone: now pop the total up, over the face the boop face left behind
   boopShownAt = millis();
+  //The blush starts fading from here when it is set to follow the paw, so restart its clock: the
+  //hold is however long the boop lasted, and stripBlushMs is only the tail after it lifts.
+  if(stripBoopHeld && cfg.stripBlushHold) stripBoopAt = millis();
+  stripBoopHeld = false;
 }
 
 //--------------------------------//Rave mode
@@ -3563,16 +3571,28 @@ static void stripRender() {
   CRGB col = CRGB((cfg.stripBlushCol >> 16) & 0xFF, (cfg.stripBlushCol >> 8) & 0xFF, cfg.stripBlushCol & 0xFF);
   float k = cfg.stripIdleEna ? 0.30f + 0.08f * sinf(t / 900.0f) : 0.0f;   //a slow breath when idle
 
-  //A boop: a pale flare runs out from the nose, then the blush comes up hot and cools back down.
+  //A boop brings the blush up. Held mode keeps it up for as long as the paw is there and then
+  //fades over stripBlushMs; otherwise the whole thing runs to that length and fades at the end.
   uint32_t hold = (uint32_t)max(cfg.stripBlushMs, 200);
-  if(cfg.stripBlushEna && stripBoopAt && t - stripBoopAt < hold) {
-    uint32_t since = t - stripBoopAt, left = hold - since;
-    k = 1.0f;
-    if(since < 220) k = since / 220.0f;                //up fast
-    else if(left < 700) k = left / 700.0f;             //and back down at the end
+  bool blushing = false;
+  uint32_t since = t - stripBoopAt;
+  if(cfg.stripBlushEna && stripBoopAt) {
+    if(stripBoopHeld && cfg.stripBlushHold) {          //the paw is still on the snout
+      blushing = true;
+      k = since < 220 ? since / 220.0f : 1.0f;         //up fast, then simply stay
+    } else if(since < hold) {
+      blushing = true;
+      uint32_t left = hold - since;
+      k = 1.0f;
+      if(since < 220 && !cfg.stripBlushHold) k = since / 220.0f;
+      uint32_t fade = min(hold, 700UL);
+      if(left < fade) k = (float)left / fade;          //and back down at the end
+    }
+  }
+  if(blushing && cfg.stripFlareEna) {                  //the pale sweep, only if it is asked for
     for(uint8_t s = 0; s < 2; s++) {
       int len = stripSideLen(s);
-      float head = since / 11.0f;                      //the flare, about 90 LEDs a second
+      float head = since / 11.0f;                      //about 90 LEDs a second
       for(int i = 0; i < len; i++) {
         float d = head - i;
         if(d >= 0 && d < 5) {

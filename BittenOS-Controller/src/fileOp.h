@@ -68,6 +68,8 @@ public:
   //guess which, each side gets a reverse switch and the Ends test shows which way it came out.
   //Brightness is yours to set outright - there is no cap, it just starts at about 30%.
   bool stripEna,stripRevA,stripRevB,stripBlushEna,stripIdleEna,stripRaveEna;
+  bool stripFlareEna;                 //the pale sweep out from the snout before the blush settles
+  bool stripBlushHold;                //blush for as long as the paw is there, not a fixed time
   int bStrip,stripNum,stripSplit,stripBlushNum,stripBlushMs;
   String stripBlushStr;
   //Which LEDs are the blush, one character per LED along the chain, '1' for in. Empty means fall
