@@ -63,6 +63,14 @@ public:
   int rmtHPhrase[3];
   String rmtDAct[3],rmtDFace[3];
   int rmtDPhrase[3];
+  //The cheek strip: one WS2812B chain down both sides, data on GPIO 18. The chain runs from one
+  //side to the other, so the second side's LEDs count the opposite way round the face; rather than
+  //guess which, each side gets a reverse switch and the Ends test shows which way it came out.
+  //Brightness is yours to set outright - there is no cap, it just starts at about 30%.
+  bool stripEna,stripRevA,stripRevB,stripBlushEna,stripIdleEna,stripRaveEna;
+  int bStrip,stripNum,stripSplit,stripBlushNum,stripBlushMs;
+  String stripBlushStr;
+  unsigned long stripBlushCol;
   String wakeFlickStyle;              //crt (slow, heavy stutter) or tube (fast and twitchy)
   int wakeFlickMs,wakeFlickGlitch;    //how long the warm-up runs, and how much the picture tears (0-2)
   int boopConfirm;                    //readings in a row over the line before it counts as a boop

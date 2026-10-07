@@ -426,6 +426,66 @@
       </div>
     </section>
 
+    <!-- Cheek strip -->
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Cheek strip</b><small>The LEDs down both sides: brightness, the blush, the rave meter and how the chain is laid out</small></span></summary>
+      <div class="group" data-group="stripEna">
+        <label class="row"><span class="row-text"><b>Cheek strip</b><small>The WS2812 chain down both cheeks</small></span>
+          <input type="checkbox" class="toggle" data-key="stripEna" data-label="Cheek strip"></label>
+
+        <div class="row stack dep">
+          <div class="control-head dep"><label for="stripBri"><b>Brightness</b></label><output id="stripBriVal">30%</output></div>
+          <input type="range" class="dep" min="0" max="255" step="1" value="77" id="stripBri">
+        </div>
+
+        <label class="row dep"><span class="row-text"><b>Blush on boop</b><small>A flare runs out from the snout, then the cheeks stay pink for a moment</small></span>
+          <input type="checkbox" class="toggle" data-key="stripBlushEna" data-label="Blush on boop" data-master="stripBlushEna"></label>
+
+        <div class="group dep" data-group="stripBlushEna">
+          <div class="row dep"><span class="row-text"><b>Blush colour</b></span>
+            <input type="color" id="stripBlush" data-key="stripBlush" data-label="Blush colour" value="#ff2d96" aria-label="Blush colour"></div>
+          <div class="row dep"><span class="row-text"><b>Blush LEDs a side</b><small>Counted back from the ear end, under the eye</small></span>
+            <div class="stepper" data-key="stripBlushNum" data-label="Blush LEDs a side" data-min="0" data-max="32" data-step="1"><button type="button" aria-label="Less">&minus;</button><output>6</output><button type="button" aria-label="More">+</button></div></div>
+          <div class="row dep"><span class="row-text"><b>How long it stays</b></span>
+            <div class="stepper" data-key="stripBlushMs" data-label="How long it stays" data-min="500" data-max="10000" data-step="250" data-unit=" ms"><button type="button" aria-label="Less">&minus;</button><output>2500 ms</output><button type="button" aria-label="More">+</button></div></div>
+          <div class="row dep"><span class="row-text"><b>Try it</b><small>Blush without touching the snout</small></span>
+            <button class="btn small" type="button" onclick="stripCmd('boop=1','Blushing')">Blush now</button></div>
+        </div>
+
+        <label class="row dep"><span class="row-text"><b>Resting glow</b><small>A soft blush the rest of the time, breathing slowly</small></span>
+          <input type="checkbox" class="toggle" data-key="stripIdleEna" data-label="Resting glow"></label>
+
+        <label class="row dep"><span class="row-text"><b>Rave meter</b><small>An audio level up both cheeks while rave mode runs: green, yellow, then red at the top</small></span>
+          <input type="checkbox" class="toggle" data-key="stripRaveEna" data-label="Rave meter"></label>
+
+        <details class="sub dep">
+          <summary><span>How the chain is laid out</span></summary>
+          <div class="sub-body">
+            <p>The strip is one chain running down both sides, so the second side counts the opposite
+            way round the face. Press <b>Show ends</b>: the three LEDs nearest the <b>snout</b> should
+            go green and the three nearest the <b>ear</b> red, on both sides. If a side has them the
+            wrong way round, flip that side&rsquo;s switch below.</p>
+            <div class="row"><span class="row-text"><b>Show ends</b></span>
+              <button class="btn small" type="button" onclick="stripCmd('test=5','Green at the snout, red at the ear')">Show ends</button></div>
+            <label class="row"><span class="row-text"><b>Reverse first side</b></span>
+              <input type="checkbox" class="toggle" data-key="stripRevA" data-label="Reverse first side"></label>
+            <label class="row"><span class="row-text"><b>Reverse second side</b></span>
+              <input type="checkbox" class="toggle" data-key="stripRevB" data-label="Reverse second side"></label>
+            <div class="row"><span class="row-text"><b>LEDs fitted</b><small>Both sides added together</small></span>
+              <div class="stepper" data-key="stripNum" data-label="LEDs fitted" data-min="0" data-max="64" data-step="1"><button type="button" aria-label="Less">&minus;</button><output>20</output><button type="button" aria-label="More">+</button></div></div>
+            <div class="row"><span class="row-text"><b>On the first side</b><small>Where the chain crosses to the other cheek</small></span>
+              <div class="stepper" data-key="stripSplit" data-label="On the first side" data-min="0" data-max="64" data-step="1"><button type="button" aria-label="Less">&minus;</button><output>10</output><button type="button" aria-label="More">+</button></div></div>
+            <div class="row"><span class="row-text"><b>Test patterns</b><small>Straight down the chain, ignoring the layout</small></span>
+              <span style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn small" type="button" onclick="stripCmd('test=1','Rainbow')">Rainbow</button>
+                <button class="btn small" type="button" onclick="stripCmd('test=2','Walking dot')">Dot</button>
+                <button class="btn small" type="button" onclick="stripCmd('test=0','Back to normal')">Normal</button>
+              </span></div>
+          </div>
+        </details>
+      </div>
+    </details>
+
     <!-- Boop -->
     <details class="section" open>
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Boop</b><small>Snout sensor, how close counts, the shadow check and the boop face</small></span></summary>
@@ -1562,6 +1622,27 @@
   $('brightness').addEventListener('input', () => sendBrightness(false));
   $('brightness').addEventListener('change', () => sendBrightness(true));
 
+  /* ---------- cheek strip ---------- */
+  // Brightness goes live as the slider moves and is saved on release, the same way the panel
+  // brightness does, so dragging it does not write the config file dozens of times.
+  function stripCmd(q, okMsg) {
+    fetch('/strip?' + q, NO_CACHE)
+      .then(() => { if (okMsg) toast(okMsg); })
+      .catch(() => toast('Could not reach the mask', true));
+  }
+  var lastStripBri = null;
+  function sendStripBri(save) {
+    const v = +$('stripBri').value;
+    $('stripBriVal').textContent = Math.round(v / 255 * 100) + '%';
+    setFill($('stripBri'));
+    if (v === lastStripBri && !save) return;
+    lastStripBri = v;
+    fetch('/strip?bri=' + v + (save ? '&save=1' : ''), NO_CACHE)
+      .catch(() => toast('Could not reach the mask', true));
+  }
+  $('stripBri').addEventListener('input', () => sendStripBri(false));
+  $('stripBri').addEventListener('change', () => sendStripBri(true));
+
   /* ---------- settings: every control saves itself ---------- */
   // Each control carries data-key, the setting name /saveconfig takes. Only that one setting is
   // sent, so changing one can't overwrite another. If the mask doesn't take it, the control is
@@ -1608,6 +1689,7 @@
       el.value = v;
       if (el.type === 'range') showRange(el);
     }
+    if (el.id === 'stripBri') $('stripBriVal').textContent = Math.round(+v / 255 * 100) + '%';
     if (el.id === 'autoBriMode') showModeHint();
     if (el.id === 'mouthMode') showMouthHint();
     if (el.id === 'blinkMode') showBlinkHint();
@@ -1676,7 +1758,9 @@
                     btnShortPhrase: 0, btnDoublePhrase: 0, btnHoldPhrase: 0,
                     sleepDeepEna: false, sleepDeepMins: 20,
                     wakeFlickEna: true, wakeFlickBoot: true, wakeFlickStyle: 'crt', wakeFlickMs: 1800, wakeFlickGlitch: 1,
-                    bootBarEna: true, bootBarMs: 1500};
+                    bootBarEna: true, bootBarMs: 1500,
+                    stripEna: true, stripRevA: false, stripRevB: true, stripBlushEna: true, stripIdleEna: false,
+                    stripRaveEna: true, stripNum: 20, stripSplit: 10, stripBlushNum: 6, stripBlushMs: 2500, stripBlush: '#ff2d96'};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');
@@ -1997,6 +2081,13 @@
     for (const k of ['staName', 'staPass', 'mdnsName']) if (o[k] !== undefined && $(k)) $(k).value = o[k];
     if ($('mdnsHint')) $('mdnsHint').textContent = (o.mdnsName || 'protogen') + '.local';
     updateButtonRows();
+    if (o.bStrip !== undefined) {          //no data-key on this one: it sends live, then saves on release
+      const sb = Math.min(255, Math.max(0, o.bStrip));
+      $('stripBri').value = sb;
+      $('stripBriVal').textContent = Math.round(sb / 255 * 100) + '%';
+      setFill($('stripBri'));
+      lastStripBri = sb;
+    }
     if (o.bVisor !== undefined) {
       const bri = Math.min(15, Math.max(0, o.bVisor));
       $('brightness').value = bri; $('brightnessVal').textContent = bri; setFill($('brightness'));
