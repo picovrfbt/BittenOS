@@ -3523,9 +3523,12 @@ static float stripAmbientScale() {
 static bool stripIsBlush(int idx) {
   int mapLen = cfg.stripBlushMap.length();
   if(mapLen) return idx < mapLen && cfg.stripBlushMap[idx] == '1';
+  //No map picked yet, so guess: the middle of each side's run. On this mask the ten LEDs sit under
+  //the eye rather than along the whole cheek, and the blush is the middle six of them - centred is
+  //a far better guess than either end, and the diagram overrides it the moment it is used.
   for(uint8_t s = 0; s < 2; s++) {
-    int len = stripSideLen(s), b = min((int)cfg.stripBlushNum, len);
-    for(int i = len - b; i < len; i++) if(stripIdx(s, i) == idx) return true;
+    int len = stripSideLen(s), b = min((int)cfg.stripBlushNum, len), from = (len - b) / 2;
+    for(int i = from; i < from + b; i++) if(stripIdx(s, i) == idx) return true;
   }
   return false;
 }
