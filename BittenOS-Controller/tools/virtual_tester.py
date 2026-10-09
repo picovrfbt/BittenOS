@@ -585,6 +585,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, json.dumps({'on': board.rave_on, 'mode': board.rave_mode,
                                                'mic': board.rave_mic}),
                               'application/json')
+        if path == '/death':  # the fake low-battery death. The virtual face cannot play it either
+            if 'go' in q:
+                board.log('[I] Low battery (not really)')
+            elif 'stop' in q:
+                board.log('[I] Low battery: back')
+            return self.reply(200, json.dumps({'on': 'go' in q}), 'application/json')
         if path == '/strip':  # the cheek strip. Nothing to draw here, so this keeps the state only
             if 'test' in q:
                 board.strip_test = to_int(q['test'])
