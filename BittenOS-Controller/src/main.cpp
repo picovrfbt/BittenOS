@@ -410,6 +410,7 @@ unsigned long blankStart = 0, alsSkipUntil = 0, lastMeasureAt = 0, autoLastCheck
 uint8_t hybridSkips = 0;                //hybrid checks in a row that didn't need a blank
 int visorBright() { return (cfg.autoBriEna && autoShown >= 0) ? autoShown : cfg.bVisor; }
 void autoBrightnessStep();
+static float stripAmbientScale();   //defined with the rest of the strip, used by /stats above it
 //Status screen: drawn from /screen.json, the layout the on-board designer saves. With a layout in
 //place it owns the screen; without one, the original face-name screen is used instead.
 uint8_t screenBuf[128 * 8], screenPrev[128 * 8];
@@ -1561,6 +1562,12 @@ void startWiFiWeb() {
     cfg.getBool(request, "stripIdleEna", cfg.stripIdleEna);
     cfg.getBool(request, "stripRaveEna", cfg.stripRaveEna);
     cfg.getBool(request, "stripFlareEna", cfg.stripFlareEna);
+    cfg.getBool(request, "stripAutoEna", cfg.stripAutoEna);
+    cfg.getBool(request, "stripProxEna", cfg.stripProxEna);
+    if(cfg.getInt(request, "stripAutoMin", cfg.stripAutoMin)) cfg.stripAutoMin = constrain(cfg.stripAutoMin, 1, 100);
+    if(cfg.getInt(request, "stripRaveGain", cfg.stripRaveGain)) cfg.stripRaveGain = constrain(cfg.stripRaveGain, 25, 400);
+    if(cfg.getInt(request, "stripProxMin", cfg.stripProxMin)) cfg.stripProxMin = constrain(cfg.stripProxMin, 0, 100);
+    if(cfg.getInt(request, "stripProxStart", cfg.stripProxStart)) cfg.stripProxStart = constrain(cfg.stripProxStart, 0, 95);
     cfg.getBool(request, "stripBlushHold", cfg.stripBlushHold);
     if(cfg.getInt(request, "bStrip", cfg.bStrip)) cfg.bStrip = constrain(cfg.bStrip, 0, 255);
     if(cfg.getInt(request, "stripNum", cfg.stripNum)) cfg.stripNum = constrain(cfg.stripNum, 0, STRIP_MAX);
@@ -1921,6 +1928,7 @@ void startWiFiWeb() {
     st["raveMode"] = raveMode;
     st["strip"] = cfg.stripEna;
     st["stripTest"] = stripTest;
+    st["stripBri"] = (int)lroundf(cfg.bStrip * stripAmbientScale());   //after the room has had its say
     st["raveMic"] = raveUseMic;
     st["micRaw"] = micRawMid;                                         //middle of the swing: near half the supply if wired right
     st["micSwing"] = (int)(micSwing + 0.5f);                          //how loud it is, peak to peak over 25 ms
@@ -3412,6 +3420,12 @@ static const uint8_t RAVE_EDGES[RAVE_BANDS + 1] = {1, 2, 3, 4, 5, 6, 7, 8, 11, 1
 int raveSwingIn = 0;                      //the newest peak-to-peak window, from the speech block
 static float raveVuFloor = -1, raveVuPeak = 0, raveLevel = 0, raveHold = 0;
 static float raveBandFloor[RAVE_BANDS], raveBand[RAVE_BANDS], raveSpecPeak = 0;
+//What is actually drawn, and the cap hanging above it. The raw band value snaps about frame to
+//frame; these are what smooth it without blunting the hit.
+static float raveBandShown[RAVE_BANDS], raveBandCap[RAVE_BANDS];
+#define RAVE_ATTACK 0.80f                 //how much of a rise is taken in one frame: nearly all of it
+#define RAVE_RELEASE 0.22f                //and how much of a fall: slow enough to read, quick enough to follow
+#define RAVE_CAP_FALL 0.055f              //how far a peak cap sinks each frame
 static float raveHann[RAVE_FFT], raveTilt[RAVE_BANDS];
 static bool raveTablesReady = false, raveScreenDrawn = false;
 static unsigned long raveLastFrame = 0;
@@ -3490,6 +3504,20 @@ static void stripAdd(uint8_t side, int i, const CRGB &c) {   //keeps whichever c
   if(k >= 0 && k < STRIP_MAX) stripLeds[k] |= c;
 }
 
+//The room's own brightness, as a share of whatever the strip is set to. The reading comes from
+//auto-brightness, which blanks the panels to take it - so this follows rather than measures, and
+//does nothing at all when that is switched off. Log scale, for the same reason the panels use one:
+//a room at 50 and one at 500 feel far further apart than 500 and 950 do.
+static float stripAmbientScale() {
+  if(!cfg.stripAutoEna || !cfg.autoBriEna || ambient < 0) return 1.0f;
+  float dark = max(cfg.autoBriDark, 0) + 1.0f, bright = max(cfg.autoBriBright, 0) + 1.0f;
+  if(bright < dark * 1.5f) bright = dark * 1.5f;
+  float t = (log((float)ambient + 1.0f) - log(dark)) / (log(bright) - log(dark));
+  t = constrain(t, 0.0f, 1.0f);
+  float lo = constrain(cfg.stripAutoMin, 1, 100) / 100.0f;
+  return lo + t * (1.0f - lo);
+}
+
 //Is this LED part of the blush? The map is the answer once the diagram has been used. Before that,
 //fall back to the outer few of each side - right only if the chain happened to be laid that way.
 static bool stripIsBlush(int idx) {
@@ -3551,12 +3579,16 @@ static void stripRender() {
 
   if(raveActive && cfg.stripRaveEna) {
     float lvl = raveLevel;
-    if(raveMode != 0) {              //the spectrum has no single level, so take the bands' average
-      lvl = 0;
-      for(int b = 0; b < RAVE_BANDS; b++) lvl += raveBand[b];
-      lvl /= RAVE_BANDS;
+    if(raveMode != 0) {
+      //Leaning on the loudest band rather than the average of all sixteen. Music puts its energy
+      //in a handful of bands, so an average across the lot sits near the bottom and the meter
+      //never fills - which is exactly what it was doing. The average still gets a say, so a single
+      //spike does not slam it to the top on its own.
+      float sum = 0, top = 0;
+      for(int b = 0; b < RAVE_BANDS; b++) { sum += raveBand[b]; top = max(top, raveBand[b]); }
+      lvl = 0.65f * top + 0.35f * (sum / RAVE_BANDS);
     }
-    lvl = constrain(lvl, 0.0f, 1.0f);
+    lvl = constrain(lvl * (constrain(cfg.stripRaveGain, 25, 400) / 100.0f), 0.0f, 1.0f);
     stripPeak = max(lvl, stripPeak - 0.012f);          //the mark falls back the way a real one does
     for(uint8_t s = 0; s < 2; s++) {
       int len = stripSideLen(s);
@@ -3604,6 +3636,21 @@ static void stripRender() {
     }
   }
 
+  //A paw on the way in, before it lands. boopSignal() is how far over the resting level the sensor
+  //is reading, so this is a real distance rather than a guess. It starts well above nothing so the
+  //cheeks are not permanently lit by the sensor's own noise, and tops out at the full blush, which
+  //the boop itself then holds. A boop already showing outranks it.
+  if(cfg.stripBlushEna && cfg.stripProxEna && !blushing && boopFloor >= 0 && cfg.boopThresh > 0) {
+    float p = (float)boopSignal() / (float)cfg.boopThresh;
+    float from = constrain(cfg.stripProxStart, 0, 95) / 100.0f;
+    if(p > from) {
+      float g = constrain((p - from) / max(0.05f, 1.0f - from), 0.0f, 1.0f);
+      float lo = constrain(cfg.stripProxMin, 0, 100) / 100.0f;
+      float pk = lo + g * (1.0f - lo);               //from barely lit up to the full blush
+      if(pk > k) k = pk;
+    }
+  }
+
   if(k > 0.003f) {
     uint8_t scale = (uint8_t)constrain((int)(k * 255.0f), 1, 255);
     for(int i = 0; i < n; i++) {
@@ -3630,7 +3677,7 @@ static void stripStep() {
   }
   //Only push a frame that has actually changed. A dark or resting strip then costs nothing, which
   //matters because every push is time the MAX7219 chain is not being written to - that was the stutter.
-  uint8_t bri = (uint8_t)constrain(cfg.bStrip, 0, 255);
+  uint8_t bri = (uint8_t)constrain((int)lroundf(cfg.bStrip * stripAmbientScale()), 0, 255);
   if(stripSentOnce && bri == stripSentBri && memcmp(stripSent, stripLeds, sizeof(CRGB) * STRIP_MAX) == 0) return;
   memcpy(stripSent, stripLeds, sizeof(CRGB) * STRIP_MAX);
   stripSentBri = bri;
@@ -3702,7 +3749,12 @@ static void raveComputeSpectrum() {
     top = max(top, raw[b]);
   }
   raveSpecPeak = max(top, max(raveSpecPeak * RAVE_FALL, RAVE_SPEC_MIN_PEAK));
-  for(int b = 0; b < RAVE_BANDS; b++) raveBand[b] = powf(min(1.0f, raw[b] / raveSpecPeak), RAVE_CURVE);
+  for(int b = 0; b < RAVE_BANDS; b++) {
+    float v = powf(min(1.0f, raw[b] / raveSpecPeak), RAVE_CURVE);
+    //Rise fast, fall slow. A kick still lands on the frame it arrives, which is the whole point of
+    //the hit, but the bar then eases back down instead of flickering out.
+    raveBand[b] += (v - raveBand[b]) * (v > raveBand[b] ? RAVE_ATTACK : RAVE_RELEASE);
+  }
 }
 
 //One lit pixel at distance d from the nose on both maws, so the picture radiates from the middle
@@ -3731,8 +3783,15 @@ static void raveDrawMaw(uint64_t *w) {
     if(raveHold >= 0.5f) { raveSet(w, tick, 0); raveSet(w, tick, 7); }
   } else {                                  //spectrum: bass at the nose, treble out at the ear
     for(int b = 0; b < RAVE_BANDS; b++) {
-      int h = (int)(raveBand[b] * 8.0f + 0.5f);
+      raveBandShown[b] = raveBand[b];
+      //The cap hangs where the bar got to and sinks back. One pixel, and it is most of what makes
+      //this read as an analyser rather than a row of bars.
+      if(raveBandShown[b] >= raveBandCap[b]) raveBandCap[b] = raveBandShown[b];
+      else raveBandCap[b] = max(raveBandShown[b], raveBandCap[b] - RAVE_CAP_FALL);
+      int h = (int)(raveBandShown[b] * 8.0f + 0.5f);
       for(int r = 0; r < h; r++) raveSet(w, b * 2, 7 - r);
+      int cap = (int)(raveBandCap[b] * 8.0f + 0.5f);
+      if(cap > h && cap >= 1) raveSet(w, b * 2, 7 - (cap - 1));   //sitting clear of the bar's top
     }
   }
 }
@@ -3771,7 +3830,9 @@ static void raveComputeSynth() {
 //and a peak left over from before, or from the made-up groove, would be wrong for a while.
 static void raveReset() {
   raveVuFloor = -1; raveVuPeak = 0; raveLevel = 0; raveHold = 0; raveSpecPeak = 0;
-  for(int b = 0; b < RAVE_BANDS; b++) { raveBandFloor[b] = -1; raveBand[b] = 0; }
+  for(int b = 0; b < RAVE_BANDS; b++) {
+    raveBandFloor[b] = -1; raveBand[b] = 0; raveBandShown[b] = 0; raveBandCap[b] = 0;
+  }
 }
 
 static bool raveFaceDrawable() {

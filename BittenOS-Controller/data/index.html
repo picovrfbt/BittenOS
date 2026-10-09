@@ -456,6 +456,29 @@
           <input type="range" class="dep" min="0" max="255" step="1" value="77" id="stripBri">
         </div>
 
+        <label class="row dep"><span class="row-text"><b>Follow the room</b><small>Dim indoors, brighter outside. Needs Auto-brightness switched on, since that is what takes the light readings.</small></span>
+          <input type="checkbox" class="toggle" data-key="stripAutoEna" data-label="Follow the room" data-master="stripAutoEna"></label>
+
+        <div class="row stack dep" data-group="stripAutoEna">
+          <div class="control-head dep"><label for="stripAutoMin"><b>Dimmest it goes</b></label><output id="stripAutoMinVal">15%</output></div>
+          <input type="range" class="dep" min="1" max="100" step="1" value="15" id="stripAutoMin" data-key="stripAutoMin" data-label="Dimmest it goes">
+        </div>
+
+        <label class="row dep"><span class="row-text"><b>Glow as a paw comes in</b><small>The cheeks warm up from almost nothing as a hand nears the snout, reaching the full blush as it lands</small></span>
+          <input type="checkbox" class="toggle" data-key="stripProxEna" data-label="Glow as a paw comes in" data-master="stripProxEna"></label>
+
+        <div class="group dep" data-group="stripProxEna">
+          <div class="row stack dep">
+            <div class="control-head dep"><label for="stripProxMin"><b>Dimmest glow</b></label><output id="stripProxMinVal">4%</output></div>
+            <input type="range" class="dep" min="0" max="60" step="1" value="4" id="stripProxMin" data-key="stripProxMin" data-label="Dimmest glow">
+          </div>
+          <div class="row stack dep">
+            <div class="control-head dep"><label for="stripProxStart"><b>Starts at</b></label><output id="stripProxStartVal">15%</output></div>
+            <input type="range" class="dep" min="0" max="95" step="1" value="15" id="stripProxStart" data-key="stripProxStart" data-label="Starts at">
+            <small style="color:var(--faint)">How near a paw has to be before the cheeks react, as a share of Boop distance. Raise it if they light up when nothing is close.</small>
+          </div>
+        </div>
+
         <label class="row dep"><span class="row-text"><b>Blush on boop</b><small>A flare runs out from the snout, then the cheeks stay pink for a moment</small></span>
           <input type="checkbox" class="toggle" data-key="stripBlushEna" data-label="Blush on boop" data-master="stripBlushEna"></label>
 
@@ -487,7 +510,12 @@
           <input type="checkbox" class="toggle" data-key="stripIdleEna" data-label="Resting glow"></label>
 
         <label class="row dep"><span class="row-text"><b>Rave meter</b><small>An audio level up both cheeks while rave mode runs: green, yellow, then red at the top</small></span>
-          <input type="checkbox" class="toggle" data-key="stripRaveEna" data-label="Rave meter"></label>
+          <input type="checkbox" class="toggle" data-key="stripRaveEna" data-label="Rave meter" data-master="stripRaveEna"></label>
+
+        <div class="row stack dep" data-group="stripRaveEna">
+          <div class="control-head dep"><label for="stripRaveGain"><b>Meter sensitivity</b></label><output id="stripRaveGainVal">160%</output></div>
+          <input type="range" class="dep" min="25" max="400" step="5" value="160" id="stripRaveGain" data-key="stripRaveGain" data-label="Meter sensitivity">
+        </div>
 
         <details class="sub dep">
           <summary><span>How the chain is laid out</span></summary>
@@ -1743,7 +1771,8 @@
     return false;
   }
 
-  const RANGE_UNITS = {boopShade: v => v + '%', transMs: v => v + ' ms'};
+  const RANGE_UNITS = {boopShade: v => v + '%', transMs: v => v + ' ms', stripAutoMin: v => v + '%',
+                       stripRaveGain: v => v + '%', stripProxMin: v => v + '%', stripProxStart: v => v + '%'};
   function showRange(el) {
     const out = $(el.id + 'Val');
     if (out) out.textContent = RANGE_UNITS[el.dataset.key] ? RANGE_UNITS[el.dataset.key](el.value) : el.value;
@@ -1846,7 +1875,9 @@
                     bootBarEna: true, bootBarMs: 1500,
                     stripEna: true, stripRevA: false, stripRevB: true, stripBlushEna: true, stripIdleEna: false,
                     stripRaveEna: true, stripNum: 20, stripSplit: 10, stripBlushNum: 6, stripBlushMs: 2500, stripBlush: '#ff2d96',
-                    stripFlareEna: false, stripBlushHold: true};
+                    stripFlareEna: false, stripBlushHold: true,
+                    stripAutoEna: false, stripProxEna: true, stripAutoMin: 15, stripRaveGain: 160,
+                    stripProxMin: 4, stripProxStart: 15};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');

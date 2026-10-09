@@ -68,6 +68,12 @@ public:
   //guess which, each side gets a reverse switch and the Ends test shows which way it came out.
   //Brightness is yours to set outright - there is no cap, it just starts at about 30%.
   bool stripEna,stripRevA,stripRevB,stripBlushEna,stripIdleEna,stripRaveEna;
+  int stripRaveGain;                  //percent: how hard the cheek meter is driven in rave mode
+  int stripProxMin;                   //percent: how dim the glow starts when a paw first registers
+  int stripProxStart;                 //percent of the boop distance at which it begins reacting
+  bool stripAutoEna;                  //strip brightness follows the room, off the same light reading
+  bool stripProxEna;                  //the cheeks warm as a paw comes in, before the boop lands
+  int stripAutoMin;                   //percent the room-following is allowed to pull it down to
   bool stripFlareEna;                 //the pale sweep out from the snout before the blush settles
   bool stripBlushHold;                //blush for as long as the paw is there, not a fixed time
   int bStrip,stripNum,stripSplit,stripBlushNum,stripBlushMs;
