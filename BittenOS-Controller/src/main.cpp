@@ -3420,12 +3420,12 @@ static const uint8_t RAVE_EDGES[RAVE_BANDS + 1] = {1, 2, 3, 4, 5, 6, 7, 8, 11, 1
 int raveSwingIn = 0;                      //the newest peak-to-peak window, from the speech block
 static float raveVuFloor = -1, raveVuPeak = 0, raveLevel = 0, raveHold = 0;
 static float raveBandFloor[RAVE_BANDS], raveBand[RAVE_BANDS], raveSpecPeak = 0;
-//What is actually drawn, and the cap hanging above it. The raw band value snaps about frame to
-//frame; these are what smooth it without blunting the hit.
-static float raveBandShown[RAVE_BANDS], raveBandCap[RAVE_BANDS];
+//The raw band value snaps about frame to frame. These two numbers are all the smoothing there is:
+//take nearly all of a rise at once so a kick still hits on the frame it arrives, and rather less of
+//a fall so the bar reads as falling rather than blinking out. No peak caps - a single pixel hanging
+//over a bar needs more than eight rows to read as anything but noise.
 #define RAVE_ATTACK 0.80f                 //how much of a rise is taken in one frame: nearly all of it
-#define RAVE_RELEASE 0.22f                //and how much of a fall: slow enough to read, quick enough to follow
-#define RAVE_CAP_FALL 0.055f              //how far a peak cap sinks each frame
+#define RAVE_RELEASE 0.40f                //and how much of a fall
 static float raveHann[RAVE_FFT], raveTilt[RAVE_BANDS];
 static bool raveTablesReady = false, raveScreenDrawn = false;
 static unsigned long raveLastFrame = 0;
@@ -3783,15 +3783,8 @@ static void raveDrawMaw(uint64_t *w) {
     if(raveHold >= 0.5f) { raveSet(w, tick, 0); raveSet(w, tick, 7); }
   } else {                                  //spectrum: bass at the nose, treble out at the ear
     for(int b = 0; b < RAVE_BANDS; b++) {
-      raveBandShown[b] = raveBand[b];
-      //The cap hangs where the bar got to and sinks back. One pixel, and it is most of what makes
-      //this read as an analyser rather than a row of bars.
-      if(raveBandShown[b] >= raveBandCap[b]) raveBandCap[b] = raveBandShown[b];
-      else raveBandCap[b] = max(raveBandShown[b], raveBandCap[b] - RAVE_CAP_FALL);
-      int h = (int)(raveBandShown[b] * 8.0f + 0.5f);
+      int h = (int)(raveBand[b] * 8.0f + 0.5f);
       for(int r = 0; r < h; r++) raveSet(w, b * 2, 7 - r);
-      int cap = (int)(raveBandCap[b] * 8.0f + 0.5f);
-      if(cap > h && cap >= 1) raveSet(w, b * 2, 7 - (cap - 1));   //sitting clear of the bar's top
     }
   }
 }
@@ -3830,9 +3823,7 @@ static void raveComputeSynth() {
 //and a peak left over from before, or from the made-up groove, would be wrong for a while.
 static void raveReset() {
   raveVuFloor = -1; raveVuPeak = 0; raveLevel = 0; raveHold = 0; raveSpecPeak = 0;
-  for(int b = 0; b < RAVE_BANDS; b++) {
-    raveBandFloor[b] = -1; raveBand[b] = 0; raveBandShown[b] = 0; raveBandCap[b] = 0;
-  }
+  for(int b = 0; b < RAVE_BANDS; b++) { raveBandFloor[b] = -1; raveBand[b] = 0; }
 }
 
 static bool raveFaceDrawable() {
