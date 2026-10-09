@@ -827,6 +827,7 @@
           <select id="eggAction" data-key="eggAction" data-label="Quick presses start" aria-label="Quick presses start" style="text-transform:none">
             <option value="slots">The slot machine</option>
             <option value="dino">The dino game</option>
+            <option value="shutdown">The fake low battery</option>
             <option value="none">Nothing</option></select></div>
         <div class="row" id="eggPressesRow"><span class="row-text"><b>How many presses</b><small>Each one has to land within about half a second of the last</small></span>
           <div class="stepper" data-key="eggPresses" data-label="How many presses" data-min="3" data-max="10" data-step="1"><button type="button" aria-label="Less">&minus;</button><output>6</output><button type="button" aria-label="More">+</button></div></div>
@@ -1026,11 +1027,13 @@
 
     <section class="card">
       <h2>Easter eggs</h2>
-      <p class="hint" style="padding:0 0 10px">Both play across the maw. Either also starts from the mask itself, with a quick run of button presses — set which one under Settings, Button.</p>
+      <p class="hint" style="padding:0 0 10px">These play across the maw. Any of them also starts from the mask itself, with a quick run of button presses — set which one under Settings, Button.</p>
       <div class="eggs">
         <button class="btn" type="button" id="slotBtn" onclick="slotToggle()">Slot machine</button>
         <button class="btn" type="button" id="dinoBtn" onclick="dinoToggle()">Dino game</button>
+        <button class="btn" type="button" id="deathBtn" onclick="deathGo()">Fake low battery</button>
       </div>
+      <div class="row"><span class="row-text"><b>Fake low battery</b><small>Six seconds of glitching, a draining battery on the maw and red cheeks, then it plays dead and comes back. Any button press cuts it short. Nothing is really being measured.</small></span></div>
       <div class="row"><span class="row-text"><b>Slots</b><small>One spin in three lands on triple sevens. The reels show on the inside screen too.</small></span><b id="slotScore">—</b></div>
       <div class="row"><span class="row-text"><b>Dino score</b><small>While it runs, the mask's own button jumps.</small></span><b id="dinoScore">—</b></div>
       <div style="margin-top:10px"><button class="btn wide" type="button" id="dinoJump" onclick="dinoJump()" hidden>Jump</button></div>
@@ -1500,6 +1503,12 @@
       if (raveOn) raveSend('mode=' + raveMode);        // switching looks mid-rave takes effect at once
     });
   }
+  function deathGo() {
+    fetch('/death?go=1', NO_CACHE)
+      .then(() => toast('Battery critical...'))
+      .catch(() => toast('Could not reach the mask', true));
+  }
+
   $('raveMic').addEventListener('change', () => {
     raveMic = $('raveMic').checked;
     try { localStorage.setItem('raveMic', raveMic ? '1' : '0'); } catch (e) {}
@@ -2009,7 +2018,8 @@
   const BTN_ACTIONS = {none: 'Nothing', nextFace: 'Next face', prevFace: 'Previous face',
                        displays: 'Displays on/off', sleep: 'Sleep / wake', face: 'A chosen face',
                        phrase: 'A quick phrase', screen: 'Next screen page',
-                       slots: 'Slot machine', dino: 'Dino game', boot: 'Boot sequence'};
+                       slots: 'Slot machine', dino: 'Dino game', boot: 'Boot sequence',
+                       shutdown: 'Fake low battery'};
   const BTN_SLOTS = ['btnShort', 'btnDouble', 'btnHold', ...RMT_SLOTS];
 
   function fillButtonPickers() {

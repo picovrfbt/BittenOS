@@ -461,6 +461,14 @@ int dinoScore = 0;
 //Slot machine easter egg: same reason, /slots and the button both sit above the machine itself
 bool slotActive = false;
 volatile bool slotStartReq = false, slotStopReq = false;
+//The fake low-battery death. Owns the panels like the games do; the strip reads deathRed() for the
+//red pulse, and is declared here because stripRender() is written above where the death lives.
+bool deathActive = false;
+volatile bool deathStartReq = false, deathStopReq = false;
+unsigned long deathAt = 0;
+String deathBackTo;
+float deathRed();
+void deathEnd();
 int8_t slotOutcome = -1;            //-1 still spinning, 0 no luck, 1 triple sevens
 uint8_t slotPos[3] = {0, 0, 0};     //where each reel sits, in pixels down its loop of symbols
 //A rapid burst of presses starts an easter egg. The face to come back to is remembered from the
@@ -2041,6 +2049,13 @@ void startWiFiWeb() {
     request->send(200, "application/json", out);
   });
 
+  server.on("/death", HTTP_GET, [](AsyncWebServerRequest *request){ //the fake low-battery death
+    if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels")); return; }
+    if(request->hasParam("go")) deathStartReq = true;
+    else if(request->hasParam("stop")) deathStopReq = true;
+    request->send(200, "application/json", String(F("{\"on\":")) + (deathStopReq ? "false" : "true") + "}");
+  });
+
   server.on("/dino", HTTP_GET, [](AsyncWebServerRequest *request){ //the game on the maw: go, jump, stop
     if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels")); return; }
     if(request->hasParam("go")) dinoStartReq = true;
@@ -2259,6 +2274,7 @@ void showPhrase(int slot) {
 
 void doButtonAction(const String &action, const String &face, int phraseSlot) {
   if(dinoActive) { dinoJumpReq = true; return; }   //while a game runs the button jumps, whatever it is set to
+  if(deathActive) { deathEnd(); return; }          //a press brings it straight back
   if(slotActive) return;                           //the reels spin on their own: nothing to press
   if(action == "none" || action == "") return;
   if(action == "nextFace" || action == "prevFace") {
@@ -2300,6 +2316,11 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
   }
   if(action == "phrase") {
     showPhrase(phraseSlot);
+    return;
+  }
+  if(action == "shutdown") {               //the fake low-battery death
+    deathStartReq = true;
+    logPrint(F("[I] Button: low battery (not really)"));
     return;
   }
   if(action == "slots") {                  //the slot machine on the maw
@@ -3580,6 +3601,22 @@ static void stripRender() {
   //would otherwise sit glowing on your cheek with the mask off.
   if(!cfg.stripEna || !displayOn || sleeping) return;
 
+  if(deathActive) {                  //the dying pulse outranks everything else the strip does
+    float r = deathRed();
+    if(r <= 0.002f) return;
+    //Gentle pulses stay in the blush; a hard one spills along the run, so the panic reads as
+    //bigger than the resting state rather than just brighter.
+    float spill = max(0.0f, (r - 0.55f) * 1.8f);
+    for(int i = 0; i < n; i++) {
+      float k = stripIsBlush(i) ? r : r * spill;
+      if(k <= 0.004f) continue;
+      CRGB c = CRGB(255, 18, 10);
+      c.nscale8_video((uint8_t)constrain((int)(k * 255.0f), 1, 255));
+      stripLeds[i] = c;
+    }
+    return;
+  }
+
   if(raveActive && cfg.stripRaveEna) {
     float lvl = raveLevel;
     if(raveMode != 0) {
@@ -3792,6 +3829,141 @@ static void raveDrawMaw(uint64_t *w) {
   }
 }
 
+//--------------------------------//Fake low-battery shutdown
+//A bit, not a measurement: nothing here reads a battery. Six and a half seconds of staged failure
+//ending in an apparently dead mask, then it comes back by itself. Timings are from the top.
+#define DEATH_TWITCH   800        //one hard twitch, and the cheeks pulse once
+#define DEATH_DROPOUT 1900        //panels start cutting out
+#define DEATH_BATTERY 2900        //a battery on each maw, draining
+#define DEATH_CORRUPT 4000        //tearing, inverted blocks, the brightness sagging
+#define DEATH_STUTTER 4800        //the face cuts in and out, dimmer each time
+#define DEATH_COLLAPSE 5300       //the picture squeezes to a line, like a tube losing its power
+#define DEATH_DARK    6800        //dark, with a couple of dying blips, then back to normal
+
+static uint32_t deathSeed = 1;
+static inline uint32_t deathRand() {          //a cheap generator, so the glitch is not random() spam
+  deathSeed = deathSeed * 1664525UL + 1013904223UL;
+  return deathSeed >> 8;
+}
+
+//How hot the cheeks are at this moment, 0 to 1. Shared with stripRender().
+float deathRed() {
+  if(!deathActive) return 0.0f;
+  unsigned long t = millis() - deathAt;
+  if(t < DEATH_TWITCH)   return max(0.0f, 1.0f - fabsf((float)t - 500.0f) / 420.0f);
+  if(t < DEATH_DROPOUT)  return max(0.0f, 0.55f + 0.45f * sinf((t - DEATH_TWITCH) / 1000.0f * TWO_PI));
+  if(t < DEATH_BATTERY)  return max(0.0f, 0.5f + 0.5f * sinf((t - DEATH_DROPOUT) / 1000.0f * TWO_PI * 2.0f));
+  if(t < DEATH_CORRUPT)  return max(0.0f, 0.5f + 0.5f * sinf((t - DEATH_BATTERY) / 1000.0f * TWO_PI * 3.5f));
+  if(t < DEATH_STUTTER)  return (((t - DEATH_CORRUPT) / 180) % 2 == 0) ? 1.0f : 0.08f;
+  if(t < DEATH_COLLAPSE) return 1.0f;                       //one last flash as the picture goes
+  if(t < DEATH_DARK) {                                      //dying blips in the dark
+    unsigned long u = t - DEATH_COLLAPSE;
+    if(u > 350 && u < 500) return 0.45f;
+    if(u > 800 && u < 870) return 0.18f;
+    return 0.0f;
+  }
+  return 0.0f;
+}
+
+//A battery outline on each maw, draining. One per side rather than one across the middle: the
+//bottom panel row has a gap where the two maws meet, and anything centred falls down it.
+static void deathBattery(uint64_t *w, float fill) {
+  for(int d = 3; d <= 24; d++) { raveSet(w, d, 1); raveSet(w, d, 6); }     //top and bottom
+  for(int r = 1; r <= 6; r++)  { raveSet(w, 3, r); raveSet(w, 24, r); }    //the two ends
+  for(int r = 2; r <= 5; r++)  raveSet(w, 26, r);                          //the nub
+  int bars = (int)(18.0f * constrain(fill, 0.0f, 1.0f) + 0.5f);
+  for(int i = 0; i < bars; i++)
+    for(int r = 2; r <= 5; r++) raveSet(w, 5 + i, r);
+}
+
+static void deathRender() {
+  unsigned long t = millis() - deathAt;
+  uint64_t w[MATRIXESNUM];
+  for(int i = 0; i < MATRIXESNUM; i++) w[i] = 0;
+  bool haveFace = visorNow && visorNow->frames && numOfSegm &&
+                  currentVisorFrame < visorNow->numOfFrames;
+  if(haveFace)
+    for(int i = 0; i < numOfSegm && i < MATRIXESNUM; i++)
+      w[i] = visorNow->frames[currentVisorFrame].leds[i];
+
+  auto dropPanel = [&]() { w[deathRand() % max(1, (int)numOfSegm)] = 0; };
+  auto tearRow = [&]() {                      //one byte row of one panel, rolled sideways
+    int p = deathRand() % max(1, (int)numOfSegm), r = deathRand() % 8;
+    int s = (int)(deathRand() % 7) - 3;
+    uint8_t row = (w[p] >> (r * 8)) & 0xFF;
+    row = (s >= 0) ? (uint8_t)(row << s | row >> (8 - s)) : (uint8_t)(row >> -s | row << (8 + s));
+    w[p] = (w[p] & ~((uint64_t)0xFF << (r * 8))) | ((uint64_t)row << (r * 8));
+  };
+  auto invert = [&]() {
+    int p = deathRand() % max(1, (int)numOfSegm), r = deathRand() % 8;
+    w[p] ^= (uint64_t)(deathRand() & 0xFF) << (r * 8);
+  };
+  auto squeeze = [&](float u) {               //keep only the middle rows, closing in
+    int keep = max(1, (int)(8.0f * (1.0f - u) + 0.5f));
+    int lo = (8 - keep) / 2, hi = lo + keep - 1;
+    for(int p = 0; p < MATRIXESNUM; p++)
+      for(int r = 0; r < 8; r++)
+        if(r < lo || r > hi) w[p] &= ~((uint64_t)0xFF << (r * 8));
+  };
+
+  if(t < DEATH_TWITCH) {
+    if(t > 420 && t < 520) { tearRow(); tearRow(); tearRow(); }
+  } else if(t < DEATH_DROPOUT) {
+    if(deathRand() % 100 < 35) dropPanel();
+    if(deathRand() % 100 < 15) tearRow();
+  } else if(t < DEATH_BATTERY) {
+    for(int p = 0; p < MATRIXESNUM; p++)      //clear the maws, the battery goes there
+      for(int k = 0; k < 2; k++)
+        for(int j = 0; j < 4; j++)
+          if(mawStrips[k].panel[j] < numOfSegm) w[mawStrips[k].panel[j]] = 0;
+    deathBattery(w, 0.34f - (t - DEATH_DROPOUT) / 1000.0f * 0.22f);
+    if(deathRand() % 100 < 22) tearRow();
+  } else if(t < DEATH_CORRUPT) {
+    dropPanel();
+    for(int i = 0; i < 3; i++) tearRow();
+    if(deathRand() % 100 < 60) invert();
+  } else if(t < DEATH_STUTTER) {
+    if(((t - DEATH_CORRUPT) / 180) % 2) {
+      for(int i = 0; i < MATRIXESNUM; i++) w[i] = 0;        //off beat: gone
+    } else {
+      for(int i = 0; i < 4; i++) tearRow();
+      dropPanel(); dropPanel();
+    }
+  } else if(t < DEATH_COLLAPSE) {
+    squeeze((float)(t - DEATH_STUTTER) / (DEATH_COLLAPSE - DEATH_STUTTER));
+  } else {
+    for(int i = 0; i < MATRIXESNUM; i++) w[i] = 0;          //dark
+  }
+  mawPush(w);
+}
+
+void deathStart(const String &backTo) {
+  if(visorType != "MAX72XX" || deathActive) return;
+  deathBackTo = (backTo != "") ? backTo : currentAnim;
+  deathActive = true;
+  deathAt = millis();
+  deathSeed = millis() | 1;
+  logPrint(F("[I] Low battery (not really)"));
+}
+
+void deathEnd() {
+  if(!deathActive) return;
+  deathActive = false;
+  if(deathBackTo != "" && deathBackTo != "POSTAnimLoad") loadAnim(deathBackTo, "");
+  deathBackTo = "";
+  instantReload = true;
+  screenPrevValid = false;
+  logPrint(F("[I] Low battery: back"));
+}
+
+void deathStep() {
+  if(deathStartReq) { deathStartReq = false; if(!deathActive && !dinoActive && !slotActive) deathStart(""); }
+  if(deathStopReq)  { deathStopReq = false; deathEnd(); }
+  if(!deathActive) return;
+  if(millis() - deathAt >= DEATH_DARK) { deathEnd(); return; }
+  deathRender();
+}
+
 //The inside screen says RAVE MODE and is then left alone. A picture that never changes means
 //screenTick() pushes nothing at all, and the OLED's blit is the one thing already proven to
 //stutter the face - so this hands the whole loop to the maw exactly when it needs it most.
@@ -3860,7 +4032,7 @@ static void raveStop() {
 void setAllVisor(struct CRGB *ledArray, long ledColor, int visorFrame) {
   //The games draw the panels themselves. Speech, mouth bob, blinks and the warm-up all repaint
   //the face on their own timers, and without this they flashed it over the game between ticks.
-  if(dinoActive || slotActive) return;
+  if(dinoActive || slotActive || deathActive) return;
   if(!visorNow || !visorNow->frames || visorFrame < 0 || visorFrame >= visorNow->numOfFrames) return;
   uint64_t tempLeds[MATRIXESNUM];
   memcpy(tempLeds, visorNow->frames[visorFrame].leds, sizeof(tempLeds));
@@ -4280,7 +4452,8 @@ void loop() {
   //--------------------------------//VISOR+BLUSH Leds render
   dinoStep();                              //while a game is running it owns the panels
   slotTick();                              //as does the slot machine
-  if(!dinoActive && !slotActive && visorNow->frames && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) { //custom
+  deathStep();                             //and so does the fake low-battery death
+  if(!dinoActive && !slotActive && !deathActive && visorNow->frames && (visorNow->type == 0 || (visorNow->type == 1 && visorType == "MAX72XX"))) { //custom
     if(blinkHoldsFace()) {                 //the mask is doing the blinking: sit on the resting frame
       if(currentVisorFrame != blinkRestFrame || instantReload) {
         currentVisorFrame = blinkRestFrame;
