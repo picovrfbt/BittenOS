@@ -169,6 +169,50 @@ Separate from the mask: nothing connects to the ESP32 or the phone.
 - Feedback: speaker on the hip facing forward, mic gain no higher than needed.
 - Later, optionally: a small voice changer box between the receiver and the Clip 3 for the robot voice.
 
+## Headpat detection - capacitive, nothing bought (2026-11-06)
+
+Wanted: detect a hand on the top/back of the head. Two mountings were on the table (user, 2026-11-06):
+**(a)** firing backwards above the visor, or **(b)** under a 3D printed shell and fur.
+
+**Mounting (b) rules out everything optical.** Printed plastic blocks 940 nm and fur blocks line of
+sight, so a ToF under there reads the shell as a solid object a few mm away, permanently. Only
+capacitive works there - plastic and fur are both just dielectrics.
+
+- [ ] **The ESP32-S3's own touch channels - try this first, it is free.** The S3 has 14 capacitive
+      touch inputs on GPIO 1-14, so a copper foil pad and a wire may be the whole bill of materials.
+      Free in that range on this mask: **1, 7, 8, 11** (7 is the unused WS2812 visor pin, 8 the old
+      SDA, 11 the spare at J1 pin 17) and **2** in practice (`T_in`, for a KY-032 never fitted).
+      Five possible zones - top, back, each side - so a headpat could be told from an ear scritch.
+      **Risk:** S3 touch is noisier than a dedicated chip and there are 14 MAX7219s plus a WS2812
+      strip switching nearby. Needs a tracked baseline and filtering. Costs one wire to find out.
+- [ ] **MPR121 (0x5A) - the fallback** if the built-in touch is twitchy. Same pads, same mounting,
+      proper filtering and auto-baselining, 12 channels, ~GBP 6, on the I2C bus already there.
+- [ ] **VL53L1X (0x29) - only for mounting (a)**, firing backwards above the visor. Aims properly,
+      4 m, works in the dark, narrowable field of view. Needs a **clear aperture** - a hole, not a
+      covered window - and gating to a distance band (~5-40 cm) or it will see ceilings and walls.
+      Behind any cover it also needs crosstalk calibration, a baffle between emitter and receiver,
+      and an air gap. The one thing it gives that capacitive cannot is **anticipation**: knowing a
+      hand is coming before it lands.
+- Rejected: **AMG8833 thermal (0x68/0x69)** - needs line of sight like the ToF, ~GBP 25, and clashes
+  with the BMI270 address.
+- Not possible: a second APDS-9930. Its address is fixed at 0x39.
+
+**Recommendation:** capacitive under the shell and fur. Hidden, no hole, lighting irrelevant,
+multiple zones, and a headpat is a touch rather than a distance.
+
+## Voice through the JBL Clip 3 - noted, not bought (2026-10-04)
+
+Separate from the mask: nothing connects to the ESP32 or the phone.
+- A Bluetooth mic can't pair to the Clip 3 directly (both are endpoints), and routing through a
+  phone adds ~150-250 ms of delay - an echo you hear inside the mask.
+- Plan: a **2.4 GHz (or UHF) wireless headset mic** whose receiver plugs into the Clip 3's built-in
+  3.5 mm AUX lead. ~10-20 ms delay.
+- When buying: headset/boom style (less feedback than a lav inside the mask); a 3-contact TRS
+  3.5 mm receiver output, not phone-style TRRS; an output volume control on the receiver (the Clip 3
+  has no gain of its own). Search "wireless headset microphone 2.4G 3.5mm receiver".
+- Feedback: speaker on the hip facing forward, mic gain no higher than needed.
+- Later, optionally: a small voice changer box between the receiver and the Clip 3 for the robot voice.
+
 ## Headpat detection - picked a sensor, not bought (2026-10-06)
 
 Wanted: detect a hand near the top/back of the visor, on the existing I2C bus (GPIO 9/10), with no
