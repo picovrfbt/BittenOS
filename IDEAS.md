@@ -193,9 +193,31 @@ capacitive works there - plastic and fur are both just dielectrics.
       Behind any cover it also needs crosstalk calibration, a baffle between emitter and receiver,
       and an air gap. The one thing it gives that capacitive cannot is **anticipation**: knowing a
       hand is coming before it lands.
-- Rejected: **AMG8833 thermal (0x68/0x69)** - needs line of sight like the ToF, ~GBP 25, and clashes
-  with the BMI270 address.
+- Rejected: **anything thermal** (AMG8833, MLX90614, MLX90640). Body heat is far infrared, 8-14 um,
+  and plastic is *completely* opaque at that wavelength - thermal sensors need a germanium or
+  silicon window, not thin plastic. A hole would not even do it. The AMG8833 also clashes with the
+  BMI270 address.
+- Rejected: **cheap mmWave radar** (LD2410, LD2450, MR24HPC1). Radar genuinely does pass straight
+  through a printed shell and fur, which is the property wanted - and UART rather than I2C is no
+  blocker, since the S3 can put a UART on any free pin and only RX is needed. It fails on what it
+  is good at: ~6 m range with ~0.75 m distance gates, built to find people in rooms. The wearer's
+  own head is centimetres away permanently and every passer-by registers. It cannot tell a hand on
+  the head from a human in the building.
+  The exception is the **Acconeer A121 / XM125** - sub-cm through plastic, has an I2C interface -
+  but ~GBP 40-50, harder to source and far more work. Noted, not planned.
 - Not possible: a second APDS-9930. Its address is fixed at 0x39.
+
+**Firmware groundwork that already exists:** `Adafruit VL53L1X` is in `lib_deps` and `src/main.cpp`
+can already drive one - but as an *alternative* boop sensor (`boopMode "VL53L1X"`), not as a second
+sensor. Running one alongside the APDS-9930 for headpats would reuse that object, since both would
+want 0x29 anyway and only one can be active.
+
+**No hole is workable for the ToF** behind the visor: the boop code already solves the same problem
+for the APDS - a sensor behind a visor always sees its own IR coming back and that level drifts, so
+it tracks a resting level and calls a boop a *change* from it. Same trick suits the ToF. Keep a
+2-3 mm air gap and put a baffle (black tape or foam) between the emitter and receiver windows. The
+residual risk is that severe crosstalk makes it report "no target" rather than a varying number,
+which no baseline tracking can rescue.
 
 **Recommendation:** capacitive under the shell and fur. Hidden, no hole, lighting irrelevant,
 multiple zones, and a headpat is a touch rather than a distance.
