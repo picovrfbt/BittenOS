@@ -120,8 +120,7 @@ void Config::setDefault() {
   stripIdleEna = false;  //a soft blush the rest of the time, off by default
   stripRaveEna = true;   //the DJ meter while rave mode runs
   stripRaveGain = 160;   //the meter wants pushing harder than the maw to use its ten LEDs
-  stripProxMin = 4;      //barely lit when a paw first registers
-  stripProxStart = 15;   //well clear of the sensor's own noise, or the cheeks sit lit all day
+  deathHoldEna = true;   //play dead properly: wait to be woken rather than timing out
   stripAutoEna = false;  //needs Auto-brightness on, since that is what takes the light readings
   stripProxEna = true;   //warm up as a paw comes in
   stripAutoMin = 15;     //never darker than this share of the set brightness
@@ -252,8 +251,7 @@ bool Config::save() {
   doc["stripIdleEna"] = stripIdleEna;
   doc["stripRaveEna"] = stripRaveEna;
   doc["stripRaveGain"] = stripRaveGain;
-  doc["stripProxMin"] = stripProxMin;
-  doc["stripProxStart"] = stripProxStart;
+  doc["deathHoldEna"] = deathHoldEna;
   doc["stripAutoEna"] = stripAutoEna;
   doc["stripProxEna"] = stripProxEna;
   doc["stripAutoMin"] = stripAutoMin;
@@ -455,8 +453,7 @@ bool Config::load() {
   stripIdleEna = doc["stripIdleEna"] | false;
   stripRaveEna = doc["stripRaveEna"] | true;
   stripRaveGain = doc["stripRaveGain"] | 160;
-  stripProxMin = doc["stripProxMin"] | 4;
-  stripProxStart = doc["stripProxStart"] | 15;
+  deathHoldEna = doc["deathHoldEna"] | true;
   stripAutoEna = doc["stripAutoEna"] | false;
   stripProxEna = doc["stripProxEna"] | true;
   stripAutoMin = doc["stripAutoMin"] | 15;

@@ -464,20 +464,8 @@
           <input type="range" class="dep" min="1" max="100" step="1" value="15" id="stripAutoMin" data-key="stripAutoMin" data-label="Dimmest it goes">
         </div>
 
-        <label class="row dep"><span class="row-text"><b>Glow as a paw comes in</b><small>The cheeks warm up from almost nothing as a hand nears the snout, reaching the full blush as it lands</small></span>
-          <input type="checkbox" class="toggle" data-key="stripProxEna" data-label="Glow as a paw comes in" data-master="stripProxEna"></label>
-
-        <div class="group dep" data-group="stripProxEna">
-          <div class="row stack dep">
-            <div class="control-head dep"><label for="stripProxMin"><b>Dimmest glow</b></label><output id="stripProxMinVal">4%</output></div>
-            <input type="range" class="dep" min="0" max="60" step="1" value="4" id="stripProxMin" data-key="stripProxMin" data-label="Dimmest glow">
-          </div>
-          <div class="row stack dep">
-            <div class="control-head dep"><label for="stripProxStart"><b>Starts at</b></label><output id="stripProxStartVal">15%</output></div>
-            <input type="range" class="dep" min="0" max="95" step="1" value="15" id="stripProxStart" data-key="stripProxStart" data-label="Starts at">
-            <small style="color:var(--faint)">How near a paw has to be before the cheeks react, as a share of Boop distance. Raise it if they light up when nothing is close.</small>
-          </div>
-        </div>
+        <label class="row dep"><span class="row-text"><b>Glow as a paw comes in</b><small>The cheeks fade up as a hand nears the snout, reaching the full blush as it lands. It follows <b>Boop distance</b> &mdash; raise that and the glow starts from further out.</small></span>
+          <input type="checkbox" class="toggle" data-key="stripProxEna" data-label="Glow as a paw comes in"></label>
 
         <label class="row dep"><span class="row-text"><b>Blush on boop</b><small>A flare runs out from the snout, then the cheeks stay pink for a moment</small></span>
           <input type="checkbox" class="toggle" data-key="stripBlushEna" data-label="Blush on boop" data-master="stripBlushEna"></label>
@@ -1033,7 +1021,9 @@
         <button class="btn" type="button" id="dinoBtn" onclick="dinoToggle()">Dino game</button>
         <button class="btn" type="button" id="deathBtn" onclick="deathGo()">Fake low battery</button>
       </div>
-      <div class="row"><span class="row-text"><b>Fake low battery</b><small>Six seconds of glitching, a draining battery on the maw and red cheeks, then it plays dead and comes back. Any button press cuts it short. Nothing is really being measured.</small></span></div>
+      <div class="row"><span class="row-text"><b>Fake low battery</b><small>Eight seconds of glitching, a draining battery on the maw and red cheeks, then it plays dead. Any button or remote press wakes it. Nothing is really being measured.</small></span></div>
+      <label class="row"><span class="row-text"><b>Stay off until woken</b><small>Off means it comes back by itself a moment after going dark</small></span>
+        <input type="checkbox" class="toggle" data-key="deathHoldEna" data-label="Stay off until woken"></label>
       <div class="row"><span class="row-text"><b>Slots</b><small>One spin in three lands on triple sevens. The reels show on the inside screen too.</small></span><b id="slotScore">—</b></div>
       <div class="row"><span class="row-text"><b>Dino score</b><small>While it runs, the mask's own button jumps.</small></span><b id="dinoScore">—</b></div>
       <div style="margin-top:10px"><button class="btn wide" type="button" id="dinoJump" onclick="dinoJump()" hidden>Jump</button></div>
@@ -1503,9 +1493,17 @@
       if (raveOn) raveSend('mode=' + raveMode);        // switching looks mid-rave takes effect at once
     });
   }
+  var deathOn = false;
+  function showDeath(on) {
+    deathOn = !!on;
+    const b = $('deathBtn');
+    if (!b) return;
+    b.textContent = deathOn ? 'Wake it up' : 'Fake low battery';
+    b.classList.toggle('danger', deathOn);
+  }
   function deathGo() {
-    fetch('/death?go=1', NO_CACHE)
-      .then(() => toast('Battery critical...'))
+    fetch('/death?' + (deathOn ? 'stop=1' : 'go=1'), NO_CACHE)
+      .then(() => { toast(deathOn ? 'Waking up' : 'Battery critical...'); showDeath(!deathOn); })
       .catch(() => toast('Could not reach the mask', true));
   }
 
@@ -1643,6 +1641,7 @@
       if (currentView === 'settings') { updateMic(s); updateRemote(s); }
       if (typeof s.sleeping === 'boolean') showSleep(s.sleeping);
       // while it runs, show the look the mask is actually using; otherwise keep this phone's choice
+      if (typeof s.death === 'boolean') showDeath(s.death);
       if (typeof s.rave === 'boolean') showRave(s.rave, s.rave ? s.raveMode : raveMode,
                                                 s.rave ? s.raveMic : raveMic);
       showStaStatus(s);
@@ -1781,7 +1780,7 @@
   }
 
   const RANGE_UNITS = {boopShade: v => v + '%', transMs: v => v + ' ms', stripAutoMin: v => v + '%',
-                       stripRaveGain: v => v + '%', stripProxMin: v => v + '%', stripProxStart: v => v + '%'};
+                       stripRaveGain: v => v + '%'};
   function showRange(el) {
     const out = $(el.id + 'Val');
     if (out) out.textContent = RANGE_UNITS[el.dataset.key] ? RANGE_UNITS[el.dataset.key](el.value) : el.value;
@@ -1886,7 +1885,7 @@
                     stripRaveEna: true, stripNum: 20, stripSplit: 10, stripBlushNum: 6, stripBlushMs: 2500, stripBlush: '#ff2d96',
                     stripFlareEna: false, stripBlushHold: true,
                     stripAutoEna: false, stripProxEna: true, stripAutoMin: 15, stripRaveGain: 160,
-                    stripProxMin: 4, stripProxStart: 15};
+                    deathHoldEna: true};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');

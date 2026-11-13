@@ -466,6 +466,7 @@ volatile bool slotStartReq = false, slotStopReq = false;
 bool deathActive = false;
 volatile bool deathStartReq = false, deathStopReq = false;
 unsigned long deathAt = 0;
+bool deathHeldDrawn = false;         //the one dark frame has been pushed, so stop repainting it
 String deathBackTo;
 float deathRed();
 void deathEnd();
@@ -756,6 +757,9 @@ uint32_t stripLastFrame = 0;
 uint32_t stripBoopAt = 0;            //when the last boop landed, for the flare and the hold
 bool stripBoopHeld = false;          //the paw is still there, so the blush stays up
 float stripPeak = 0;                 //the meter's peak mark, falling back a little each frame
+float stripProxLvl = 0;              //the glow as drawn: eased towards the reading, never snapped to it
+#define STRIP_PROX_FLOOR 5.0f        //counts of proximity the glow will not react below, whatever
+                                     //the percentage works out to - the sensor wobbles about this much
 int16_t stripIdAt = -1;              //one LED lit white, so tapping the diagram shows which is which
 uint32_t stripIdUntil = 0;
 CRGB stripSent[STRIP_MAX];           //what actually went out last time
@@ -1572,10 +1576,9 @@ void startWiFiWeb() {
     cfg.getBool(request, "stripFlareEna", cfg.stripFlareEna);
     cfg.getBool(request, "stripAutoEna", cfg.stripAutoEna);
     cfg.getBool(request, "stripProxEna", cfg.stripProxEna);
+    cfg.getBool(request, "deathHoldEna", cfg.deathHoldEna);
     if(cfg.getInt(request, "stripAutoMin", cfg.stripAutoMin)) cfg.stripAutoMin = constrain(cfg.stripAutoMin, 1, 100);
     if(cfg.getInt(request, "stripRaveGain", cfg.stripRaveGain)) cfg.stripRaveGain = constrain(cfg.stripRaveGain, 25, 400);
-    if(cfg.getInt(request, "stripProxMin", cfg.stripProxMin)) cfg.stripProxMin = constrain(cfg.stripProxMin, 0, 100);
-    if(cfg.getInt(request, "stripProxStart", cfg.stripProxStart)) cfg.stripProxStart = constrain(cfg.stripProxStart, 0, 95);
     cfg.getBool(request, "stripBlushHold", cfg.stripBlushHold);
     if(cfg.getInt(request, "bStrip", cfg.bStrip)) cfg.bStrip = constrain(cfg.bStrip, 0, 255);
     if(cfg.getInt(request, "stripNum", cfg.stripNum)) cfg.stripNum = constrain(cfg.stripNum, 0, STRIP_MAX);
@@ -1936,6 +1939,7 @@ void startWiFiWeb() {
     st["raveMode"] = raveMode;
     st["strip"] = cfg.stripEna;
     st["stripTest"] = stripTest;
+    st["death"] = deathActive;
     st["stripBri"] = (int)lroundf(cfg.bStrip * stripAmbientScale());   //after the room has had its say
     st["raveMic"] = raveUseMic;
     st["micRaw"] = micRawMid;                                         //middle of the swing: near half the supply if wired right
@@ -3677,19 +3681,25 @@ static void stripRender() {
   }
 
   //A paw on the way in, before it lands. boopSignal() is how far over the resting level the sensor
-  //is reading, so this is a real distance rather than a guess. It starts well above nothing so the
-  //cheeks are not permanently lit by the sensor's own noise, and tops out at the full blush, which
+  //reads, so this is a real distance rather than a guess, and it tops out at the full blush which
   //the boop itself then holds. A boop already showing outranks it.
+  //It rides Boop distance and nothing else: nothing at the resting level, full blush by the time
+  //the paw is close enough to count as a boop. The only number that is not Boop distance is the
+  //noise floor, and that is the sensor's own wobble rather than a setting - behind a visor the
+  //reading wanders a few counts on its own, and without this the cheeks twitched at nothing.
+  float proxTarget = 0;
   if(cfg.stripBlushEna && cfg.stripProxEna && !blushing && boopFloor >= 0 && cfg.boopThresh > 0) {
-    float p = (float)boopSignal() / (float)cfg.boopThresh;
-    float from = constrain(cfg.stripProxStart, 0, 95) / 100.0f;
-    if(p > from) {
-      float g = constrain((p - from) / max(0.05f, 1.0f - from), 0.0f, 1.0f);
-      float lo = constrain(cfg.stripProxMin, 0, 100) / 100.0f;
-      float pk = lo + g * (1.0f - lo);               //from barely lit up to the full blush
-      if(pk > k) k = pk;
-    }
+    float sig = (float)boopSignal();
+    if(sig > STRIP_PROX_FLOOR)
+      proxTarget = constrain((sig - STRIP_PROX_FLOOR) /
+                             max(1.0f, (float)cfg.boopThresh - STRIP_PROX_FLOOR), 0.0f, 1.0f);
   }
+  //Ease towards it rather than following it frame by frame. The reading is already a median of
+  //five, and still wobbles; without this any single crossing shows as a flash. Up in about a fifth
+  //of a second, down in about half, so it still feels like it is tracking the paw.
+  stripProxLvl += (proxTarget - stripProxLvl) * (proxTarget > stripProxLvl ? 0.18f : 0.07f);
+  if(stripProxLvl < 0.004f) stripProxLvl = 0.0f;
+  if(stripProxLvl > k) k = stripProxLvl;
 
   if(k > 0.003f) {
     uint8_t scale = (uint8_t)constrain((int)(k * 255.0f), 1, 255);
@@ -3832,13 +3842,15 @@ static void raveDrawMaw(uint64_t *w) {
 //--------------------------------//Fake low-battery shutdown
 //A bit, not a measurement: nothing here reads a battery. Six and a half seconds of staged failure
 //ending in an apparently dead mask, then it comes back by itself. Timings are from the top.
-#define DEATH_TWITCH   800        //one hard twitch, and the cheeks pulse once
-#define DEATH_DROPOUT 1900        //panels start cutting out
-#define DEATH_BATTERY 2900        //a battery on each maw, draining
-#define DEATH_CORRUPT 4000        //tearing, inverted blocks, the brightness sagging
-#define DEATH_STUTTER 4800        //the face cuts in and out, dimmer each time
-#define DEATH_COLLAPSE 5300       //the picture squeezes to a line, like a tube losing its power
-#define DEATH_DARK    6800        //dark, with a couple of dying blips, then back to normal
+#define DEATH_TWITCH  1000        //one hard twitch, and the cheeks pulse once
+#define DEATH_DROPOUT 2400        //panels start cutting out
+#define DEATH_BATTERY 3600        //a battery on each maw, draining
+#define DEATH_CORRUPT 5000        //tearing, inverted blocks, the brightness sagging
+#define DEATH_STUTTER 6000        //the face cuts in and out, dimmer each time
+#define DEATH_COLLAPSE 6600       //the picture squeezes to a line, like a tube losing its power
+#define DEATH_DARK    8500        //dark, with a couple of dying blips
+//Past DEATH_DARK it holds there, playing dead, until Wake it up on the page or any button or
+//remote press - unless Stay off is switched off, in which case it comes back by itself.
 
 static uint32_t deathSeed = 1;
 static inline uint32_t deathRand() {          //a cheap generator, so the glitch is not random() spam
@@ -3851,15 +3863,15 @@ float deathRed() {
   if(!deathActive) return 0.0f;
   unsigned long t = millis() - deathAt;
   if(t < DEATH_TWITCH)   return max(0.0f, 1.0f - fabsf((float)t - 500.0f) / 420.0f);
-  if(t < DEATH_DROPOUT)  return max(0.0f, 0.55f + 0.45f * sinf((t - DEATH_TWITCH) / 1000.0f * TWO_PI));
+  if(t < DEATH_DROPOUT)  return max(0.0f, 0.55f + 0.45f * sinf((t - DEATH_TWITCH) / 1100.0f * TWO_PI));
   if(t < DEATH_BATTERY)  return max(0.0f, 0.5f + 0.5f * sinf((t - DEATH_DROPOUT) / 1000.0f * TWO_PI * 2.0f));
-  if(t < DEATH_CORRUPT)  return max(0.0f, 0.5f + 0.5f * sinf((t - DEATH_BATTERY) / 1000.0f * TWO_PI * 3.5f));
-  if(t < DEATH_STUTTER)  return (((t - DEATH_CORRUPT) / 180) % 2 == 0) ? 1.0f : 0.08f;
+  if(t < DEATH_CORRUPT)  return max(0.0f, 0.5f + 0.5f * sinf((t - DEATH_BATTERY) / 1100.0f * TWO_PI * 3.5f));
+  if(t < DEATH_STUTTER)  return (((t - DEATH_CORRUPT) / 225) % 2 == 0) ? 1.0f : 0.08f;
   if(t < DEATH_COLLAPSE) return 1.0f;                       //one last flash as the picture goes
   if(t < DEATH_DARK) {                                      //dying blips in the dark
     unsigned long u = t - DEATH_COLLAPSE;
-    if(u > 350 && u < 500) return 0.45f;
-    if(u > 800 && u < 870) return 0.18f;
+    if(u > 440 && u < 620) return 0.45f;
+    if(u > 1000 && u < 1090) return 0.18f;
     return 0.0f;
   }
   return 0.0f;
@@ -3923,7 +3935,7 @@ static void deathRender() {
     for(int i = 0; i < 3; i++) tearRow();
     if(deathRand() % 100 < 60) invert();
   } else if(t < DEATH_STUTTER) {
-    if(((t - DEATH_CORRUPT) / 180) % 2) {
+    if(((t - DEATH_CORRUPT) / 225) % 2) {
       for(int i = 0; i < MATRIXESNUM; i++) w[i] = 0;        //off beat: gone
     } else {
       for(int i = 0; i < 4; i++) tearRow();
@@ -3941,6 +3953,7 @@ void deathStart(const String &backTo) {
   if(visorType != "MAX72XX" || deathActive) return;
   deathBackTo = (backTo != "") ? backTo : currentAnim;
   deathActive = true;
+  deathHeldDrawn = false;
   deathAt = millis();
   deathSeed = millis() | 1;
   logPrint(F("[I] Low battery (not really)"));
@@ -3960,7 +3973,13 @@ void deathStep() {
   if(deathStartReq) { deathStartReq = false; if(!deathActive && !dinoActive && !slotActive) deathStart(""); }
   if(deathStopReq)  { deathStopReq = false; deathEnd(); }
   if(!deathActive) return;
-  if(millis() - deathAt >= DEATH_DARK) { deathEnd(); return; }
+  if(millis() - deathAt >= DEATH_DARK) {
+    if(!cfg.deathHoldEna) { deathEnd(); return; }
+    //Playing dead. One dark frame and then the panels are left alone, rather than pushing black
+    //at them thirty times a second for as long as nobody notices.
+    if(!deathHeldDrawn) { deathRender(); deathHeldDrawn = true; }
+    return;
+  }
   deathRender();
 }
 
