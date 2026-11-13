@@ -758,8 +758,14 @@ uint32_t stripBoopAt = 0;            //when the last boop landed, for the flare 
 bool stripBoopHeld = false;          //the paw is still there, so the blush stays up
 float stripPeak = 0;                 //the meter's peak mark, falling back a little each frame
 float stripProxLvl = 0;              //the glow as drawn: eased towards the reading, never snapped to it
-#define STRIP_PROX_FLOOR 5.0f        //counts of proximity the glow will not react below, whatever
-                                     //the percentage works out to - the sensor wobbles about this much
+//The glow's own resting level. It cannot use boopFloor: that one is deliberately pulled down fast
+//and let up slowly, because the boop wants the lowest recent reading to measure a jab against. It
+//therefore sits at the BOTTOM of the noise, and anything measured from it carries a standing
+//positive bias - which is why the cheeks sat dimly lit with nothing near the snout. A slow
+//symmetric average sits in the middle of the noise instead, so the signal is really zero at rest.
+float stripProxBase = -1;
+#define STRIP_PROX_FLOOR 4.0f        //counts of wobble to ignore around that baseline
+#define STRIP_PROX_EASE 0.004f       //how fast the baseline follows; ~8 s, so a paw cannot outrun it
 int16_t stripIdAt = -1;              //one LED lit white, so tapping the diagram shows which is which
 uint32_t stripIdUntil = 0;
 CRGB stripSent[STRIP_MAX];           //what actually went out last time
@@ -2003,12 +2009,17 @@ void startWiFiWeb() {
     if(visorType != "MAX72XX") { request->send(200, "text/plain", F("Only MAX7219 panels")); return; }
     if(request->hasParam("mode")) raveModeReq = (int8_t)constrain(request->getParam("mode")->value().toInt(), 0, 1);
     if(request->hasParam("mic")) raveMicReq = request->getParam("mic")->value().toInt() ? 1 : 0;
+    if(request->hasParam("cheeks")) {       //the same setting the Cheek strip section holds
+      cfg.stripRaveEna = request->getParam("cheeks")->value().toInt() != 0;
+      cfg.save();
+    }
     if(request->hasParam("go")) raveStartReq = true;
     else if(request->hasParam("stop")) raveStopReq = true;
     JsonDocument d;                         //answers with what was asked for: loop() applies it next
     d["on"] = raveStopReq ? false : (raveStartReq || raveActive);
     d["mode"] = raveModeReq >= 0 ? raveModeReq : raveMode;
     d["mic"] = raveMicReq >= 0 ? (raveMicReq == 1) : raveUseMic;
+    d["cheeks"] = cfg.stripRaveEna;
     String out;
     serializeJson(d, out);
     request->send(200, "application/json", out);
@@ -3488,9 +3499,13 @@ static void IRAM_ATTR stripBlast(const uint8_t *buf, uint16_t len, uint32_t mask
 //FastLED hands the frame to the RMT peripheral, which clocks it out in hardware - nothing the CPU
 //does afterwards can stretch a pulse. It can only drive the pin it was compiled for, so the
 //hand-timed path still covers any other pin while the wiring is being moved about.
+static uint8_t stripCtlLen = 0;      //how many LEDs the controller is currently set to clock out
+
 static void stripShow(uint8_t n, uint8_t bri) {
   if(stripDrv == 0 && stripCtl && stripMask == (1UL << STRIP_FASTLED_PIN)) {
-    for(uint8_t i = n; i < STRIP_MAX; i++) stripLeds[i] = CRGB::Black;
+    //Registered at STRIP_MAX so the count can change without a reflash - but clocking 64 LEDs when
+    //20 are fitted costs about 1.9 ms a frame instead of 0.6 ms, and that is time the panels want.
+    if(n != stripCtlLen) { stripCtl->setLeds(stripLeds, n); stripCtlLen = n; }
     stripCtl->showLeds(bri);
     return;
   }
@@ -3689,10 +3704,14 @@ static void stripRender() {
   //reading wanders a few counts on its own, and without this the cheeks twitched at nothing.
   float proxTarget = 0;
   if(cfg.stripBlushEna && cfg.stripProxEna && !blushing && boopFloor >= 0 && cfg.boopThresh > 0) {
-    float sig = (float)boopSignal();
+    if(stripProxBase < 0) stripProxBase = apdsprox;
+    else stripProxBase += (apdsprox - stripProxBase) * STRIP_PROX_EASE;
+    float sig = (float)apdsprox - stripProxBase;
     if(sig > STRIP_PROX_FLOOR)
       proxTarget = constrain((sig - STRIP_PROX_FLOOR) /
                              max(1.0f, (float)cfg.boopThresh - STRIP_PROX_FLOOR), 0.0f, 1.0f);
+  } else {
+    stripProxBase = -1;                            //switched off: start the baseline again next time
   }
   //Ease towards it rather than following it frame by frame. The reading is already a median of
   //five, and still wobbles; without this any single crossing shows as a flash. Up in about a fifth
@@ -3725,10 +3744,16 @@ static void stripStep() {
       if(stripIdAt < n) stripLeds[stripIdAt] = CRGB::White;
     } else stripIdAt = -1;
   }
-  //Only push a frame that has actually changed. A dark or resting strip then costs nothing, which
-  //matters because every push is time the MAX7219 chain is not being written to - that was the stutter.
+  //Only push a frame that has actually changed, and only count a change worth seeing. Exact
+  //comparison meant a glow drifting by one level repainted thirty times a second, and every push is
+  //time the MAX7219 chain is not being written to - which is what the face lagging was.
   uint8_t bri = (uint8_t)constrain((int)lroundf(cfg.bStrip * stripAmbientScale()), 0, 255);
-  if(stripSentOnce && bri == stripSentBri && memcmp(stripSent, stripLeds, sizeof(CRGB) * STRIP_MAX) == 0) return;
+  bool changed = !stripSentOnce || bri != stripSentBri;
+  if(!changed) {
+    const uint8_t *a = (const uint8_t *)stripSent, *b = (const uint8_t *)stripLeds;
+    for(int i = 0; i < n * 3 && !changed; i++) changed = abs((int)a[i] - (int)b[i]) > 2;
+  }
+  if(!changed) return;
   memcpy(stripSent, stripLeds, sizeof(CRGB) * STRIP_MAX);
   stripSentBri = bri;
   stripSentOnce = true;

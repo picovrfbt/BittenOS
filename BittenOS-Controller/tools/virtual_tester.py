@@ -582,8 +582,12 @@ class Handler(BaseHTTPRequestHandler):
             elif 'stop' in q and board.rave_on:
                 board.rave_on = False
                 board.log('[I] Rave mode: off')
+            if 'cheeks' in q:
+                board.config['stripRaveEna'] = bool(to_int(q['cheeks']))
+                board.save_config()
             return self.reply(200, json.dumps({'on': board.rave_on, 'mode': board.rave_mode,
-                                               'mic': board.rave_mic}),
+                                               'mic': board.rave_mic,
+                                               'cheeks': board.config.get('stripRaveEna', True)}),
                               'application/json')
         if path == '/death':  # the fake low-battery death. The virtual face cannot play it either
             if 'go' in q:

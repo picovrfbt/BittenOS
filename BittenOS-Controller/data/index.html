@@ -95,9 +95,10 @@
   .ledmap-head i { flex:1; height:1px; background:linear-gradient(90deg,var(--accent),var(--line)); position:relative; min-width:26px; }
   .ledmap-head i::after { content:""; position:absolute; left:0; top:-3.5px; border-right:7px solid var(--accent);
     border-top:3.5px solid transparent; border-bottom:3.5px solid transparent; }
-  .ravemic { display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; }
-  .ravemic b { display:block; font-size:14px; font-weight:600; }
-  .ravemic small { display:block; color:var(--dim); font-size:12px; }
+  .ravemic { display:flex; align-items:center; gap:10px; }
+  .ravemic label { display:flex; align-items:center; gap:7px; flex:1; cursor:pointer; font-size:14px; font-weight:600; }
+  .ravemic .toggle { flex:none; }
+  .ravehintrow { margin:-4px 0 0; color:var(--faint); font-size:12px; line-height:1.4; }
   .ravehint { margin:0; color:var(--faint); font-size:12px; line-height:1.4; }
   .display-off .now { background:rgba(140,151,173,.12); color:var(--dim); }
   .display-off .dot { background:var(--faint); box-shadow:none; }
@@ -334,8 +335,11 @@
           <svg viewBox="0 0 44 24" aria-hidden="true" fill="currentColor"><rect x="2" y="6" width="4" height="16" rx="1"/><rect x="9" y="2" width="4" height="20" rx="1"/><rect x="16" y="9" width="4" height="13" rx="1"/><rect x="23" y="13" width="4" height="9" rx="1"/><rect x="30" y="10" width="4" height="12" rx="1"/><rect x="37" y="17" width="4" height="5" rx="1"/></svg>
           <span>Spectrum</span></button>
       </div>
-      <label class="ravemic" for="raveMic"><span><b>Use mic</b><small id="raveMicHint">Reacts to the sound around you</small></span>
-        <input type="checkbox" class="toggle" id="raveMic" checked></label>
+      <div class="ravemic">
+        <label for="raveMic">Mic?<input type="checkbox" class="toggle" id="raveMic" checked></label>
+        <label for="raveCheeks">Cheeks<input type="checkbox" class="toggle" id="raveCheeks" checked></label>
+      </div>
+      <p class="ravehintrow" id="raveMicHint">Reacts to the sound around you</p>
       <button type="button" class="btn primary ravego" id="raveGo">Start</button>
       <p class="ravehint">Only the maw changes: the eyes keep the face. The inside screen shows RAVE MODE and stays still while it runs.</p>
     </div>
@@ -1449,16 +1453,17 @@
   // button reads Stop, and the top-bar icon stays lit so it is plain from any tab - or any other
   // phone, since the state comes back on /stats - that it is on. The chosen look is remembered on
   // this phone between visits; the mask is told it when rave mode starts.
-  var raveOn = false, raveMode = 1, raveMic = true;
+  var raveOn = false, raveMode = 1, raveMic = true, raveCheeks = true;
   try {
     const m = localStorage.getItem('raveMode'); if (m === '0' || m === '1') raveMode = +m;
     if (localStorage.getItem('raveMic') === '0') raveMic = false;
   } catch (e) {}
-  function showRave(on, mode, mic) {
+  function showRave(on, mode, mic, cheeks) {
     raveOn = !!on;
     if (mode === 0 || mode === 1) raveMode = mode;
     if (typeof mic === 'boolean') raveMic = mic;
     $('raveMic').checked = raveMic;
+    if (typeof cheeks === 'boolean') { raveCheeks = cheeks; $('raveCheeks').checked = cheeks; }
     $('raveMicHint').textContent = raveMic ? 'Reacts to the sound around you'
                                            : 'Mic left alone: a wave and a beat instead';
     $('raveBtn').classList.toggle('on', raveOn);
@@ -1473,7 +1478,7 @@
   async function raveSend(q) {
     try {
       const r = await (await fetch('/rave?' + q, NO_CACHE)).json();
-      showRave(r.on, r.mode, r.mic);
+      showRave(r.on, r.mode, r.mic, r.cheeks);
       return true;
     } catch (e) { toast('Could not reach the mask', true); return false; }
   }
@@ -1507,6 +1512,11 @@
       .catch(() => toast('Could not reach the mask', true));
   }
 
+  // Cheeks is the Cheek strip section's own Rave meter setting, reachable from here too
+  $('raveCheeks').addEventListener('change', () => {
+    raveCheeks = $('raveCheeks').checked;
+    raveSend('cheeks=' + (raveCheeks ? 1 : 0));
+  });
   $('raveMic').addEventListener('change', () => {
     raveMic = $('raveMic').checked;
     try { localStorage.setItem('raveMic', raveMic ? '1' : '0'); } catch (e) {}
