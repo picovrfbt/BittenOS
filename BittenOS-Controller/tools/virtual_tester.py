@@ -286,6 +286,7 @@ def stats_dict():
         'speaking': mic > int(board.config.get('spTrig') or 10),
         'bright': auto['bright'], 'autoLevel': auto['level'], 'ambient': auto['ambient'],
         'ambientLive': board.ambient + 12, 'measuredAgo': auto['ago'], 'oled': bool(board.config.get('oledEna')),
+        'fw': 'BittenOS',
         'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,
         'psramFree': 8200000, 'psramSize': 8388608, 'fsUsed': 160000 + anims_bytes, 'fsTotal': 4063232,
         'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': True,
@@ -898,6 +899,51 @@ class Handler(BaseHTTPRequestHandler):
         return self.static(DATA, path)
 
 
+def mic_udp_loop(port=7373):
+    """The app's voice stream, shaped like the firmware's: knock with b'BVOXH' every 300 ms and
+    get 10 ms packets of 'BV' + seq + 160 int16 samples back, until 1.5 s without a knock."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.bind(('127.0.0.1', port))
+    except OSError:
+        print('  (UDP voice port %d busy: another tester has it)' % port)
+        return
+    s.settimeout(0.005)
+    peer, heard, seq, phase, t = None, 0.0, 0, 0.0, 0.0
+    nxt = time.time()
+    while True:
+        try:
+            data, addr = s.recvfrom(64)
+            if data[:5] == b'BVOXH':
+                if peer is None or time.time() - heard > 1.5:
+                    with board.lock:
+                        board.log('UDP voice: the app started listening')
+                peer, heard = addr, time.time()
+        except socket.timeout:
+            pass
+        except OSError:
+            pass
+        now = time.time()
+        if peer is None or now - heard > 1.5:
+            nxt = now
+            continue
+        while nxt <= now:
+            buf = bytearray(b'BV' + struct.pack('<H', seq & 0xFFFF))
+            for _ in range(160):
+                freq = 500 + 200 * math.sin(2 * math.pi * 0.25 * t)
+                env = 0.25 + 0.6 * (0.5 + 0.5 * math.sin(2 * math.pi * 2.0 * t))
+                phase += 2 * math.pi * freq / 16000
+                t += 1.0 / 16000
+                buf += struct.pack('<h', int(math.sin(phase) * env * 32767))
+            try:
+                s.sendto(bytes(buf), peer)
+            except OSError:
+                pass
+            seq += 1
+            nxt += 0.010
+
+
 def main():
     global board
     ap = argparse.ArgumentParser(description='Virtual tester for the BittenOS web UI')
@@ -914,6 +960,7 @@ def main():
         print('Virtual board created from data/ (faces and settings)')
 
     board = VirtualBoard()
+    threading.Thread(target=mic_udp_loop, daemon=True).start()
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
     url = 'http://localhost:%d/__tester' % args.port
     print('BittenOS virtual tester running.')

@@ -169,7 +169,7 @@ delay it is actually costing, so Route B's measurement comes free with it. Expec
 is worse than a wire and much better than Bluetooth; the wide range is Android's output stage, and
 only the A50 can settle it. Settings: voice gain, and a Smoothing picker for the jitter buffer.
 
-*If Route D works but feels late: a native Android app (idea, not built).* Same mask, same mic,
+*Native Android app: BUILT 2026-11-19 (BittenOS-App/), not yet on the A50.* Same mask, same mic,
 same aux lead - only the phone end changes. What it would buy, in order of how much it matters:
 1. **Keeps playing with the screen off / phone in a pocket.** A browser tab gets throttled or killed
    when the phone locks; an app with a foreground service does not. Probably the biggest real win.
@@ -181,6 +181,10 @@ same aux lead - only the phone end changes. What it would buy, in order of how m
 Not changed by an app: the mask's 32 ms chunk (that is a firmware constant, tunable either way).
 Rough total: page ~100-200 ms -> app ~40-70 ms. Cost: Android Studio, a sideloaded APK, a second
 thing to maintain. Decide only after reading the Delay line on the A50.
+The user chose a fully native app, with the page kept as the backup; whether the page follows
+the coming UI redesign is undecided. Built: auto-detect of the mask's WiFi, faces, brightness,
+panels, sleep, rave, and UDP voice as a foreground service. Not built yet: every other setting
+(they are still on the page, under More). Those wait for the redesign.
 
 **The one constant: never Bluetooth.** A BT mic cannot pair to the Clip 3 (both are endpoints), and
 going by phone over A2DP costs 150-250 ms. The Clip 3 is BT 4.2/SBC, so there is no low-latency

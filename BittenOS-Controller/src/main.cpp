@@ -333,6 +333,7 @@ void logPrint(const String &str) {
 
 //--------------------------------//web / wifi
 #include "WiFi.h"
+#include <AsyncUDP.h>          //voice to the app: UDP, because a lost packet should be skipped, not waited for
 #include <ESPmDNS.h>
 #include "ESPAsyncWebServer.h"
 #include <Update.h>
@@ -348,6 +349,16 @@ AsyncWebSocket micWs("/mic.ws");
 //Read in micCollect(), which runs often enough that calling micWs.count() there would be wasteful;
 //micStreamPump() sets it once a pass instead.
 bool micStreamOn = false;
+
+//The app's voice stream. The app says hello every 300 ms; a peer not heard from in 1.5 s is gone,
+//so a phone that walks away or locks up stops costing anything without having to say goodbye.
+#define MICUDP_PORT 7373
+#define MICUDP_ALIVE_MS 1500
+AsyncUDP micUdp;
+volatile uint32_t micUdpPeerIp = 0;    //written by the UDP task, read by loop(): plain words, no locking
+volatile uint16_t micUdpPeerPort = 0;
+volatile uint32_t micUdpHeardAt = 0;
+bool micUdpAlive() { return micUdpPeerIp && micUdpHeardAt && (millis() - micUdpHeardAt) < MICUDP_ALIVE_MS; }
 
 //--------------------------------//Config vars
 bool instantReload = false, oledInitDone = false, tiltInitDone = false, getfilesProper = true, ToFInitDone = false;
@@ -645,15 +656,55 @@ void micCollect() {
 //Hands whatever is waiting to the socket, oldest first, and defends the delay. Called from loop()
 //rather than the socket's own task: binaryAll() only queues, and everything that touches the
 //panels or the animation has to stay on one task - that lesson cost a coredump once already.
+//The app's half. Small packets on purpose - 160 samples is 10 ms - because over UDP a packet is
+//never waited for, so the only thing a big one buys is delay.
+#define MICUDP_CHUNK 160
+#define MICUDP_LAG_MAX 1600            //100 ms behind: jump forward, the phone smooths the rest
+uint32_t micUdRead = 0;
+uint16_t micUdSeq = 0;
+uint32_t micUdSent = 0;
+uint32_t micUdDrops = 0;
+bool micUdWasAlive = false;
+
+void micUdpPump() {
+  bool alive = micStreamOn && micUdpAlive();
+  if(alive != micUdWasAlive) {
+    micUdWasAlive = alive;
+    micUdRead = micStWrite;
+    if(alive) { micUdSent = micUdDrops = 0; logPrint(F("[I] Voice over WiFi: the app started listening")); }
+    else logPrint(F("[I] Voice over WiFi: the app stopped listening"));
+  }
+  if(!alive) return;
+  uint32_t lag = micStWrite - micUdRead;
+  if(lag > MICUDP_LAG_MAX) { micUdRead = micStWrite - MICUDP_CHUNK; micUdDrops++; lag = MICUDP_CHUNK; }
+  IPAddress ip((uint32_t)micUdpPeerIp);
+  uint16_t port = micUdpPeerPort;
+  //Packet: 'B' 'V', a little-endian sequence number so the phone can see what went missing, then
+  //the samples as little-endian int16. 324 bytes.
+  static uint8_t pkt[4 + MICUDP_CHUNK * 2];
+  for(int guard = 0; guard < 6 && lag >= MICUDP_CHUNK; guard++) {
+    pkt[0] = 'B'; pkt[1] = 'V';
+    pkt[2] = micUdSeq & 0xFF; pkt[3] = micUdSeq >> 8;
+    int16_t *s = (int16_t *)(pkt + 4);
+    for(int k = 0; k < MICUDP_CHUNK; k++) s[k] = micStRing[(micUdRead + k) % MICST_RING];
+    micUdp.writeTo(pkt, sizeof(pkt), ip, port);
+    micUdRead += MICUDP_CHUNK;
+    micUdSeq++;
+    micUdSent++;
+    lag = micStWrite - micUdRead;
+  }
+}
+
 void micStreamPump() {
-  bool want = micWs.count() > 0 && micI2SReady && micIs("I2S");
+  bool want = (micWs.count() > 0 || micUdpAlive()) && micI2SReady && micIs("I2S");
   if(want != micStreamOn) {
     micStreamOn = want;
     micStRead = micStWrite;             //start from now, not from 256 ms of stale room noise
     micHpX1 = micHpY = 0;
     if(want) micStDrops = micStSent = 0;
   }
-  if(!micStreamOn) return;
+  micUdpPump();
+  if(!micStreamOn || micWs.count() == 0) { micStRead = micStWrite; return; }
 
   uint32_t lag = micStWrite - micStRead;
   if(lag > MICST_LAG_MAX) {             //the socket fell behind: throw the middle away, keep talking
@@ -1904,6 +1955,16 @@ void startWiFiWeb() {
     else if(type == WS_EVT_DISCONNECT) logPrint(F("[I] Voice over WiFi: the page stopped listening"));
   });
   server.addHandler(&micWs);
+  //The app knocks on this port; whoever knocked last is who the voice goes to.
+  if(micUdp.listen(MICUDP_PORT)) {
+    micUdp.onPacket([](AsyncUDPPacket p){
+      if(p.length() >= 5 && memcmp(p.data(), "BVOXH", 5) == 0) {
+        micUdpPeerIp = (uint32_t)p.remoteIP();
+        micUdpPeerPort = p.remotePort();
+        micUdpHeardAt = millis();
+      }
+    });
+  }
 
   server.on("/micstream", HTTP_GET, [](AsyncWebServerRequest *request){ //what the page needs to play it
     if(request->hasParam("gain")) {
@@ -1914,12 +1975,17 @@ void startWiFiWeb() {
     d["rate"] = MIC_STREAM_RATE;
     d["chunk"] = MICST_CHUNK;
     d["gain"] = cfg.micStreamGain;
-    d["listeners"] = micWs.count();
+    d["listeners"] = micWs.count() + (micUdpAlive() ? 1 : 0);
     d["ready"] = micI2SReady && micIs("I2S");
     d["type"] = micMode;
     d["drops"] = micStDrops;
     d["sent"] = micStSent;
     d["lagMs"] = (int)((micStWrite - micStRead) * 1000UL / MIC_STREAM_RATE);
+    d["udpPort"] = MICUDP_PORT;
+    d["udpChunk"] = MICUDP_CHUNK;
+    d["udpListening"] = micUdpAlive();
+    d["udpSent"] = micUdSent;
+    d["udpDrops"] = micUdDrops;
     String out;
     serializeJson(d, out);
     request->send(200, "application/json", out);
@@ -2005,6 +2071,7 @@ void startWiFiWeb() {
     String anim = currentAnim;
     xSemaphoreGive(animQueueMutex);
     JsonDocument st;
+    st["fw"] = "BittenOS";                                            //how the app knows it found a mask
     st["uptime"] = millis() / 1000;
     st["heapFree"] = ESP.getFreeHeap();
     st["heapSize"] = ESP.getHeapSize();
@@ -2064,7 +2131,7 @@ void startWiFiWeb() {
     st["clock24"] = clockIs24;
     st["micType"] = micMode;                                          //I2S or ANALOG: a digital mic has no gain pot
     st["micReady"] = micIs("I2S") ? micI2SReady : true;
-    st["micListeners"] = micWs.count();                               //pages listening over WiFi
+    st["micListeners"] = micWs.count() + (micUdpAlive() ? 1 : 0);    //pages and the app listening over WiFi
     st["micDrops"] = micStDrops;
     st["speaking"] = speaking;
     st["bright"] = visorBright();                                     //what the panels are actually set to
