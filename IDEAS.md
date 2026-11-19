@@ -169,6 +169,19 @@ delay it is actually costing, so Route B's measurement comes free with it. Expec
 is worse than a wire and much better than Bluetooth; the wide range is Android's output stage, and
 only the A50 can settle it. Settings: voice gain, and a Smoothing picker for the jitter buffer.
 
+*If Route D works but feels late: a native Android app (idea, not built).* Same mask, same mic,
+same aux lead - only the phone end changes. What it would buy, in order of how much it matters:
+1. **Keeps playing with the screen off / phone in a pocket.** A browser tab gets throttled or killed
+   when the phone locks; an app with a foreground service does not. Probably the biggest real win.
+2. **Android's fast audio path (Oboe/AAudio, low-latency mode).** Chrome's Web Audio output often
+   adds 40-150 ms on a mid-range phone; Oboe on the A50 is more like 20-40 ms. The page's Delay
+   readout already shows this part separately ("output") - that number is exactly what an app saves.
+3. **UDP instead of the WebSocket.** TCP stalls everything behind one lost packet; UDP just skips
+   it, so the jitter buffer can drop from 60 ms to ~20-30 ms. Firmware would send UDP alongside.
+Not changed by an app: the mask's 32 ms chunk (that is a firmware constant, tunable either way).
+Rough total: page ~100-200 ms -> app ~40-70 ms. Cost: Android Studio, a sideloaded APK, a second
+thing to maintain. Decide only after reading the Delay line on the A50.
+
 **The one constant: never Bluetooth.** A BT mic cannot pair to the Clip 3 (both are endpoints), and
 going by phone over A2DP costs 150-250 ms. The Clip 3 is BT 4.2/SBC, so there is no low-latency
 codec to switch on - it is not a setting, it is the radio. ~200 ms happens to be the worst possible
