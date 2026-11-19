@@ -156,18 +156,55 @@ Still to do:
 - [ ] **Status pings** - e.g. remote paired: two green pulses out to the ears.
 - [ ] **Per-face blush** - which faces blush, rather than all of them.
 
-## Voice through the JBL Clip 3 - noted, not bought (2026-10-04)
+## Voice through the JBL Clip 3 - three routes, nothing bought (updated 2026-11-19)
 
-Separate from the mask: nothing connects to the ESP32 or the phone.
-- A Bluetooth mic can't pair to the Clip 3 directly (both are endpoints), and routing through a
-  phone adds ~150-250 ms of delay - an echo you hear inside the mask.
-- Plan: a **2.4 GHz (or UHF) wireless headset mic** whose receiver plugs into the Clip 3's built-in
-  3.5 mm AUX lead. ~10-20 ms delay.
+Separate from the mask: nothing has to connect to the ESP32.
+
+**The one constant: never Bluetooth.** A BT mic cannot pair to the Clip 3 (both are endpoints), and
+going by phone over A2DP costs 150-250 ms. The Clip 3 is BT 4.2/SBC, so there is no low-latency
+codec to switch on - it is not a setting, it is the radio. ~200 ms happens to be the worst possible
+delay for hearing your own voice (the disruptive band is 175-200 ms), which is why every route below
+ends in the Clip 3's built-in 3.5 mm AUX lead instead.
+
+**Route A - 2.4 GHz wireless headset mic -> Clip 3 AUX. ~10-20 ms. Still the best end state.**
+No phone, no app, no wire running down the body. ~GBP 25-40.
 - When buying: headset/boom style (less feedback than a lav inside the mask); a 3-contact TRS
   3.5 mm receiver output, not phone-style TRRS; an output volume control on the receiver (the Clip 3
   has no gain of its own). Search "wireless headset microphone 2.4G 3.5mm receiver".
-- Feedback: speaker on the hip facing forward, mic gain no higher than needed.
 - Later, optionally: a small voice changer box between the receiver and the Clip 3 for the robot voice.
+
+**Route B - the Galaxy A50 as the amp. ~20-80 ms, and GBP 0 to find out (2026-11-19).**
+The A50 has a 3.5 mm jack and the Clip 3 has its own lead, so the whole thing can be tested with
+parts already owned. Worth doing FIRST, because it answers "do I even like hearing myself amplified,
+and what does the delay feel like" before GBP 30 is spent on Route A.
+- Test order: plug the Clip 3's own cable into the A50; turn **Dolby Atmos off** (Settings > Sounds
+  and vibration > Sound quality and effects - Samsung's post-processing adds buffering); install a
+  guitar amp app (Tonebridge, Deplike) on a clean preset and talk at the phone's own mic. Those apps
+  are built for live monitoring, so unlike Play Store "megaphone" apps they use the low-latency path.
+  **OboeTester** (Google's own, free) gives the actual millisecond figure.
+- Google's own numbers: ~20 ms round trip on the low-latency path, **205 ms without it** - same
+  phone, factor of ten. Average across popular phones was 39 ms in 2021. The A50 is a 2019
+  mid-ranger (Exynos 9610, Android 11), so expect 40-80 ms rather than the 20 ms headline. Still
+  well under the band that bothers you, but measure rather than hope.
+- If kept: a TRRS splitter (~GBP 5) + lapel mic (~GBP 10). The single 3.5 mm jack does mic in AND
+  line out at once, which is the whole reason this works on one port.
+- **Quiet advantage over A and C: the phone is already the mixer.** Music and voice get combined in
+  software and leave down one wire, so there is no summing cable and music can duck under speech.
+- Costs: the app has to stay running and the phone awake; and since the A50 is joined to the mask's
+  AP there is no internet while worn, so music must be local files or offline Spotify.
+
+**Route C - amp inside the mask -> AUX by wire. ~0 ms.** MAX9814 mic amp (~GBP 4, has auto gain).
+Needs a passive 2-into-1 summing cable (~GBP 5) to keep phone music, because plugging AUX in cuts
+the Clip 3's Bluetooth off. Only worth it if B feels laggy and A's GBP 30 is not wanted. This is how
+commercial fursuit voice amps work, and the wire is exactly why.
+
+**Feedback is the real limit, not latency.** Speaker on the hip or chest facing away, tight-pattern
+headset/boom mic rather than an open lav, gain no higher than needed. Testing with the phone's own
+mic next to the speaker will howl - that is physics, not a fault.
+
+Later, optionally: put the ESP32 in the audio path (INMP441 I2S mic in, PCM5102 or MAX98357A out,
+~GBP 10, +5-15 ms and inaudible) for pitch shift, a radio-crackle gate or a vocoder - and the maw
+would then animate off the exact samples being played, rather than guessing alongside them.
 
 ## Headpat detection - capacitive, nothing bought (2026-11-06)
 
@@ -222,20 +259,12 @@ which no baseline tracking can rescue.
 **Recommendation:** capacitive under the shell and fur. Hidden, no hole, lighting irrelevant,
 multiple zones, and a headpat is a touch rather than a distance.
 
-## Voice through the JBL Clip 3 - noted, not bought (2026-10-04)
 
-Separate from the mask: nothing connects to the ESP32 or the phone.
-- A Bluetooth mic can't pair to the Clip 3 directly (both are endpoints), and routing through a
-  phone adds ~150-250 ms of delay - an echo you hear inside the mask.
-- Plan: a **2.4 GHz (or UHF) wireless headset mic** whose receiver plugs into the Clip 3's built-in
-  3.5 mm AUX lead. ~10-20 ms delay.
-- When buying: headset/boom style (less feedback than a lav inside the mask); a 3-contact TRS
-  3.5 mm receiver output, not phone-style TRRS; an output volume control on the receiver (the Clip 3
-  has no gain of its own). Search "wireless headset microphone 2.4G 3.5mm receiver".
-- Feedback: speaker on the hip facing forward, mic gain no higher than needed.
-- Later, optionally: a small voice changer box between the receiver and the Clip 3 for the robot voice.
+## Headpat detection - SUPERSEDED, kept for the crosstalk working (2026-10-06)
 
-## Headpat detection - picked a sensor, not bought (2026-10-06)
+> Superseded by the capacitive section above (2026-11-06), which reaches the opposite conclusion
+> after the user ruled out cutting a hole. Kept only because the VL53L1X crosstalk analysis would
+> matter if the ToF ever came back.
 
 Wanted: detect a hand near the top/back of the visor, on the existing I2C bus (GPIO 9/10), with no
 reliance on ambient light. Bus already holds 0x39 APDS-9930, 0x68/0x69 BMI270, 0x3C OLED.
