@@ -69,6 +69,7 @@ public:
   //Brightness is yours to set outright - there is no cap, it just starts at about 30%.
   bool stripEna,stripRevA,stripRevB,stripBlushEna,stripIdleEna,stripRaveEna;
   int stripRaveGain;                  //percent: how hard the cheek meter is driven in rave mode
+  int micStreamGain;                  //percent: how hard the voice stream is driven on its way out
   bool deathHoldEna;                  //the fake low battery stays dark until something wakes it
   bool stripAutoEna;                  //strip brightness follows the room, off the same light reading
   bool stripProxEna;                  //the cheeks warm as a paw comes in, before the boop lands

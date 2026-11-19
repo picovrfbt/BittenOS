@@ -13,6 +13,10 @@
 //the numbers come out at; Noise floor and Range are measured, so they absorb whatever it is. Raise
 //it if swings read in the tens of thousands, lower it if they read in single digits.
 #define MIC_I2S_SHIFT 20
+//Voice streaming takes the same words at their full 18 bits instead, because >>20 leaves about
+//twelve bits - all a level meter needs, but audible as hiss on a voice.
+#define MIC_STREAM_SHIFT 14
+#define MIC_STREAM_RATE MIC_I2S_RATE   //what the page is told to play it back at
 #define MICpin ADC_CHANNEL_3 //Analog microphone, GPIO 4 (ADC1, the set WiFi doesn't use)
 #define T_in 2 //Output from Touch Sensor (for KY-032, Capac)
 #define T_en 42 //Enable pin to Touch Sensor (for KY-032)
@@ -338,6 +342,12 @@ void logPrint(const String &str) {
 #include "esp_ota_ops.h"
 
 AsyncWebServer server(80);
+//The socket's existence is the on switch: a page that opens it is listening, one that closes it or
+//walks out of range is not. There is no setting left switched on by mistake.
+AsyncWebSocket micWs("/mic.ws");
+//Read in micCollect(), which runs often enough that calling micWs.count() there would be wasteful;
+//micStreamPump() sets it once a pass instead.
+bool micStreamOn = false;
 
 //--------------------------------//Config vars
 bool instantReload = false, oledInitDone = false, tiltInitDone = false, getfilesProper = true, ToFInitDone = false;
@@ -528,6 +538,23 @@ volatile bool micTestReq = false;
 
 inline bool micIs(const char *m) { return strcmp(micMode, m) == 0; }
 
+//--------------------------------//Voice over WiFi
+//A second ring, in audio scale rather than meter scale. 4096 samples is 256 ms at 16 kHz: enough
+//that a WiFi hiccup does not leave a hole, small enough that it cannot hide a growing delay.
+#define MICST_RING 4096
+#define MICST_CHUNK 512                //samples a packet: 32 ms, 1 KB, ~31 packets a second. Bigger
+                                       //than it strictly needs to be on purpose - fourteen MAX7219s
+                                       //share this CPU with AsyncTCP, and that fight has caused
+                                       //visible stutter before. Tune it down once delay is measured.
+#define MICST_LAG_MAX (MICST_RING * 3 / 4)   //drop rather than let the delay grow past ~192 ms
+#define MICST_LAG_KEEP MICST_CHUNK           //where the read pointer lands after a drop
+int16_t micStRing[MICST_RING];
+volatile uint32_t micStWrite = 0;      //monotonic sample counters, not indices: the difference
+uint32_t micStRead = 0;                //between them is the backlog, with no wrap to reason about
+uint32_t micStDrops = 0;               //packets' worth thrown away to hold the delay down
+uint32_t micStSent = 0;
+int32_t micHpX1 = 0, micHpY = 0;       //one-pole high-pass state, kills the SPH0645's DC offset
+
 //--------------------------------//Digital mic (I2S)
 i2s_chan_handle_t micRxChan = NULL;
 bool micI2SReady = false;
@@ -592,6 +619,16 @@ void micCollect() {
         if(v > micWinMax) micWinMax = v;
         raveRing[raveRingAt] = (int16_t)constrain(v, -32768, 32767);
         raveRingAt = (raveRingAt + 1) % RAVE_RING;
+        if(micStreamOn) {                //only pay for this while someone is listening
+          //y = x - x1 + 0.98*y1, about 50 Hz at 16 kHz. Runs on the full-width sample so the
+          //offset is gone before the gain multiplies it.
+          int32_t x = (int32_t)(buf[i] >> MIC_STREAM_SHIFT);
+          micHpY = x - micHpX1 + ((micHpY * 251) >> 8);
+          micHpX1 = x;
+          int32_t s = ((micHpY >> 2) * (int32_t)cfg.micStreamGain) / 100;
+          micStRing[micStWrite % MICST_RING] = (int16_t)constrain(s, -32768, 32767);
+          micStWrite = micStWrite + 1;   //not ++: the counter is volatile, and that is deprecated on one
+        }
       }
       if(e != ESP_OK || n < 64) return;              //drained
     }
@@ -602,6 +639,44 @@ void micCollect() {
     adc_oneshot_read(adc_handle, MICpin, &rawInput);
     if(rawInput < micWinMin) micWinMin = rawInput;
     if(rawInput > micWinMax) micWinMax = rawInput;
+  }
+}
+
+//Hands whatever is waiting to the socket, oldest first, and defends the delay. Called from loop()
+//rather than the socket's own task: binaryAll() only queues, and everything that touches the
+//panels or the animation has to stay on one task - that lesson cost a coredump once already.
+void micStreamPump() {
+  bool want = micWs.count() > 0 && micI2SReady && micIs("I2S");
+  if(want != micStreamOn) {
+    micStreamOn = want;
+    micStRead = micStWrite;             //start from now, not from 256 ms of stale room noise
+    micHpX1 = micHpY = 0;
+    if(want) micStDrops = micStSent = 0;
+  }
+  if(!micStreamOn) return;
+
+  uint32_t lag = micStWrite - micStRead;
+  if(lag > MICST_LAG_MAX) {             //the socket fell behind: throw the middle away, keep talking
+    micStRead = micStWrite - MICST_LAG_KEEP;
+    micStDrops++;
+    lag = MICST_LAG_KEEP;
+  }
+  //At most a few packets a pass. A burst here is a burst the display has to wait behind.
+  static int16_t out[MICST_CHUNK];
+  for(int guard = 0; guard < 3 && lag >= MICST_CHUNK; guard++) {
+    if(!micWs.availableForWriteAll()) return;   //queue full: leave it, next pass will catch up
+    uint32_t from = micStRead % MICST_RING;
+    if(from + MICST_CHUNK <= MICST_RING) {
+      memcpy(out, &micStRing[from], MICST_CHUNK * sizeof(int16_t));
+    } else {                            //the chunk straddles the end of the ring
+      uint32_t first = MICST_RING - from;
+      memcpy(out, &micStRing[from], first * sizeof(int16_t));
+      memcpy(out + first, micStRing, (MICST_CHUNK - first) * sizeof(int16_t));
+    }
+    micWs.binaryAll((const char *)out, MICST_CHUNK * sizeof(int16_t));
+    micStRead += MICST_CHUNK;
+    micStSent++;
+    lag = micStWrite - micStRead;
   }
 }
 
@@ -1822,6 +1897,34 @@ void startWiFiWeb() {
     request->send(200, "text/plain", "ok");
   });
 
+  //Voice over WiFi. Nothing is sent back up the socket; a close is all the page has to say.
+  micWs.onEvent([](AsyncWebSocket *s, AsyncWebSocketClient *c, AwsEventType type,
+                   void *arg, uint8_t *data, size_t len){
+    if(type == WS_EVT_CONNECT) logPrint(F("[I] Voice over WiFi: a page started listening"));
+    else if(type == WS_EVT_DISCONNECT) logPrint(F("[I] Voice over WiFi: the page stopped listening"));
+  });
+  server.addHandler(&micWs);
+
+  server.on("/micstream", HTTP_GET, [](AsyncWebServerRequest *request){ //what the page needs to play it
+    if(request->hasParam("gain")) {
+      cfg.micStreamGain = constrain(request->getParam("gain")->value().toInt(), 25, 4000);
+      cfg.save();
+    }
+    JsonDocument d;
+    d["rate"] = MIC_STREAM_RATE;
+    d["chunk"] = MICST_CHUNK;
+    d["gain"] = cfg.micStreamGain;
+    d["listeners"] = micWs.count();
+    d["ready"] = micI2SReady && micIs("I2S");
+    d["type"] = micMode;
+    d["drops"] = micStDrops;
+    d["sent"] = micStSent;
+    d["lagMs"] = (int)((micStWrite - micStRead) * 1000UL / MIC_STREAM_RATE);
+    String out;
+    serializeJson(d, out);
+    request->send(200, "application/json", out);
+  });
+
   server.on("/miccal", HTTP_GET, [](AsyncWebServerRequest *request){ //listen to the silence, store it as the quiet level
     if(!cfg.speechEna) {
       request->send(200, "text/plain", F("Turn Speech on first"));
@@ -1961,6 +2064,8 @@ void startWiFiWeb() {
     st["clock24"] = clockIs24;
     st["micType"] = micMode;                                          //I2S or ANALOG: a digital mic has no gain pot
     st["micReady"] = micIs("I2S") ? micI2SReady : true;
+    st["micListeners"] = micWs.count();                               //pages listening over WiFi
+    st["micDrops"] = micStDrops;
     st["speaking"] = speaking;
     st["bright"] = visorBright();                                     //what the panels are actually set to
     st["autoLevel"] = autoLevel;                                      //-1 until auto-brightness has a reading
@@ -4762,7 +4867,11 @@ void loop() {
   //cannot show anything, so the mic is read only if rave's Use mic is on - with it off, not one
   //sample is pulled, whatever Speech says. A calibration asked for by hand still gets to listen.
   bool micCalibrating = cfg.speechEna && (micCalUntil || micLoudUntil || micTestPhase == 1 || micTestPhase == 2);
-  bool micWanted = raveActive ? (raveUseMic || micCalibrating) : cfg.speechEna;
+  //A page listening over WiFi is its own reason to read the mic, whatever Speech and rave are doing.
+  //micStreamPump() runs first so a socket that has just opened is already on by the time the mic is
+  //read, rather than losing the first pass.
+  micStreamPump();
+  bool micWanted = (raveActive ? (raveUseMic || micCalibrating) : cfg.speechEna) || micStreamOn;
   if(micWanted) {
     micCollect();
 

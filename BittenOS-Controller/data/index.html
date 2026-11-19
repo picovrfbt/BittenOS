@@ -732,6 +732,44 @@
       </div>
     </details>
 
+    <!-- Voice through the phone -->
+    <details class="section">
+      <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Voice through the phone</b><small>Sends the mask mic to this phone, so a speaker on its headphone socket becomes your voice</small></span></summary>
+      <div class="group">
+        <p class="hint">Plug the speaker into this phone's headphone socket, then press <b>Start listening</b>. The mask sends its microphone over WiFi and this page plays it. <b>Keep this page open and the screen awake</b> &mdash; the audio stops when the browser is put to sleep.</p>
+        <div class="meter">
+          <div class="meter-status" id="voiceStatus"><i></i><b id="voiceStatusText">Not listening</b><span id="voiceNumbers"></span></div>
+          <div>
+            <div class="gauge-head"><span>Level arriving</span><b id="voiceLevelText">&mdash;</b></div>
+            <div class="gauge" id="voiceGauge"><i></i><em></em></div>
+          </div>
+        </div>
+        <div class="row"><span class="row-text"><b>Listening</b><small id="voiceBtnHint">Starts the stream. The first press also lets the browser play sound.</small></span>
+          <button class="btn small" type="button" id="voiceBtn" onclick="voiceToggle()">Start listening</button></div>
+        <div class="row" id="voiceDelayRow" hidden><span class="row-text"><b>Delay</b><small id="voiceDelayText"></small></span></div>
+        <div class="row"><span class="row-text"><b>Smoothing</b><small id="voiceSmoothHint">How much audio is held back to ride over WiFi hiccups. Less is quicker but crackles sooner.</small></span>
+          <select id="voiceSmooth" aria-label="Smoothing" style="text-transform:none">
+            <option value="30">Least</option>
+            <option value="60" selected>Normal</option>
+            <option value="120">Most</option>
+          </select></div>
+        <div class="row stack">
+          <div class="control-head"><label for="micStreamGain"><b>Voice gain</b></label><output id="micStreamGainVal">500%</output></div>
+          <input type="range" min="25" max="4000" step="25" value="500" id="micStreamGain" data-key="micStreamGain" data-label="Voice gain">
+          <small style="color:var(--faint)">A speaking voice sits well below what the mic could take, so this lifts it on the way out. Raise it until <b>Level arriving</b> moves well but never pins at the top while you talk normally.</small>
+        </div>
+        <details class="sub">
+          <summary><span>If it sounds wrong</span></summary>
+          <div class="sub-body">
+            <p class="hint"><b>Nothing at all:</b> the mic has to be the digital one. <b>Level arriving</b> stays flat if the mask is not hearing it &mdash; check <b>Mic level</b> in the Microphone section first, since that uses the same microphone and does not need WiFi.</p>
+            <p class="hint"><b>Crackling or gaps:</b> the WiFi link is dropping packets, and <b>Dropped</b> will be climbing. Move closer to the mask. Each drop is about a third of a second of audio thrown away on purpose, to stop the delay growing.</p>
+            <p class="hint"><b>It all stops after a minute:</b> the phone put the browser to sleep. Turn the screen timeout up, or keep the page in front.</p>
+            <p class="hint"><b>Howling:</b> the speaker is feeding back into the mask mic. Point it away from your head and turn it down &mdash; no setting here can fix that one.</p>
+          </div>
+        </details>
+      </div>
+    </details>
+
     <!-- Face changes -->
     <details class="section" open>
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Face changes</b><small>The dip between faces, and the mouth bob on whatever is showing</small></span></summary>
@@ -1789,8 +1827,199 @@
     return false;
   }
 
+  //--------------------------------// Voice over WiFi
+  //The mask sends raw 16-bit mono PCM down /mic.ws. This plays it with a small jitter buffer and
+  //reports what that buffer plus the browser's own output stage actually costs, which is the only
+  //honest way to know whether the delay is liveable on a given phone.
+  //The jitter buffer, in ms. Lives on the phone rather than the mask: it describes this link, not
+  //the mask, and two phones listening at once would otherwise overwrite each other's choice.
+  let VOICE_TARGET_MS = 60;
+  const VOICE_MAX_MS = 240;          //past this the delay is worse than a gap, so skip forward
+  let voiceCtx = null, voiceNode = null, voiceWs = null, voiceOn = false;
+  let voiceRate = 16000, voiceBufMs = 0, voicePeak = 0, voiceUnder = 0, voiceStarted = false;
+  let voiceDrops = 0, voiceBytes = 0;
+
+  //Lives on the audio thread, so it cannot be held up by anything the page is doing. Keeps its own
+  //ring, resamples from the mask's rate to whatever the output is running at, and holds the delay
+  //down itself rather than trusting the sender.
+  const VOICE_WORKLET = `
+  class VoiceSink extends AudioWorkletProcessor {
+    constructor(o) {
+      super();
+      const p = o.processorOptions;
+      this.srcRate = p.srcRate;
+      this.step = p.srcRate / sampleRate;
+      this.target = p.targetMs * p.srcRate / 1000;
+      this.max = p.maxMs * p.srcRate / 1000;
+      this.ring = new Float32Array(32768);
+      this.w = 0; this.r = 0; this.live = false;
+      this.under = 0; this.dropped = 0; this.peak = 0; this.ticks = 0;
+      this.port.onmessage = e => {
+        const b = e.data;
+        for (let i = 0; i < b.length; i++) { this.ring[this.w % this.ring.length] = b[i]; this.w++; }
+      };
+    }
+    process(inputs, outputs) {
+      const out = outputs[0][0], n = out.length;
+      let avail = this.w - this.r;
+      // Wait for the buffer to fill before the first sound, and again after any starve: starting
+      // early just means starting and stopping.
+      if (!this.live) {
+        if (avail < this.target) { out.fill(0); this.report(0); return true; }
+        this.live = true;
+      }
+      if (avail > this.max) {          // fell behind: jump to the target rather than play catch-up
+        this.r = this.w - this.target;
+        this.dropped++;
+        avail = this.target;
+      }
+      if (avail < n * this.step + 2) { // starved: silence, and re-buffer before trying again
+        out.fill(0); this.live = false; this.under++; this.report(0); return true;
+      }
+      // Hold the buffer at the target by playing a shade fast or slow, rather than only cutting it
+      // at the hard limit. Two clocks are involved - the mask's 16 kHz and this phone's 48 kHz - and
+      // they are not the same clock, so without this the delay walks away over a long wear: a
+      // hundred parts per million is a minute of drift an hour. Capped at 1%, which is about a
+      // sixth of a semitone and inaudible on speech, and it only moves while the error is there.
+      const err = (avail - this.target) / this.target;
+      const trim = Math.max(-0.01, Math.min(0.01, err * 0.05));
+      const step = this.step * (1 + trim);
+      const L = this.ring.length;
+      let pk = 0;
+      for (let i = 0; i < n; i++) {
+        const pos = this.r, i0 = Math.floor(pos), f = pos - i0;
+        const a = this.ring[i0 % L], b = this.ring[(i0 + 1) % L];
+        const v = a + (b - a) * f;
+        out[i] = v;
+        const m = v < 0 ? -v : v;
+        if (m > pk) pk = m;
+        this.r += step;
+      }
+      this.report(pk);
+      return true;
+    }
+    report(pk) {
+      if (pk > this.peak) this.peak = pk;
+      // Every ~8 blocks, about 20 ms: often enough to look live, rare enough not to flood the page.
+      if (++this.ticks < 8) return;
+      this.ticks = 0;
+      this.port.postMessage({bufMs: (this.w - this.r) * 1000 / this.srcRate,
+                             peak: this.peak, under: this.under, dropped: this.dropped});
+      this.peak = 0;
+    }
+  }
+  registerProcessor('voice-sink', VoiceSink);`;
+
+  async function voiceStart() {
+    let info = {};
+    try { info = await (await fetch('/micstream', NO_CACHE)).json(); } catch (e) {}
+    if (info.ready === false) {
+      voiceSay('bad', info.type === 'ANALOG' ? 'Needs the digital mic' : 'The mask mic did not start');
+      return;
+    }
+    voiceRate = info.rate || 16000;
+
+    try {
+      // 'interactive' asks for the shortest output buffer the device will give. It is the single
+      // biggest thing the page can do about delay, and costs nothing.
+      voiceCtx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: 'interactive'});
+      await voiceCtx.resume();
+      const url = URL.createObjectURL(new Blob([VOICE_WORKLET], {type: 'application/javascript'}));
+      await voiceCtx.audioWorklet.addModule(url);
+      URL.revokeObjectURL(url);
+      voiceNode = new AudioWorkletNode(voiceCtx, 'voice-sink', {
+        outputChannelCount: [1],
+        processorOptions: {srcRate: voiceRate, targetMs: VOICE_TARGET_MS, maxMs: VOICE_MAX_MS}
+      });
+      voiceNode.port.onmessage = e => {
+        voiceBufMs = e.data.bufMs; voicePeak = e.data.peak;
+        voiceUnder = e.data.under; voiceDrops = e.data.dropped;
+      };
+      voiceNode.connect(voiceCtx.destination);
+    } catch (e) {
+      voiceSay('bad', 'This browser will not play it');
+      voiceStop();
+      return;
+    }
+
+    voiceWs = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/mic.ws');
+    voiceWs.binaryType = 'arraybuffer';
+    voiceWs.onmessage = ev => {
+      voiceBytes += ev.data.byteLength;
+      const pcm = new Int16Array(ev.data), f = new Float32Array(pcm.length);
+      for (let i = 0; i < pcm.length; i++) f[i] = pcm[i] / 32768;
+      if (voiceNode) voiceNode.port.postMessage(f, [f.buffer]);
+    };
+    voiceWs.onopen = () => { voiceStarted = true; voiceSay('ok', 'Listening'); };
+    voiceWs.onerror = () => voiceSay('bad', 'Could not reach the mask');
+    voiceWs.onclose = () => { if (voiceOn) voiceSay('bad', 'The mask stopped sending'); };
+
+    voiceOn = true;
+    voiceBytes = 0; voiceUnder = 0; voiceDrops = 0; voiceStarted = false;
+    $('voiceBtn').textContent = 'Stop listening';
+    $('voiceDelayRow').hidden = false;
+    voiceSay('wait', 'Connecting');
+  }
+
+  function voiceStop() {
+    voiceOn = false;
+    if (voiceWs) { try { voiceWs.close(); } catch (e) {} voiceWs = null; }
+    if (voiceNode) { try { voiceNode.disconnect(); } catch (e) {} voiceNode = null; }
+    if (voiceCtx) { try { voiceCtx.close(); } catch (e) {} voiceCtx = null; }
+    $('voiceBtn').textContent = 'Start listening';
+    $('voiceDelayRow').hidden = true;
+    voiceBufMs = 0; voicePeak = 0;
+    voiceSay('', 'Not listening');
+    voiceDraw();
+  }
+
+  function voiceToggle() { voiceOn ? voiceStop() : voiceStart(); }
+
+  function voiceSmoothInit() {
+    const s = $('voiceSmooth');
+    if (!s) return;
+    let saved = null;
+    try { saved = localStorage.getItem('voiceSmooth'); } catch (e) {}
+    if (saved) { s.value = saved; VOICE_TARGET_MS = +saved; }
+    s.addEventListener('change', () => {
+      VOICE_TARGET_MS = +s.value;
+      try { localStorage.setItem('voiceSmooth', s.value); } catch (e) {}
+      // The worklet is handed its target when it is built, so a change only lands on a fresh one.
+      if (voiceOn) { voiceStop(); setTimeout(voiceStart, 150); }
+    });
+  }
+  voiceSmoothInit();
+
+  function voiceSay(state, text) {
+    const s = $('voiceStatus');
+    if (s) s.className = 'meter-status' + (state ? ' ' + state : '');
+    const t = $('voiceStatusText');
+    if (t) t.textContent = text;
+  }
+
+  function voiceDraw() {
+    const g = $('voiceGauge');
+    if (g) g.querySelector('i').style.width = Math.round(Math.min(1, voicePeak) * 100) + '%';
+    const lt = $('voiceLevelText');
+    if (lt) lt.textContent = voiceOn ? Math.round(Math.min(1, voicePeak) * 100) + '%' : '\u2014';
+    const num = $('voiceNumbers');
+    if (num) num.textContent = voiceOn && voiceStarted
+      ? Math.round(voiceBytes / 1024) + ' KB' + (voiceDrops ? ', ' + voiceDrops + ' skipped' : '')
+      : '';
+    if (!voiceOn || !voiceCtx) return;
+    // What the delay actually is: the buffer being held, plus the browser's own output stage. The
+    // second part is the one no table can tell you, and the reason this readout exists.
+    const outMs = ((voiceCtx.outputLatency || voiceCtx.baseLatency || 0) * 1000);
+    const total = Math.round(voiceBufMs + outMs);
+    const d = $('voiceDelayText');
+    if (d) d.textContent = total + ' ms in all \u2014 ' + Math.round(voiceBufMs) + ' ms buffered here, '
+      + Math.round(outMs) + ' ms in the phone' + (voiceUnder ? '. ' + voiceUnder + ' gaps so far' : '')
+      + '. Add a few ms for WiFi.';
+  }
+  setInterval(voiceDraw, 200);
+
   const RANGE_UNITS = {boopShade: v => v + '%', transMs: v => v + ' ms', stripAutoMin: v => v + '%',
-                       stripRaveGain: v => v + '%'};
+                       stripRaveGain: v => v + '%', micStreamGain: v => v + '%'};
   function showRange(el) {
     const out = $(el.id + 'Val');
     if (out) out.textContent = RANGE_UNITS[el.dataset.key] ? RANGE_UNITS[el.dataset.key](el.value) : el.value;
@@ -1895,7 +2124,7 @@
                     stripRaveEna: true, stripNum: 20, stripSplit: 10, stripBlushNum: 6, stripBlushMs: 2500, stripBlush: '#ff2d96',
                     stripFlareEna: false, stripBlushHold: true,
                     stripAutoEna: false, stripProxEna: true, stripAutoMin: 15, stripRaveGain: 160,
-                    deathHoldEna: true};
+                    micStreamGain: 500, deathHoldEna: true};
 
   /* ---------- auto-brightness ---------- */
   const pointStepper = key => document.querySelector('.stepper[data-key=' + key + ']');

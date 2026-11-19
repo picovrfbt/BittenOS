@@ -17,9 +17,13 @@ Usage:
 import argparse
 import email.parser
 import email.policy
+import base64
+import hashlib
 import json
+import math
 import os
 import random
+import struct
 import re
 import shutil
 import threading
@@ -51,6 +55,7 @@ SAVECONFIG_KEYS = {
     'stripSplit': int, 'stripBlushNum': int, 'stripBlushMs': int, 'stripBlush': str,
     'stripBlushMap': str, 'stripFlareEna': bool, 'stripBlushHold': bool,
     'stripAutoEna': bool, 'stripProxEna': bool, 'stripAutoMin': int, 'stripRaveGain': int,
+    'micStreamGain': int,
     'stripProxMin': int, 'stripProxStart': int, 'deathHoldEna': bool,
     'btnShort': str, 'btnDouble': str, 'btnHold': str,
     'btnShortFace': str, 'btnDoubleFace': str, 'btnHoldFace': str,
@@ -147,6 +152,7 @@ class VirtualBoard:
         self.rave_mode = 1
         self.strip_test = 0            # /strip: the cheek strip. The virtual face has no LEDs on it
         self.rave_mic = True
+        self.mic_listeners = 0      # pages listening to /mic.ws
         self.dino_on = False           # /dino: the game on the maw. The virtual face cannot play
         self.dino_score = 0            # it, so this is only enough state for the page to drive
         self.pair_until = 0.0          # /pair: a pairing window, with no radio to answer it
@@ -402,6 +408,9 @@ class Handler(BaseHTTPRequestHandler):
         url = urlsplit(self.path)
         path = url.path
         q = {k: v[0] for k, v in parse_qs(url.query, keep_blank_values=True).items()}
+        if path == '/mic.ws':
+            # Before the lock on purpose: this call does not return until the page goes away.
+            return self.mic_socket()
         form = self.read_form() if method == 'POST' else {}
         self.status = 0
         with board.lock:
@@ -410,9 +419,79 @@ class Handler(BaseHTTPRequestHandler):
                 shown = path + ('?' + url.query if url.query else '')
                 board.log('%s %s -> %s' % (method, shown[:90], self.status))
 
+    # ---- voice over WiFi ------------------------------------------------
+    WS_MAGIC = '258EAFA5-E914-47DA-95CA-5AB0DC85B11F'   # from the WebSocket RFC
+
+    def mic_socket(self):
+        key = self.headers.get('Sec-WebSocket-Key')
+        if not key:
+            return self.reply(400, 'Not a WebSocket request')
+        accept = base64.b64encode(
+            hashlib.sha1((key + self.WS_MAGIC).encode()).digest()).decode()
+        try:
+            self.wfile.write(
+                b'HTTP/1.1 101 Switching Protocols\r\n'
+                b'Upgrade: websocket\r\n'
+                b'Connection: Upgrade\r\n'
+                b'Sec-WebSocket-Accept: ' + accept.encode() + b'\r\n\r\n')
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        with board.lock:
+            board.mic_listeners += 1
+            board.log('GET /mic.ws -> 101 (a page started listening)')
+
+        rate, chunk = 16000, 512
+        phase = 0.0
+        t = 0.0
+        try:
+            while True:
+                buf = bytearray()
+                for _ in range(chunk):
+                    # Sweeps 300-700 Hz and breathes at 2 Hz, so both "can I hear it" and "does the
+                    # meter move" are answered without a real voice.
+                    freq = 500 + 200 * math.sin(2 * math.pi * 0.25 * t)
+                    env = 0.25 + 0.6 * (0.5 + 0.5 * math.sin(2 * math.pi * 2.0 * t))
+                    phase += 2 * math.pi * freq / rate
+                    t += 1.0 / rate
+                    buf += struct.pack('<h', int(max(-32768, min(32767,
+                                       math.sin(phase) * env * 32767))))
+                self.send_ws_binary(bytes(buf))
+                time.sleep(chunk / float(rate))
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+        finally:
+            with board.lock:
+                board.mic_listeners = max(0, board.mic_listeners - 1)
+                board.log('/mic.ws closed (the page stopped listening)')
+
+    def send_ws_binary(self, payload):
+        n = len(payload)
+        head = b'\x82'                      # FIN set, opcode 2 (binary)
+        if n < 126:
+            head += struct.pack('!B', n)
+        elif n < 65536:
+            head += b'\x7e' + struct.pack('!H', n)
+        else:
+            head += b'\x7f' + struct.pack('!Q', n)
+        self.wfile.write(head + payload)     # server frames are never masked
+        self.wfile.flush()
+
     # ---- the firmware's endpoints --------------------------------------
     def dispatch(self, method, path, q, form):
         cfg = board.config
+
+        if path == '/micstream':
+            if 'gain' in q:
+                cfg['micStreamGain'] = max(25, min(4000, to_int(q['gain'])))
+                board.save_config()
+            return self.reply(200, json.dumps({
+                'rate': 16000, 'chunk': 512,
+                'gain': cfg.get('micStreamGain', 500),
+                'listeners': board.mic_listeners,
+                'ready': True, 'type': 'I2S',
+                'drops': 0, 'sent': 0, 'lagMs': 0,
+            }), 'application/json')
 
         # tester-only endpoints
         if path == '/__tester':

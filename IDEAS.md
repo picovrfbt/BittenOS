@@ -160,6 +160,15 @@ Still to do:
 
 Separate from the mask: nothing has to connect to the ESP32.
 
+**Route D - the mask's own mic over WiFi. BUILT 2026-11-19, not yet measured.** The user's call,
+and a better argument than the ones above: the SPH0645 is already in the mask, so this needs no lapel
+mic, no second microphone and no wire down the body. The mask sends raw 16-bit PCM down a WebSocket
+to the control page, which plays it through an AudioWorklet and out the phone's headphone socket.
+No app to install - a browser cannot take raw UDP, but it can take WebSocket PCM. The page shows the
+delay it is actually costing, so Route B's measurement comes free with it. Expected 70-200 ms, which
+is worse than a wire and much better than Bluetooth; the wide range is Android's output stage, and
+only the A50 can settle it. Settings: voice gain, and a Smoothing picker for the jitter buffer.
+
 **The one constant: never Bluetooth.** A BT mic cannot pair to the Clip 3 (both are endpoints), and
 going by phone over A2DP costs 150-250 ms. The Clip 3 is BT 4.2/SBC, so there is no low-latency
 codec to switch on - it is not a setting, it is the radio. ~200 ms happens to be the worst possible

@@ -120,6 +120,8 @@ void Config::setDefault() {
   stripIdleEna = false;  //a soft blush the rest of the time, off by default
   stripRaveEna = true;   //the DJ meter while rave mode runs
   stripRaveGain = 160;   //the meter wants pushing harder than the maw to use its ten LEDs
+  micStreamGain = 500;   //a voice at conversational level sits well below the mic full scale, so
+                         //unity would arrive almost silent. Set by ear against the page meter.
   deathHoldEna = true;   //play dead properly: wait to be woken rather than timing out
   stripAutoEna = false;  //needs Auto-brightness on, since that is what takes the light readings
   stripProxEna = true;   //warm up as a paw comes in
@@ -251,6 +253,7 @@ bool Config::save() {
   doc["stripIdleEna"] = stripIdleEna;
   doc["stripRaveEna"] = stripRaveEna;
   doc["stripRaveGain"] = stripRaveGain;
+  doc["micStreamGain"] = micStreamGain;
   doc["deathHoldEna"] = deathHoldEna;
   doc["stripAutoEna"] = stripAutoEna;
   doc["stripProxEna"] = stripProxEna;
@@ -453,6 +456,7 @@ bool Config::load() {
   stripIdleEna = doc["stripIdleEna"] | false;
   stripRaveEna = doc["stripRaveEna"] | true;
   stripRaveGain = doc["stripRaveGain"] | 160;
+  micStreamGain = doc["micStreamGain"] | 500;
   deathHoldEna = doc["deathHoldEna"] | true;
   stripAutoEna = doc["stripAutoEna"] | false;
   stripProxEna = doc["stripProxEna"] | true;
