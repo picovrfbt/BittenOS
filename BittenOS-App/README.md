@@ -15,6 +15,12 @@ a backup.
   traffic over it, so Android's habit of falling back to mobile data can't take the mask away.
 - **Faces, brightness, panels, sleep, rave** — the everyday controls. Everything else is on the
   full page under *More* (inside the app or in the browser).
+- **Changes wait for the mask.** Brightness and voice gain can be changed while the mask is out of
+  reach. A bar under the top one says how many are waiting and lists them (each can be discarded).
+  When the mask is back they go across by themselves. If the same setting was changed on the mask
+  in the meantime, the app asks which one to keep instead of overwriting it. Faces, sleep, panels
+  and rave still need the mask in reach: they are things you want now, not later. Controls and the
+  face list show what the mask had last time while it is away.
 - **Voice.** Plays the mask's mic out of the phone's headphone socket:
   - over UDP rather than the page's WebSocket, so a lost packet is skipped instead of stalling the
     sound

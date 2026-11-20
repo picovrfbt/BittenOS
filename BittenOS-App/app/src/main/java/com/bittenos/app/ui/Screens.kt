@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -59,6 +60,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -81,8 +83,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.bittenos.app.MaskLink
+import com.bittenos.app.Pending
 import com.bittenos.app.VoiceEngine
 import com.bittenos.app.VoiceService
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -101,7 +105,7 @@ fun AppScreen() {
     }
 
     Scaffold(
-        topBar = { ConnectionBanner(link) },
+        topBar = { Column { ConnectionBanner(link); WaitingBar(conn != null) } },
         bottomBar = {
             NavigationBar {
                 Tab.entries.forEach { t ->
@@ -124,13 +128,76 @@ fun AppScreen() {
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (tab) {
-                Tab.Faces -> if (conn != null) FacesTab(conn) else NotConnected()
-                Tab.Controls -> if (conn != null) ControlsTab(conn) else NotConnected()
+                Tab.Faces -> if (conn != null) FacesTab(conn) else OfflineFaces()
+                Tab.Controls -> ControlsTab(conn)
                 Tab.Voice -> VoiceTab(conn)
                 Tab.More -> MoreTab(conn) { webOpen = true }
             }
         }
     }
+    ConflictDialog()
+}
+
+// ---- changes waiting for the mask --------------------------------------------------------
+
+@Composable
+private fun WaitingBar(connected: Boolean) {
+    val list by Pending.list.collectAsState()
+    val note by Pending.note.collectAsState()
+    val asking by Pending.conflicts.collectAsState()
+    var open by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(note) { if (note != null) { delay(4000); Pending.clearNote() } }
+
+    note?.let {
+        Row(Modifier.fillMaxWidth().background(Good.copy(alpha = 0.14f)).padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text("\u2713  $it", color = Good, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+    if (list.isEmpty()) return
+    Column(Modifier.fillMaxWidth().background(Warn.copy(alpha = 0.12f))) {
+        Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text((if (list.size == 1) "1 change waiting" else "${list.size} changes waiting") +
+                    if (asking.isNotEmpty()) "  \u00b7  needs your answer" else if (connected) "  \u00b7  sending\u2026" else "  \u00b7  goes across when the mask is back",
+                Modifier.weight(1f), color = Warn, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (open) "Hide" else "See", color = Warn, fontSize = 13.sp)
+        }
+        if (open) list.forEach { c ->
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("${c.key.label}  \u2192  ${c.value}${c.key.unit}", fontSize = 14.sp)
+                    c.base?.let { Text("was $it${c.key.unit} on the mask", color = Muted, fontSize = 12.sp) }
+                }
+                TextButton(onClick = { Pending.discard(c.key) }) { Text("Discard") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConflictDialog() {
+    val conflicts by Pending.conflicts.collectAsState()
+    val cf = conflicts.firstOrNull() ?: return
+    val scope = rememberCoroutineScope()
+    val k = cf.change.key
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("${k.label} changed on the mask") },
+        text = {
+            Text("While the app was away, it was set to ${cf.maskNow}${k.unit} on the mask. " +
+                 "You set ${cf.change.value}${k.unit} here. Which one should it keep?")
+        },
+        confirmButton = {
+            TextButton(onClick = { scope.launch { Pending.resolve(k, keepMine = true) } }) {
+                Text("Mine (${cf.change.value}${k.unit})")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { scope.launch { Pending.resolve(k, keepMine = false) } }) {
+                Text("The mask's (${cf.maskNow}${k.unit})")
+            }
+        },
+    )
 }
 
 // ---- the banner: the point of "knows when it is on the WiFi" ------------------------------
@@ -193,6 +260,27 @@ private fun NotConnected() {
     }
 }
 
+@Composable
+private fun OfflineFaces() {
+    val faces = remember { MaskLink.lastFaces }
+    if (faces.isEmpty()) { NotConnected(); return }
+    Column(Modifier.fillMaxSize()) {
+        Text("Faces change straight away, so they need the mask in reach. Settings on Controls and Voice wait for it.",
+            Modifier.padding(16.dp), color = Muted, fontSize = 13.sp)
+        LazyVerticalGrid(GridCells.Adaptive(150.dp), contentPadding = PaddingValues(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(faces) { f ->
+                Box(Modifier.fillMaxWidth().height(64.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.CenterStart) {
+                    Text(faceName(f), color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
 // ---- faces -------------------------------------------------------------------------------
 
 private fun faceName(f: String) = f.removeSuffix(".json").replace('_', ' ')
@@ -247,45 +335,55 @@ private fun FacesTab(conn: MaskLink.State.Connected) {
 // ---- controls ----------------------------------------------------------------------------
 
 @Composable
-private fun ControlsTab(conn: MaskLink.State.Connected) {
-    val s = conn.stats
+private fun ControlsTab(conn: MaskLink.State.Connected?) {
+    val s = conn?.stats ?: MaskLink.lastStats ?: JSONObject()
+    val online = conn != null
     val scope = rememberCoroutineScope()
-    var bri by remember { mutableFloatStateOf(s.optInt("bright", 8).toFloat()) }
+    val waiting by Pending.list.collectAsState()
+    val queuedBri = waiting.firstOrNull { it.key == Pending.Key.Brightness }?.value
+    var bri by remember { mutableFloatStateOf((queuedBri ?: s.optInt("bright", 8)).toFloat()) }
     var dragging by remember { mutableStateOf(false) }
     var lastSent by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(s.optInt("bright", -1)) { if (!dragging && s.has("bright")) bri = s.optInt("bright").toFloat() }
+    LaunchedEffect(s.optInt("bright", -1), queuedBri) {
+        if (!dragging) (queuedBri ?: s.optInt("bright", -1).takeIf { it >= 0 })?.let { bri = it.toFloat() }
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (!online) Text(
+            if (s.length() == 0) "The mask is away. Brightness changes here wait and go across when it's back."
+            else "The mask is away: this is what it had last time. Brightness changes wait and go across when it's back.",
+            color = Muted, fontSize = 13.sp)
         Panel {
             Text("Brightness", fontWeight = FontWeight.SemiBold)
-            Text("${bri.toInt()} of 15", color = Muted, fontSize = 13.sp)
+            Text("${bri.toInt()} of 15" + if (queuedBri != null && !online) "  \u00b7  waiting" else "", color = Muted, fontSize = 13.sp)
             Slider(
                 value = bri, valueRange = 0f..15f, steps = 14,
                 onValueChange = {
                     bri = it; dragging = true
                     val now = System.currentTimeMillis()
-                    if (now - lastSent > 120) {              // live while dragging, but not a flood
+                    if (online && now - lastSent > 120) {              // live while dragging, but not a flood
                         lastSent = now
                         scope.launch { MaskLink.brightness(it.toInt(), false) }
                     }
                 },
                 onValueChangeFinished = {
                     dragging = false
-                    scope.launch { MaskLink.brightness(bri.toInt(), true) }
+                    if (online) scope.launch { MaskLink.brightness(bri.toInt(), true) }
+                    else Pending.put(Pending.Key.Brightness, bri.toInt(), s.optInt("bright", -1).takeIf { it >= 0 })
                 },
             )
         }
         Panel {
-            ToggleRow("Panels on", "Blank the visor and keep everything else running", s.optBoolean("display", true)) {
+            ToggleRow("Panels on", "Blank the visor and keep everything else running", s.optBoolean("display", true), online) {
                 scope.launch { MaskLink.panels(it) }
             }
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            ToggleRow("Sleeping face", "The dozing face, as if it had gone quiet", s.optBoolean("sleeping")) {
+            ToggleRow("Sleeping face", "The dozing face, as if it had gone quiet", s.optBoolean("sleeping"), online) {
                 scope.launch { MaskLink.sleep(it) }
             }
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            ToggleRow("Rave", "The mouth becomes a music meter", s.optBoolean("rave")) {
+            ToggleRow("Rave", "The mouth becomes a music meter", s.optBoolean("rave"), online) {
                 scope.launch { MaskLink.rave(it) }
             }
         }
@@ -298,13 +396,13 @@ private fun ControlsTab(conn: MaskLink.State.Connected) {
 }
 
 @Composable
-private fun ToggleRow(title: String, sub: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun ToggleRow(title: String, sub: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.SemiBold)
             Text(sub, color = Muted, fontSize = 13.sp)
         }
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }
 
@@ -326,7 +424,9 @@ private fun VoiceTab(conn: MaskLink.State.Connected?) {
     val v by VoiceEngine.stats.collectAsState()
     var smooth by remember { mutableIntStateOf(VoiceService.smoothingMs(ctx)) }
     var mic by remember { mutableStateOf<JSONObject?>(null) }
-    var gain by remember { mutableFloatStateOf(500f) }
+    val waiting by Pending.list.collectAsState()
+    val queuedGain = waiting.firstOrNull { it.key == Pending.Key.VoiceGain }?.value
+    var gain by remember { mutableFloatStateOf((queuedGain ?: MaskLink.lastGain ?: 500).toFloat()) }
     LaunchedEffect(conn?.host) {
         if (conn != null) MaskLink.micStream()?.let { mic = it; gain = it.optInt("gain", 500).toFloat() }
     }
@@ -392,10 +492,14 @@ private fun VoiceTab(conn: MaskLink.State.Connected?) {
             Text("Voice gain", fontWeight = FontWeight.SemiBold)
             Text("Set on the mask. Turn it up until speech is clear, then use the phone's volume.",
                 color = Muted, fontSize = 13.sp)
-            Text("${gain.toInt()}%", color = Muted, fontSize = 13.sp)
-            Slider(value = gain, valueRange = 25f..2000f, enabled = conn != null,
+            Text("${gain.toInt()}%" + if (conn == null && queuedGain != null) "  \u00b7  waiting for the mask" else "",
+                color = Muted, fontSize = 13.sp)
+            Slider(value = gain, valueRange = 25f..2000f,
                 onValueChange = { gain = it },
-                onValueChangeFinished = { scope.launch { MaskLink.micStream(gain.toInt()) } })
+                onValueChangeFinished = {
+                    if (conn != null) scope.launch { MaskLink.micStream(gain.toInt()) }
+                    else Pending.put(Pending.Key.VoiceGain, gain.toInt(), MaskLink.lastGain)
+                })
         }
 
         Text("Feedback comes before latency: point the speaker away from your head, and keep the gain no higher than you need.",

@@ -87,6 +87,7 @@ object MaskLink {
         if (started) return
         started = true
         app = ctx.applicationContext
+        Pending.init(app)
         cm = app.getSystemService(ConnectivityManager::class.java)
         candidates += AP_HOST
         prefs.getString("last", null)?.let { candidates += it }
@@ -123,6 +124,7 @@ object MaskLink {
                 if (s != null) {
                     fails = 0
                     _state.value = cur.copy(stats = s, at = System.currentTimeMillis())
+                    remember(s)
                 } else if (++fails >= 3) {          // three missed seconds: it has gone
                     fails = 0
                     network?.let { network = null; cm.bindProcessToNetwork(null) }
@@ -138,6 +140,8 @@ object MaskLink {
                     wifi?.let { network = it; cm.bindProcessToNetwork(it) }
                     prefs.edit().putString("last", h).apply()
                     _state.value = State.Connected(h, h == AP_HOST, s, System.currentTimeMillis())
+                    remember(s)
+                    scope.launch { Pending.flush() }     // anything changed while it was away
                 } else {
                     _state.value = if (wifi == null) State.NoWifi else State.NotFound
                 }
@@ -180,6 +184,22 @@ object MaskLink {
         } catch (e: Exception) { null }
     }
 
+    /** The last /stats seen, kept so the app can show settings while the mask is away. */
+    val lastStats: JSONObject?
+        get() = prefs.getString("stats", null)?.let { try { JSONObject(it) } catch (e: Exception) { null } }
+
+    /** The face list last seen, for the same reason. */
+    val lastFaces: List<String>
+        get() = prefs.getString("faces", null)?.split(';')?.filter { it.isNotEmpty() } ?: emptyList()
+
+    private var statsSavedAt = 0L
+    private fun remember(s: JSONObject) {
+        val now = System.currentTimeMillis()
+        if (now - statsSavedAt < 10_000) return          // once every ten seconds is plenty
+        statsSavedAt = now
+        prefs.edit().putString("stats", s.toString()).apply()
+    }
+
     // ---- talking to it ------------------------------------------------------------------
 
     /** GET a path on the mask. null when not connected, or when it did not answer. */
@@ -195,6 +215,7 @@ object MaskLink {
     /** The faces on the mask, as the firmware names the files ("happy.json"). */
     suspend fun faces(): List<String>? =
         get("/getfiles")?.split(';')?.map { it.trim() }?.drop(1)?.filter { it.isNotEmpty() }?.sorted()
+            ?.also { prefs.edit().putString("faces", it.joinToString(";")).apply() }
 
     suspend fun showFace(file: String) = get("/change?anim=" + enc(file))
     suspend fun brightness(v: Int, save: Boolean) =
@@ -205,7 +226,10 @@ object MaskLink {
     suspend fun micStream(gain: Int? = null): JSONObject? =
         get("/micstream" + (gain?.let { "?gain=$it" } ?: ""))?.let {
             try { JSONObject(it) } catch (e: Exception) { null }
-        }
+        }?.also { j -> if (j.has("gain")) prefs.edit().putInt("gain", j.optInt("gain")).apply() }
+
+    /** The voice gain last seen on the mask, or null if it never said. */
+    val lastGain: Int? get() = if (prefs.contains("gain")) prefs.getInt("gain", 500) else null
 
     // ---- mDNS: finding it on a house network ---------------------------------------------
 
