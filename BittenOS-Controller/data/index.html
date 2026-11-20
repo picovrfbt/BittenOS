@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>BittenOS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b0f17">
+<meta name="theme-color" content="#0B0F13">
 <link rel="icon" href="/icon-192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="manifest" href="/manifest.json">
@@ -14,10 +14,15 @@
 <meta name="mobile-web-app-capable" content="yes">
 <style>
   :root {
-    --bg:#0b0f17; --surface:#131a26; --surface2:#1a2333; --line:#253047;
-    --text:#e8edf6; --dim:#8c97ad; --faint:#5f6b82;
-    --accent:#4da3ff; --accent-soft:rgba(77,163,255,.14); --bad:#ff6b6b; --good:#3ddc97; --warn:#ffb84d;
-    --radius:16px;
+    /* HUD: mint is live, cyan is voice, pink is rave only, amber is care. Only --accent follows the
+       accent picker; the others keep their meaning whatever it is set to. */
+    --bg:#0B0F13; --surface:#11171C; --surface2:#0E1418; --line:#222B33; --line2:#2A343D;
+    --text:#E6EDF2; --dim:#8B98A3; --faint:#6B7781;
+    --accent:#4EF5B8; --accent-rgb:78,245,184; --accent-soft:rgba(var(--accent-rgb),.12); --accent-ink:#06231A;
+    --bad:#FF5A5A; --good:#4EF5B8; --warn:#F5B53D; --cyan:#3DD9F5; --pink:#FF3D8B;
+    --radius:3px;
+    --font:'Chakra Petch','Bahnschrift','DIN Alternate','Roboto Condensed','sans-serif-condensed',system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,'Roboto Mono','Cascadia Mono',Consolas,monospace;
     color-scheme: dark;
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -38,15 +43,6 @@
   .now span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-transform:capitalize; }
   .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent); flex:none; }
 
-  /* bottom tabs: where a thumb already is */
-  .tabs { position:fixed; left:0; right:0; bottom:0; z-index:15; background:rgba(11,15,23,.94); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
-          border-top:1px solid var(--line); padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-  .tabs-in { max-width:620px; margin:0 auto; display:grid; grid-template-columns:repeat(4, 1fr); }
-  .tab { appearance:none; -webkit-appearance:none; background:none; border:0; color:var(--faint); font:inherit; font-size:12px; font-weight:600;
-         min-height:60px; padding:8px 4px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; }
-  .tab svg { width:24px; height:24px; }
-  .tab.on { color:var(--accent); }
-  .tab:focus-visible { outline:2px solid var(--accent); outline-offset:-4px; border-radius:12px; }
 
   main { max-width:760px; margin:0 auto; padding:16px 16px calc(92px + env(safe-area-inset-bottom)); }
   .view { display:grid; gap:16px; }
@@ -308,13 +304,190 @@
     background:#1f2a3d; border:1px solid var(--line); border-radius:12px; padding:12px 18px; font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,.45); }
   .toast.show { opacity:1; transform:translate(-50%, 0); }
   .toast.err { border-color:var(--bad); color:#ffd2d2; }
+
+  /* ================= HUD skin ================= */
+  body { font:14px/1.45 var(--font); letter-spacing:.01em;
+    background-color:var(--bg); background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.022) 0 2px,transparent 2px 16px); }
+  b, strong { font-weight:700; }
+
+  /* top bar: MENU, the name, rave / sleep / power */
+  .topbar { background:rgba(11,15,19,.92); border-bottom:0; }
+  .topbar-in { max-width:760px; padding:12px 10px 6px; gap:6px; }
+  .menubtn { flex:none; height:44px; padding:0 12px; border:1px solid var(--accent); color:var(--accent); background:var(--accent-soft);
+    font:700 11px var(--font); letter-spacing:.16em; display:flex; align-items:center; gap:8px; border-radius:2px; cursor:pointer; }
+  .menubtn svg { width:14px; height:14px; }
+  .brand { flex:1; text-align:center; font-weight:700; font-size:14px; letter-spacing:.38em; padding-bottom:6px; white-space:nowrap;
+    background:linear-gradient(var(--accent),var(--accent)) center bottom/34px 2px no-repeat; }
+  .brand small { display:none; }
+  .power { width:44px; height:44px; border-radius:2px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent);
+    box-shadow:none; }
+  .power svg { width:18px; height:18px; }
+  .power.ghost { border-color:var(--line2); background:var(--surface); color:#B7C2CB; }
+  .power.ghost.on { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); box-shadow:none; }
+  #raveBtn { color:var(--pink); border-color:#5A1F37; }
+  #raveBtn.on { color:var(--pink); border-color:var(--pink); background:#1C0D15; box-shadow:0 0 10px rgba(255,61,139,.35); }
+  .display-off .power:not(.ghost) { border-color:var(--line2); background:var(--surface); color:var(--dim); }
+  .now { display:none; }
+
+  /* the link bar: where you are, and whether the mask is answering */
+  .crumb { max-width:760px; margin:0 auto; display:flex; align-items:center; gap:8px; padding:4px 12px 10px; }
+  .crumb b { font-size:10px; letter-spacing:.16em; color:var(--accent); white-space:nowrap; }
+  .crumb i { flex:1; height:1px; background:var(--line); }
+  .ml { display:flex; align-items:center; gap:5px; font:9.5px var(--mono); color:var(--accent); letter-spacing:.06em; white-space:nowrap; }
+  .ml u { width:6px; height:6px; border-radius:50%; background:var(--accent); box-shadow:0 0 6px var(--accent); }
+  .ml s { width:30px; height:2px; background:repeating-linear-gradient(90deg,#24323A 0 3px,transparent 3px 6px); position:relative; overflow:hidden; }
+  .ml s b { position:absolute; top:0; left:-12px; height:2px; width:12px; background:var(--accent); box-shadow:0 0 6px var(--accent); animation:mlp 1.4s linear infinite; }
+  @keyframes mlp { to { left:100%; } }
+  .ml.lost { color:var(--warn); }
+  .ml.lost u { background:var(--warn); box-shadow:0 0 6px var(--warn); }
+  .ml.lost u:last-child { background:#3A444C; box-shadow:none; }
+  .ml.lost s b { display:none; }
+  .nowface { font:9.5px var(--mono); color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:34%; text-transform:uppercase; }
+
+  /* the menu drawer */
+  .scrim { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.55); }
+  .drawer { position:fixed; left:0; top:0; bottom:0; z-index:41; width:300px; max-width:86vw; background:#0D1216; border-right:1px solid var(--line);
+    display:flex; flex-direction:column; transform:translateX(-102%); transition:transform .18s ease; padding-top:env(safe-area-inset-top); }
+  .drawer.open { transform:none; }
+  .dh { display:flex; align-items:center; justify-content:space-between; padding:14px 8px 14px 14px; border-bottom:1px solid #1C242B; }
+  .dh b { font-size:11px; letter-spacing:.2em; color:var(--accent); }
+  .dh button { width:44px; height:44px; background:none; border:0; color:var(--dim); cursor:pointer; display:grid; place-items:center; }
+  .items { display:flex; flex-direction:column; gap:6px; padding:12px 10px; overflow-y:auto; }
+  .it { min-height:46px; display:flex; align-items:center; gap:10px; padding:6px 12px; border:1px solid var(--line); background:#141B21; color:var(--text);
+    font:700 11.5px var(--font); letter-spacing:.16em; border-radius:2px; cursor:pointer; text-align:left; width:100%; }
+  .it span { flex:1; min-width:0; }
+  .it small { display:block; font-weight:600; font-size:8.5px; letter-spacing:.12em; color:#7D8A94; margin-top:2px; }
+  .it .n { margin-left:auto; font:9.5px var(--mono); color:var(--faint); letter-spacing:.04em; }
+  .it.on { background:var(--text); color:var(--bg); border-color:var(--text); }
+  .it.on small, .it.on .n { color:#3A4650; }
+  .it.rave { border-color:var(--pink); color:var(--pink); background:#1C0D15; margin-top:8px; }
+  .it.rave .n { color:#B3416D; }
+  .dock { margin-top:auto; padding:12px 14px 16px; border-top:1px solid #1C242B; font:9.5px var(--mono); color:var(--dim); }
+  .dock em { font-style:normal; color:var(--accent); }
+
+  main { padding:0 10px calc(24px + env(safe-area-inset-bottom)); }
+  .view { gap:10px; }
+  .card, .group { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); }
+  .card { padding:12px; }
+  .card h2, .section-title, details.section > summary .what b {
+    font-size:11px; font-weight:700; letter-spacing:.18em; color:var(--accent); text-transform:uppercase; }
+  .card h2 { margin:0 0 10px; }
+  .num { font-style:normal; font-family:var(--mono); font-weight:500; letter-spacing:.04em; margin-right:6px; }
+  details.section > summary { background:var(--surface); border-radius:var(--radius); padding:12px; margin:0 0 0; }
+  details.section > summary .what small { font-size:11.5px; color:var(--faint); }
+  details.section[open] > .group { margin:0 0 10px; border-top:0; }
+  details.section:not([open]) { margin-bottom:10px; }
+  .row { padding:10px 12px; min-height:52px; }
+  .row-text b { font-size:11px; letter-spacing:.14em; text-transform:uppercase; }
+  .row-text small, .hint { font-size:11.5px; color:var(--faint); }
+  .row-text small b, .hint b { text-transform:none; letter-spacing:0; font-size:inherit; color:var(--text); }
+  .control-head { font-size:11px; letter-spacing:.14em; text-transform:uppercase; }
+  .control-head output, .stepper output, .stat b, .gauge-head b { font-family:var(--mono); font-weight:500; color:var(--accent); }
+  .stat b { color:var(--text); }
+
+  /* controls go square */
+  input[type=range]::-webkit-slider-runnable-track { height:4px; border-radius:0;
+    background:linear-gradient(90deg, var(--accent) var(--fill, 50%), #1E262D var(--fill, 50%)); }
+  input[type=range]::-webkit-slider-thumb { width:6px; height:24px; margin-top:-10px; border-radius:1px; background:var(--accent); border:0;
+    box-shadow:0 0 10px rgba(var(--accent-rgb),.6); }
+  input[type=range]::-moz-range-track { height:4px; border-radius:0; background:#1E262D; }
+  input[type=range]::-moz-range-progress { height:4px; border-radius:0; background:var(--accent); }
+  input[type=range]::-moz-range-thumb { width:6px; height:24px; border-radius:1px; background:var(--accent); border:0; }
+  .toggle { width:44px; height:24px; border-radius:2px; background:#1E262D; border:1px solid var(--line2); }
+  .toggle::after { top:3px; left:3px; width:16px; height:16px; border-radius:1px; background:#5B6670; box-shadow:none; }
+  .toggle:checked { background:var(--accent-soft); border-color:var(--accent); }
+  .toggle:checked::after { transform:translateX(20px); background:var(--accent); box-shadow:0 0 8px rgba(var(--accent-rgb),.7); }
+  .btn { border-radius:2px; border:1px solid var(--line2); background:var(--surface2); color:#B7C2CB; min-height:44px;
+    font:700 10.5px var(--font); letter-spacing:.16em; text-transform:uppercase; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .btn.small { min-height:36px; font-size:10px; border-radius:2px; }
+  .btn.danger { color:var(--bad); border-color:#4A2326; }
+  input[type=text], input[type=number], input[type=password], select { border-radius:2px; background:var(--surface2); border-color:var(--line2);
+    font-family:var(--mono); font-size:12.5px; }
+  .stepper { border-radius:2px; background:var(--surface2); border-color:var(--line2); }
+  .stepper button { border-radius:1px; height:38px; width:40px; }
+  .seg label { border-radius:2px; background:var(--surface2); border-color:var(--line2); font:500 11px var(--mono); color:var(--dim); }
+  .seg label.on { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
+  .gauge { height:6px; border-radius:0; background:#1E262D; }
+  .gauge > i { border-radius:0; }
+  .meter { background:var(--surface2); }
+  .stat { border-radius:2px; background:var(--surface2); }
+  .bar { border-radius:0; height:4px; background:#1E262D; }
+  .tag { border-radius:2px; font-family:var(--mono); }
+  .ravepop { border-radius:var(--radius); border-color:#5A1F37; background:var(--surface); }
+  .ravemode { border-radius:2px; }
+  .ravemode[aria-checked="true"] { border-color:var(--pink); background:#1C0D15; color:var(--pink); }
+  .ravego.primary { background:var(--pink); border-color:var(--pink); color:#22040F; }
+  .toast { border-radius:2px; background:#0F2A22; border-color:var(--accent); color:var(--accent); bottom:calc(20px + env(safe-area-inset-bottom));
+    font:700 10.5px var(--font); letter-spacing:.16em; text-transform:uppercase; }
+  .toast.err { background:#2A0F11; border-color:var(--bad); color:#FF9A9A; }
+  .ledmap button { border-radius:2px; }
+
+  /* faces: four small half-face tiles; hold one for its options */
+  .faces { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; }
+  @media (min-width:560px) { .faces { grid-template-columns:repeat(6, minmax(0, 1fr)); } }
+  @media (max-width:360px) { .faces { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+  .face { border-radius:2px; padding:4px 4px 0; gap:0; background:var(--surface2); border-color:var(--line); min-width:0;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
+  .face .crop { display:block; padding:0; width:100%; aspect-ratio:4/3; overflow:hidden; background:#07090B; position:relative; }
+  .face .crop canvas { position:absolute; left:0; top:0; width:100%; height:100%; aspect-ratio:auto; border-radius:0; }
+  .face > span:not(.crop) { height:20px; display:flex; align-items:center; font-size:8.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+    color:#9AA6AF; overflow:hidden; white-space:nowrap; padding:0; }
+  .face.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 0 12px rgba(var(--accent-rgb),.25); }
+  .face.on > span:not(.crop) { color:var(--accent); }
+  .face.held { border-color:var(--text); box-shadow:0 0 0 3px rgba(230,237,242,.15); }
+  .face-actions { display:none !important; }
+  .faces .add { border:1px dashed #2C7A5E; background:transparent; color:var(--accent); grid-column:1 / -1; min-height:36px; border-radius:2px;
+    font:700 10px var(--font); letter-spacing:.16em; cursor:pointer; }
+  .holdhint { font:9px var(--mono); color:var(--faint); letter-spacing:.04em; text-transform:none; font-weight:500; }
+
+  /* the hold sheet */
+  .sheetbg { position:fixed; inset:0; z-index:42; background:rgba(0,0,0,.5); }
+  .opts { position:fixed; left:0; right:0; bottom:0; z-index:43; max-width:520px; margin:0 auto; background:var(--surface); border:1px solid var(--line2);
+    border-radius:8px 8px 0 0; padding:6px 12px calc(10px + env(safe-area-inset-bottom)); box-shadow:0 -14px 40px rgba(0,0,0,.6); }
+  .opts .grab { width:36px; height:4px; border-radius:2px; background:var(--line2); margin:2px auto 10px; }
+  .ohead { display:flex; gap:12px; align-items:center; padding-bottom:10px; border-bottom:1px solid #1A2127; }
+  .ohead .crop { width:84px; aspect-ratio:4/3; overflow:hidden; position:relative; background:#07090B; border:1px solid #1C242B; flex:none; }
+  .ohead .crop canvas { position:absolute; left:0; top:0; width:100%; height:100%; image-rendering:pixelated; }
+  .ohead b { display:block; font-size:14px; letter-spacing:.2em; text-transform:uppercase; }
+  .ohead small { display:inline-block; margin-top:5px; font:8.5px var(--mono); color:var(--warn); border:1px solid #6A4E17; padding:1px 5px; }
+  .ohead small.on { color:var(--accent); border-color:#2C7A5E; }
+  .orow { display:flex; align-items:center; gap:12px; width:100%; height:48px; background:none; border:0; border-bottom:1px solid #1A2127;
+    color:var(--text); font:700 11px var(--font); letter-spacing:.16em; cursor:pointer; padding:0 4px; text-align:left; text-decoration:none; }
+  .orow:last-child { border-bottom:0; }
+  .orow svg { color:var(--accent); flex:none; }
+  .orow em { margin-left:auto; font:500 9px var(--mono); letter-spacing:.02em; color:var(--faint); font-style:normal; }
+  .orow.red, .orow.red svg { color:var(--bad); }
+  .orow:disabled { color:#4A545C; cursor:default; }
+  .orow:disabled svg { color:#4A545C; }
+
+  /* next face order */
+  .ord { display:flex; flex-direction:column; gap:4px; }
+  .ord div { display:flex; align-items:center; gap:8px; height:44px; border:1px solid var(--line); background:var(--surface2); padding:0 4px 0 6px;
+    border-radius:2px; font:11px var(--mono); }
+  .ord div.off { opacity:.45; }
+  .ord .crop { width:40px; height:30px; overflow:hidden; position:relative; background:#07090B; border:1px solid #1C242B; flex:none; }
+  .ord .crop canvas { position:absolute; left:0; top:0; width:100%; height:100%; image-rendering:pixelated; }
+  .ord span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-transform:uppercase; }
+  .ord input { accent-color:var(--accent); width:16px; height:16px; margin:0; }
+  .ord button { width:32px; height:34px; background:var(--surface); border:1px solid var(--line2); color:var(--dim); border-radius:2px; cursor:pointer; font-size:10px; padding:0; }
+
+  /* accent picker */
+  .theme { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:4px; margin-top:8px; }
+  .theme button { height:40px; background:var(--surface2); border:1px solid currentColor; border-radius:2px; font:700 8.5px var(--font);
+    letter-spacing:.1em; cursor:pointer; padding:0; color:inherit; }
+  .theme button.on { background:currentColor; }
+  .theme button.on span { color:#0B0F13; }
+  .ravepop .toggle:checked { background:#1C0D15; border-color:var(--pink); }
+  .ravepop .toggle:checked::after { background:var(--pink); box-shadow:0 0 8px rgba(255,61,139,.7); }
   @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
 </style>
 </head>
 <body>
 <header class="topbar">
   <div class="topbar-in">
-    <div class="brand">BittenOS<small>FurBitten 14-panel</small></div>
+    <button class="menubtn" type="button" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="drawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>MENU</button>
+    <div class="brand">BITTEN&middot;OS<small>FurBitten 14-panel</small></div>
     <div class="now" title="Face on the mask now"><i class="dot"></i><span id="activeAnim">…</span></div>
     <button class="power ghost" id="raveBtn" type="button" aria-label="Rave mode" aria-pressed="false" aria-haspopup="dialog" aria-expanded="false" aria-controls="ravePop" title="Rave mode">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 10v4"/><path d="M9.5 6v12"/><path d="M14.5 8.5v7"/><path d="M19 11v2"/></svg>
@@ -344,18 +517,27 @@
       <p class="ravehint">Only the maw changes: the eyes keep the face. The inside screen shows RAVE MODE and stays still while it runs.</p>
     </div>
   </div>
+  <div class="crumb"><b id="crumbName">001 // FACES &amp; SAY</b><i></i><span class="nowface" id="crumbFace"></span>
+    <span class="ml" id="linkState" role="status" aria-label="Linked to the mask"><u></u><s><b></b></s><u></u><em id="linkText" style="font-style:normal">LINKED</em></span></div>
 </header>
+
+<div class="scrim" id="scrim" hidden></div>
+<nav class="drawer" id="drawer" aria-label="Sections" aria-hidden="true">
+  <div class="dh"><b>MENU // NAVIGATION</b><button type="button" id="menuClose" aria-label="Close the menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="items" id="menuItems"></div>
+  <div class="dock" id="menuDock"><span id="dockLine1">ON THE MASK'S WIFI</span><br><span id="dockLine2"></span></div>
+</nav>
 
 <main>
   <!-- ================= MASK ================= -->
   <div class="view" id="view-mask">
-    <section class="card">
-      <div class="card-head"><h2>Faces</h2><button class="linkbtn" type="button" id="manageBtn">Manage</button></div>
+    <section class="card" data-page="001">
+      <div class="card-head"><h2>Faces</h2><span class="holdhint">HOLD A FACE FOR OPTIONS</span><button class="linkbtn" type="button" id="manageBtn" hidden>Manage</button></div>
       <div class="faces" id="faces"><p class="empty">Loading faces…</p></div>
     </section>
 
     <!-- Only shown while a face the mask can blink is running: one long look plus a short blink -->
-    <section class="card" id="blinkCard" hidden>
+    <section class="card" id="blinkCard" hidden data-page="001">
       <h2>Blinks</h2>
       <div class="row" style="padding:0">
         <span class="row-text"><b><span id="blinkFaceName">default</span> can be blinked by the mask</b><small id="blinkModeHint"></small></span>
@@ -372,16 +554,16 @@
       <p class="hint">Faces that animate themselves keep their own blinking, so this only appears for faces the mask can take over — this one, and anything you draw as a single frame. <b>Mask blinks</b> blinks at random gaps of 2.5 to 7 seconds instead of on a fixed cycle, and takes about the same 450 ms the default face's own blink does. <b>Double blink</b> sets how many of those come as a quick pair — a second blink a tenth of a second behind the first, which is what stops it reading as a machine ticking. 0 turns pairs off.</p>
     </section>
 
-    <section class="card">
+    <section class="card" data-page="001">
       <h2>Brightness</h2>
       <div class="control" id="briControl">
         <div class="control-head"><label for="brightness">Panels</label><output id="brightnessVal">5</output></div>
         <input type="range" min="0" max="15" value="5" id="brightness">
       </div>
-      <p class="hint" id="autoBriHint" hidden>Auto-brightness is on, so the light sensor sets this. Change it in Settings &gt; Auto-brightness.</p>
+      <p class="hint" id="autoBriHint" hidden>Auto-brightness is on, so the light sensor sets this. Change it in 003 Lights &amp; screen &gt; Auto-brightness.</p>
     </section>
 
-    <section class="card">
+    <section class="card" data-page="001">
       <h2>Scrolling text</h2>
       <form id="textForm" class="textform" autocomplete="off">
         <input type="text" id="scrollText" maxlength="64" placeholder="Type a message" enterkeyhint="send" aria-label="Message">
@@ -400,7 +582,7 @@
       <p class="hint">Scrolls across the mouth while the eyes keep the current face. Repeat runs until you tap a face; Play once goes back to it after one pass.</p>
     </section>
 
-    <section class="card">
+    <section class="card" data-page="001">
       <div class="card-head"><h2>Quick phrases</h2><button class="linkbtn" type="button" id="phraseEditBtn">Edit</button></div>
       <div class="tools" id="phraseButtons"></div>
       <div id="phraseEditor" hidden></div>
@@ -410,7 +592,7 @@
 
   <!-- ================= DESIGN ================= -->
   <div class="view" id="view-design" hidden>
-    <section class="section">
+    <section class="section" data-page="007">
       <h2 class="section-title">Make things</h2>
       <div class="group">
         <a class="row" href="/animator.html" style="text-decoration:none;color:inherit">
@@ -421,7 +603,7 @@
           <span style="color:var(--accent);font-size:22px;line-height:1">›</span></a>
       </div>
     </section>
-    <section class="section">
+    <section class="section" data-page="007">
       <h2 class="section-title">Faces on the mask</h2>
       <div class="group">
         <button class="row" type="button" onclick="document.getElementById('zipInput').click()" style="background:none;border:0;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer">
@@ -431,16 +613,16 @@
           <span class="row-text"><b>Download faces</b><small>Save every face on the mask as a zip</small></span>
           <span style="color:var(--accent);font-size:22px;line-height:1">›</span></button>
       </div>
-      <p class="hint" style="margin-left:4px">Faces with the same name are replaced. Rename and delete are on the Mask tab, under Manage.</p>
+      <p class="hint" style="margin-left:4px">Faces with the same name are replaced. To rename or delete one, hold its tile on 001 Faces &amp; say.</p>
     </section>
   </div>
 
   <!-- ================= SETTINGS ================= -->
   <div class="view" id="view-settings" hidden>
-    <p class="hint" style="margin:0 4px">Every setting here saves the moment you change it.</p>
+    <p class="hint" style="margin:0 2px" data-page="002 003 004 005 006 008">Every setting here saves the moment you change it.</p>
 
     <!-- How to use -->
-    <section class="section">
+    <section class="section" data-page="009">
       <div class="group">
         <a class="row" href="/docs.html" style="text-decoration:none;color:inherit">
           <span class="row-text"><b>How to use</b><small>A guide to every feature, stored on the mask</small></span>
@@ -449,7 +631,7 @@
     </section>
 
     <!-- Cheek strip -->
-    <details class="section">
+    <details class="section" open data-page="003">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Cheek strip</b><small>The LEDs down both sides: brightness, the blush, the rave meter and how the chain is laid out</small></span></summary>
       <div class="group" data-group="stripEna">
         <label class="row"><span class="row-text"><b>Cheek strip</b><small>The WS2812 chain down both cheeks</small></span>
@@ -538,7 +720,7 @@
     </details>
 
     <!-- Boop -->
-    <details class="section" open>
+    <details class="section" open data-page="004">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Boop</b><small>Snout sensor, how close counts, the shadow check and the boop face</small></span></summary>
       <div class="group" data-group="boopEna">
         <label class="row"><span class="row-text"><b>Boop</b><small>Change face when something touches the snout</small></span>
@@ -589,7 +771,7 @@
     </details>
 
     <!-- Boop counter -->
-    <details class="section" open>
+    <details class="section" open data-page="004">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Boop counter</b><small>The running total on the nose, and a special face every so many</small></span></summary>
       <div class="group" data-group="boopCountEna">
         <label class="row"><span class="row-text"><b>Show the count</b><small>Pops up on the nose after each boop</small></span>
@@ -610,7 +792,7 @@
     </details>
 
     <!-- Auto-brightness -->
-    <details class="section" open>
+    <details class="section" open data-page="003">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Auto-brightness</b><small>Panels follow the room light, with dark and bright calibration points</small></span></summary>
       <div class="group" data-group="autoBriEna">
         <label class="row"><span class="row-text"><b>Auto-brightness</b><small>The light sensor sets the panel brightness</small></span>
@@ -669,7 +851,7 @@
     </details>
 
     <!-- Status screen -->
-    <details class="section" open>
+    <details class="section" open data-page="003">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Status screen</b><small>The little screen inside: brightness, which way up, and the designer</small></span></summary>
       <div class="group" data-group="oledEna">
         <label class="row"><span class="row-text"><b>Status screen</b><small id="oledHint">0.96" SSD1306 OLED inside the helmet</small></span>
@@ -690,7 +872,7 @@
     </details>
 
     <!-- Microphone -->
-    <details class="section" open>
+    <details class="section" open data-page="002">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Microphone</b><small>Mouth moves with your voice: level meter, noise floor and range</small></span></summary>
       <div class="group" data-group="speechEna">
         <label class="row"><span class="row-text"><b>Speech</b><small>The mouth moves with your voice, from the mic on GPIO 4</small></span>
@@ -733,7 +915,7 @@
     </details>
 
     <!-- Voice through the phone -->
-    <details class="section">
+    <details class="section" open data-page="002">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Voice through the phone</b><small>Sends the mask mic to this phone, so a speaker on its headphone socket becomes your voice</small></span></summary>
       <div class="group">
         <p class="hint">Plug the speaker into this phone's headphone socket, then press <b>Start listening</b>. The mask sends its microphone over WiFi and this page plays it. <b>Keep this page open and the screen awake</b> &mdash; the audio stops when the browser is put to sleep.</p>
@@ -771,7 +953,7 @@
     </details>
 
     <!-- Face changes -->
-    <details class="section" open>
+    <details class="section" open data-page="005">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Face changes</b><small>The dip between faces, and the mouth bob on whatever is showing</small></span></summary>
       <div class="group" data-group="transEna">
         <label class="row"><span class="row-text"><b>Transitions</b><small>Dim away and back when the face changes</small></span>
@@ -788,7 +970,7 @@
     </details>
 
     <!-- Sleep -->
-    <details class="section" open>
+    <details class="section" open data-page="005">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Sleep and startup</b><small>Dozing off, deep sleep, the wake-up flicker and the loading bar</small></span></summary>
       <div class="group" data-group="sleepEna">
         <label class="row"><span class="row-text"><b>Auto sleep</b><small>Sleeping face when you've been still a while</small></span>
@@ -828,7 +1010,7 @@
     </details>
 
     <!-- Button -->
-    <details class="section">
+    <details class="section" open data-page="006">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Button</b><small>What a short press, a double press and a hold each do</small></span></summary>
       <div class="group">
         <div class="row"><span class="row-text"><b>Short press</b></span>
@@ -867,7 +1049,7 @@
 
 
     <!-- Remote -->
-    <details class="section">
+    <details class="section" open data-page="006">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Button remote</b><small>The three-button ESP-NOW remote, and what each button does</small></span></summary>
       <div class="group">
         <div class="row"><span class="row-text"><b>Paired remote</b><small id="pairHint">Nothing paired yet</small></span>
@@ -969,7 +1151,7 @@
     </details>
 
     <!-- Tilt -->
-    <details class="section">
+    <details class="section" open data-page="004">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Tilt</b><small>A face for tilting left and one for right. Also what stillness sleep uses.</small></span></summary>
       <div class="group" data-group="tiltEna">
         <label class="row"><span class="row-text"><b>Tilt faces</b><small>Change face when you tilt your head</small></span>
@@ -992,7 +1174,7 @@
     </details>
 
     <!-- WiFi -->
-    <details class="section">
+    <details class="section" open data-page="008">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>The mask's own WiFi</b><small>The network the mask makes. Always on, so you cannot be locked out.</small></span></summary>
       <div class="group">
         <form class="wifi" id="wifiForm" autocomplete="off">
@@ -1005,7 +1187,7 @@
     </details>
 
     <!-- Join a network -->
-    <details class="section">
+    <details class="section" open data-page="008">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Join a network</b><small>Also connect to a hotspot or house WiFi, so your phone keeps its internet</small></span></summary>
       <div class="group" data-group="staEna">
         <label class="row"><span class="row-text"><b>Join a network</b><small>Also connect to your phone's hotspot or home WiFi, so your phone keeps its internet while it talks to the mask</small></span>
@@ -1022,7 +1204,7 @@
     </details>
 
     <!-- Remote -->
-    <details class="section">
+    <details class="section" open data-page="006">
       <summary><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="what"><b>Remote</b><small>Bluetooth for the handheld remote, and phone control commands</small></span><span class="tag">Not installed</span></summary>
       <div class="group notfitted">
         <label class="row"><span class="row-text"><b>Remote (BLE)</b><small>The older BLE handheld remote. Starts at the next restart.</small></span>
@@ -1030,11 +1212,18 @@
         <div class="row"><span class="row-text"><small>No remote is paired. If you fit one, switch this on and restart the mask.</small></span></div>
       </div>
     </details>
+    <section class="card" data-page="006">
+      <h2>Next face order</h2>
+      <p class="hint" style="margin:0 0 10px">What Next and Previous step through, on the button and the remote. Unticked faces are skipped, but stay on the home grid.</p>
+      <div class="ord" id="faceOrder"><p class="empty">Loading faces&hellip;</p></div>
+      <button class="btn" type="button" id="faceOrderSave" style="width:100%;margin-top:8px">Save order</button>
+    </section>
+
   </div>
 
   <!-- ================= SYSTEM ================= -->
   <div class="view" id="view-system" hidden>
-    <section class="card">
+    <section class="card" data-page="009">
       <h2>Status</h2>
       <div class="stats">
         <div class="stat"><span>Uptime</span><b id="stUptime">—</b></div>
@@ -1055,7 +1244,7 @@
       <p class="hint">Updates every 2 seconds while this tab is open.</p>
     </section>
 
-    <section class="card">
+    <section class="card" data-page="009">
       <h2>Easter eggs</h2>
       <p class="hint" style="padding:0 0 10px">These play across the maw. Any of them also starts from the mask itself, with a quick run of button presses — set which one under Settings, Button.</p>
       <div class="eggs">
@@ -1071,7 +1260,7 @@
       <div style="margin-top:10px"><button class="btn wide" type="button" id="dinoJump" onclick="dinoJump()" hidden>Jump</button></div>
     </section>
 
-    <section class="card">
+    <section class="card" data-page="009">
       <h2>Tools</h2>
       <div class="tools">
         <button class="btn" type="button" onclick="document.getElementById('cfgFile').click()">Load config</button>
@@ -1080,24 +1269,29 @@
       </div>
       <input type="file" id="cfgFile" hidden accept=".json">
       <input type="file" id="zipInput" hidden accept=".zip,.json">
-      <p class="hint">Face maker, the screen designer and uploading faces are on the Design tab.</p>
+      <p class="hint">Face maker, the screen designer and uploading faces are on 007 Create.</p>
+    </section>
+
+    <section class="card" data-page="009">
+      <h2>This page</h2>
+      <span class="row-text"><b>HUD accent</b></span>
+      <div class="theme" id="accentPick"></div>
+      <p class="hint">Only the accent changes. Voice cyan, rave pink and care amber stay fixed, so a red accent never reads as an error. Kept in this browser.</p>
     </section>
 
   </div>
 </main>
 
-<nav class="tabs" aria-label="Sections">
-  <div class="tabs-in" role="tablist">
-    <button class="tab on" type="button" role="tab" data-view="mask" aria-selected="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M7.5 10.5h2M14.5 10.5h2M8 14.5l2 1.5 2-1.5 2 1.5 2-1.5"/></svg>Mask</button>
-    <button class="tab" type="button" role="tab" data-view="design" aria-selected="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17.5 16 4.5a2.1 2.1 0 0 1 3 3L6 20.5 2.5 21.5z"/><path d="M14 6.5l3.5 3.5"/></svg>Design</button>
-    <button class="tab" type="button" role="tab" data-view="settings" aria-selected="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Settings</button>
-    <button class="tab" type="button" role="tab" data-view="system" aria-selected="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></svg>System</button>
-  </div>
-</nav>
+
+<div class="sheetbg" id="sheetBg" hidden></div>
+<div class="opts" id="faceSheet" role="dialog" aria-modal="true" aria-label="Face options" hidden>
+  <div class="grab"></div>
+  <div class="ohead"><span class="crop"><canvas width="213" height="78"></canvas></span><div><b id="sheetName">—</b><span class="holdhint" id="sheetMeta"></span><br><small id="sheetTag" hidden></small></div></div>
+  <button class="orow" type="button" id="sheetShow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>SHOW ON THE MASK</button>
+  <a class="orow" id="sheetEdit" href="/animator.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>EDIT IN FACE MAKER</a>
+  <button class="orow" type="button" id="sheetRename"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M4 12h7M4 17h12M17 10l3 3-3 3"/></svg>RENAME</button>
+  <button class="orow red" type="button" id="sheetDelete"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>DELETE<em id="sheetDelNote">ASKS FIRST</em></button>
+</div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -1105,6 +1299,7 @@
   const $ = id => document.getElementById(id);
   const byName = n => document.getElementsByName(n)[0];
   const NO_CACHE = {cache: 'no-store'};
+  let cfgNow = {}, configLoaded = false;
   let availableAnims = [], layout = null, lastBrightness = null, animCache = {};
 
   function toast(msg, isError) {
@@ -1119,29 +1314,124 @@
     range.style.setProperty('--fill', ((range.value - range.min) / (range.max - range.min) * 100) + '%');
   }
 
-  /* ---------- tabs ---------- */
-  let currentView = 'mask';
+  /* ---------- pages: the numbered menu ---------- */
+  const PAGES = [
+    ['001', 'Faces & say', 'Tiles · blinks · brightness · text'],
+    ['002', 'Voice & mic', 'Through the phone · mouth mic'],
+    ['003', 'Lights & screen', 'Cheeks · auto-bright · status screen'],
+    ['004', 'Sensors', 'Boop · boop counter · tilt'],
+    ['005', 'Behaviour', 'Face changes · sleep · startup'],
+    ['006', 'Buttons & remote', 'Presses · next face order · remotes'],
+    ['007', 'Create', 'Face maker · screen designer · files'],
+    ['008', 'Network', 'Mask WiFi · join a network'],
+    ['009', 'System', 'Status · easter eggs · firmware · guide'],
+  ];
+  // Old links still work: other pages send people to #design, #settings, #system or #mask.
+  const OLD = {mask: '001', design: '007', settings: '003', system: '009'};
+  let currentView = 'mask', currentPage = '001';
+  const viewOf = p => p === '001' ? 'mask' : p === '007' ? 'design' : p === '009' ? 'system' : 'settings';
   function showView(name) {
-    if (!$('view-' + name)) name = 'mask';
-    currentView = name;
-    for (const t of document.querySelectorAll('.tab')) {
-      const on = t.dataset.view === name;
-      t.classList.toggle('on', on);
-      t.setAttribute('aria-selected', String(on));
+    let p = OLD[name] || name;
+    if (!PAGES.some(x => x[0] === p)) p = '001';
+    currentPage = p;
+    currentView = viewOf(p);
+    const meta = PAGES.find(x => x[0] === p);
+    $('crumbName').textContent = p + ' // ' + meta[1].toUpperCase();
+    for (const v of document.querySelectorAll('.view')) v.hidden = false;
+    let letter = 0;
+    for (const el of document.querySelectorAll('main [data-page]')) {
+      const on = el.dataset.page.split(' ').includes(p);
+      el.classList.toggle('offpage', !on);
+      if (!on) continue;
+      // number the panels the way the design does: 03.A, 03.B ...
+      const head = el.matches('details') ? el.querySelector(':scope > summary .what b') : el.querySelector(':scope > h2, :scope > .card-head > h2');
+      if (head) {
+        let n = head.querySelector('.num');
+        if (!n) { n = document.createElement('i'); n.className = 'num'; head.prepend(n); }
+        n.textContent = p.slice(1) + '.' + String.fromCharCode(65 + letter++) + ' //';
+      }
     }
-    for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== 'view-' + name;
-    try { localStorage.setItem('tab', name); } catch (e) {}
-    // so other pages can link straight to a tab, e.g. the screen designer's Back
-    if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+    for (const it of document.querySelectorAll('.it[data-page]')) it.classList.toggle('on', it.dataset.page === p);
+    try { localStorage.setItem('tab', p); } catch (e) {}
+    if (location.hash !== '#' + p) history.replaceState(null, '', '#' + p);
     window.scrollTo(0, 0);
+    closeMenu();
+    if (p === '006') buildFaceOrder();
     scheduleStats(true);
   }
-  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showView(t.dataset.view)));
+  // a page hides what is not on it; [hidden] stays for the things code shows and hides itself
+  document.head.insertAdjacentHTML('beforeend', '<style>.offpage{display:none !important}</style>');
+
+  const menuItems = $('menuItems');
+  for (const [n, name, sub] of PAGES) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'it'; b.dataset.page = n;
+    b.innerHTML = '<span></span><i class="n"></i>';
+    b.querySelector('span').innerHTML = name.toUpperCase().replace('&', '&amp;') + '<small></small>';
+    b.querySelector('small').textContent = sub.toUpperCase();
+    b.querySelector('.n').textContent = n + ' \u203a';
+    b.addEventListener('click', () => showView(n));
+    menuItems.appendChild(b);
+  }
+  {
+    const r = document.createElement('button');
+    r.type = 'button'; r.className = 'it rave';
+    r.innerHTML = '<span>SPECTRUM RAVE<small>VU BAR · SPECTRUM · CHEEKS</small></span><i class="n">010 \u203a</i>';
+    r.addEventListener('click', () => { closeMenu(); window.scrollTo(0, 0); $('raveBtn').click(); });
+    menuItems.appendChild(r);
+  }
+  function openMenu() {
+    $('drawer').classList.add('open'); $('drawer').setAttribute('aria-hidden', 'false');
+    $('scrim').hidden = false; $('menuBtn').setAttribute('aria-expanded', 'true');
+    const on = $('drawer').querySelector('.it.on'); if (on) on.focus();
+  }
+  function closeMenu() {
+    if (!$('drawer')) return;
+    $('drawer').classList.remove('open'); $('drawer').setAttribute('aria-hidden', 'true');
+    $('scrim').hidden = true; $('menuBtn').setAttribute('aria-expanded', 'false');
+  }
+  $('menuBtn').addEventListener('click', openMenu);
+  $('menuClose').addEventListener('click', closeMenu);
+  $('scrim').addEventListener('click', closeMenu);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenu(); closeSheet(); } });
+
+  /* ---------- the link bar: is the mask answering? ---------- */
+  let linkFails = 0;
+  function linkOk(ok) {
+    linkFails = ok ? 0 : linkFails + 1;
+    const lost = linkFails >= 2;
+    $('linkState').classList.toggle('lost', lost);
+    $('linkText').textContent = lost ? 'LOST' : 'LINKED';
+    $('linkState').setAttribute('aria-label', lost ? 'The mask is not answering' : 'Linked to the mask');
+  }
+
+  /* ---------- accent ---------- */
+  const ACCENTS = [['MINT', '#4EF5B8'], ['CYAN', '#3DD9F5'], ['VIOLET', '#B48CFF'], ['RED', '#FF5A6E'], ['WHITE', '#E6EDF2']];
+  function setAccent(hex) {
+    const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    const st = document.documentElement.style;
+    st.setProperty('--accent', hex);
+    st.setProperty('--accent-rgb', r + ',' + g + ',' + b);
+    st.setProperty('--accent-ink', '#' + [r, g, b].map(v => Math.round(v * .14).toString(16).padStart(2, '0')).join(''));
+    for (const x of document.querySelectorAll('#accentPick button')) x.classList.toggle('on', x.dataset.hex === hex);
+    try { localStorage.setItem('accent', hex); } catch (e) {}
+    if (layout) loadPreviews();   // the face tiles light up in the accent too
+  }
+  for (const [name, hex] of ACCENTS) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.hex = hex; b.style.color = hex;
+    b.innerHTML = '<span></span>'; b.querySelector('span').textContent = name;
+    b.setAttribute('aria-label', 'Accent ' + name.toLowerCase());
+    b.addEventListener('click', () => setAccent(hex));
+    $('accentPick').appendChild(b);
+  }
+  try { setAccent(localStorage.getItem('accent') || ACCENTS[0][1]); } catch (e) { setAccent(ACCENTS[0][1]); }
 
   /* ---------- faces ---------- */
   function setActive(name) {
     if (/\.json$/.test(name)) lastFace = name;
     $('activeAnim').textContent = name === 'POSTAnimLoad' ? 'Custom' : (name.replace(/\.json$/, '') || '—');
+    $('crumbFace').textContent = 'ON: ' + $('activeAnim').textContent;
     document.querySelectorAll('.face').forEach(b => b.classList.toggle('on', b.dataset.anim === name));
     updateBlinkCard();
   }
@@ -1192,32 +1482,20 @@
     const grid = $('faces');
     grid.innerHTML = parts.length ? '' : '<p class="empty">No faces on the mask yet.</p>';
     for (const name of parts) {
-      const wrap = document.createElement('div');
-      wrap.className = 'face-wrap';
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'face';
       b.dataset.anim = name;
-      b.innerHTML = '<canvas width="213" height="78"></canvas><span></span>';
-      b.querySelector('span').textContent = name.replace(/\.json$/, '');
-      b.addEventListener('click', () => changeFace(name, b));
-      wrap.appendChild(b);
-      // buttons can't be nested, so the manage row is a sibling of the tile, hidden until Manage is on
-      const acts = document.createElement('div');
-      acts.className = 'face-actions';
-      const edit = document.createElement('a');
-      edit.className = 'mini'; edit.textContent = 'Edit';
-      edit.href = '/animator.html?face=' + encodeURIComponent(name);
-      const ren = document.createElement('button');
-      ren.type = 'button'; ren.className = 'mini'; ren.textContent = 'Rename';
-      ren.addEventListener('click', () => renameFace(name));
-      const del = document.createElement('button');
-      del.type = 'button'; del.className = 'mini danger'; del.textContent = 'Delete';
-      del.addEventListener('click', () => deleteFace(name));
-      acts.append(edit, ren, del);
-      wrap.appendChild(acts);
-      grid.appendChild(wrap);
+      // the tile shows one half of the face; the canvas is drawn whole and cropped
+      b.innerHTML = '<span class="crop"><canvas width="213" height="78"></canvas></span><span></span>';
+      b.querySelectorAll('span')[1].textContent = name.replace(/\.json$/, '');
+      holdable(b, () => changeFace(name, b), () => openSheet(name, b));
+      grid.appendChild(b);
     }
+    const add = document.createElement('button');
+    add.type = 'button'; add.className = 'add'; add.textContent = '+ NEW FACE';
+    add.addEventListener('click', () => { location.href = '/animator.html'; });
+    if (parts.length) grid.appendChild(add);
     // face pickers in Settings, keeping their current choice
     for (const id of FACE_PICKERS) {
       const sel = $(id), keep = sel.value;
@@ -1292,6 +1570,7 @@
   }
 
   function drawFace(canvas, leds) {
+    const ledOn = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#4EF5B8";
     const isPanel = c => /^t\d+$/.test(c || '');
     const width = Math.max(...layout.map(r => r.length));
     let cols = [];  // skip columns that are empty in every row so the face fills the tile
@@ -1308,7 +1587,7 @@
       const bits = panelBits(leds[parseInt(row[c].slice(1), 10)]);
       const x0 = cx * (PANEL + GAP), y0 = ry * (PANEL + GAP);
       for (let r = 0; r < 8; r++) for (let k = 0; k < 8; k++) {
-        ctx.fillStyle = bits[r][k] ? '#5fb0ff' : '#141b2b';
+        ctx.fillStyle = bits[r][k] ? ledOn : '#141B21';
         ctx.fillRect(x0 + k * P, y0 + r * P, P - 1, P - 1);
       }
     }));
@@ -1684,6 +1963,9 @@
     try {
       const s = await (await fetch('/stats', NO_CACHE)).json();
       lastStats = s;
+      linkOk(true);
+      $('dockLine2').textContent = (s.wifiClients === undefined ? '-' : s.wifiClients) + (s.wifiClients === 1 ? ' PHONE' : ' PHONES') +
+        (typeof s.tempC === 'number' ? ' · ' + s.tempC.toFixed(0) + '°C' : '') + (s.rave ? ' · RAVE ON' : '');
       sendTime(s.clockMins === undefined ? false : s.clockMins < 0);   //never been told, or due again
       updateAutoBri(s);
       if (currentView === 'settings') { updateMic(s); updateRemote(s); }
@@ -1720,7 +2002,7 @@
       // which is why no lux figure is shown - it would be wrong.
       $('stAls').textContent = (s.als0 === undefined || s.als0 < 0) ? '—'
         : s.als0 + ' visible+IR, ' + s.als1 + ' IR' + (s.lightNormal >= 0 ? ' (normal ' + s.lightNormal + ', shade ' + s.shade + '%)' : '');
-    } catch (e) { /* mask out of reach or older firmware: keep the last values */ }
+    } catch (e) { linkOk(false); /* mask out of reach or older firmware: keep the last values */ }
   }
   document.addEventListener('visibilitychange', () => scheduleStats(true));
 
@@ -2152,7 +2434,7 @@
     let text;
     if (s.autoLevel === undefined) { text = 'This firmware has no auto-brightness'; status.classList.add('bad'); }
     else if (!s.boop) { text = 'Needs the light sensor, which isn’t found'; status.classList.add('bad'); }
-    else if (!on) text = 'Off — the Mask tab slider sets brightness';
+    else if (!on) text = 'Off — the slider on 001 sets brightness';
     else if (!auto) { text = 'Waiting for the first reading…'; status.classList.add('near'); }
     else { text = 'Brightness ' + s.bright + ' from light ' + s.ambient; status.classList.add('boop'); }
     $('autoStatusText').textContent = text;
@@ -2464,7 +2746,10 @@
   }
 
   async function loadConfig() {
-    loadIntoInputs(await (await fetch('/config.json', NO_CACHE)).json());
+    const c = await (await fetch('/config.json', NO_CACHE)).json();
+    cfgNow = c; configLoaded = true;
+    loadIntoInputs(c);
+    if (currentPage === '006') buildFaceOrder();
   }
 
 
@@ -2737,10 +3022,112 @@
   const onMask = () => (document.querySelector('.face.on') || {dataset: {}}).dataset.anim;
   // the face pickers in Settings that could be left pointing at a gone name
   const usedInSettings = name => FACE_PICKERS.filter(id => $(id).value === name);
+  // what the hold sheet calls a face that a setting points at
+  const FACE_ROLE = {aTilt: 'tilt face', aTilt2: 'second tilt face', aBoop: 'boop face', aSleep: 'sleep face',
+    aMilestone: 'boop milestone face', aSass: 'sass face', btnShortFace: 'button face', btnDoubleFace: 'button face',
+    btnHoldFace: 'button face'};
+  const roleOf = id => FACE_ROLE[id] || (/Face$/.test(id) ? 'remote face' : 'face in a setting');
 
-  $('manageBtn').addEventListener('click', () => {
-    const on = $('faces').classList.toggle('managing');
-    $('manageBtn').textContent = on ? 'Done' : 'Manage';
+  // A short tap shows the face; holding opens its options. The click that follows a hold is eaten.
+  function holdable(el, tap, hold) {
+    let t = null, held = false, x0 = 0, y0 = 0;
+    const cancel = () => { clearTimeout(t); t = null; el.classList.remove('held'); };
+    el.addEventListener('pointerdown', e => {
+      held = false; x0 = e.clientX; y0 = e.clientY;
+      t = setTimeout(() => { held = true; el.classList.add('held'); if (navigator.vibrate) navigator.vibrate(15); hold(); }, 450);
+    });
+    el.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancel(); });
+    el.addEventListener('pointerup', () => { clearTimeout(t); t = null; });
+    el.addEventListener('pointercancel', cancel);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    el.addEventListener('click', e => { if (held) { e.preventDefault(); held = false; return; } tap(); });
+  }
+
+  let sheetFace = null, sheetTile = null;
+  function openSheet(name, tile) {
+    sheetFace = name; sheetTile = tile;
+    const label = name.replace(/\.json$/, '');
+    $('sheetName').textContent = label;
+    const a = animCache[name], frames = a && a.visor && a.visor.frames;
+    $('sheetMeta').textContent = name + (frames ? ' · ' + frames.length + (frames.length === 1 ? ' frame' : ' frames') : '');
+    const on = name === onMask(), boot = name === BOOT_FACE;
+    const roles = usedInSettings(name).map(roleOf);
+    const tag = $('sheetTag');
+    tag.hidden = !(on || roles.length || boot);
+    tag.className = on ? 'on' : '';
+    tag.textContent = on ? 'ON THE MASK NOW' : boot ? 'THE STARTUP FACE' : roles.length ? 'USED AS THE ' + roles[0].toUpperCase() : '';
+    $('sheetShow').hidden = on;
+    $('sheetEdit').href = '/animator.html?face=' + encodeURIComponent(name);
+    const locked = on || boot;
+    $('sheetDelete').disabled = locked;
+    $('sheetDelNote').textContent = on ? 'SWITCH FACE FIRST' : boot ? 'THE STARTUP FACE' : 'ASKS FIRST';
+    const src = tile.querySelector('canvas'), dst = $('faceSheet').querySelector('canvas');
+    dst.getContext('2d').clearRect(0, 0, dst.width, dst.height);
+    dst.width = src.width; dst.height = src.height; dst.getContext('2d').drawImage(src, 0, 0);
+    $('sheetBg').hidden = false; $('faceSheet').hidden = false;
+    $('sheetRename').focus();
+  }
+  function closeSheet() {
+    if (!$('faceSheet') || $('faceSheet').hidden) return;
+    $('sheetBg').hidden = true; $('faceSheet').hidden = true;
+    if (sheetTile) { sheetTile.classList.remove('held'); sheetTile.focus(); }
+  }
+  $('sheetBg').addEventListener('click', closeSheet);
+  $('sheetShow').addEventListener('click', () => { const t = sheetTile; closeSheet(); changeFace(sheetFace, t); });
+  $('sheetRename').addEventListener('click', () => { const f = sheetFace; closeSheet(); renameFace(f); });
+  $('sheetDelete').addEventListener('click', () => { const f = sheetFace; closeSheet(); deleteFace(f); });
+  // swipe the sheet down to close it
+  {
+    let y0 = null;
+    $('faceSheet').addEventListener('pointerdown', e => { y0 = e.clientY; });
+    $('faceSheet').addEventListener('pointerup', e => { if (y0 !== null && e.clientY - y0 > 60) closeSheet(); y0 = null; });
+  }
+
+  /* ---------- next face order ---------- */
+  let orderList = null;   // [{name, on}] while page 006 is open
+  function buildFaceOrder() {
+    const box = $('faceOrder');
+    if (!availableAnims.length || !configLoaded) return;
+    const order = (cfgNow.faceOrder || '').split(';').filter(Boolean);
+    const skip = (cfgNow.faceSkip || '').split(';').filter(Boolean);
+    const named = order.filter(n => availableAnims.includes(n));
+    const rest = availableAnims.filter(n => !named.includes(n));
+    orderList = named.concat(rest).map(n => ({name: n, on: !skip.includes(n)}));
+    drawFaceOrder();
+  }
+  function drawFaceOrder() {
+    const box = $('faceOrder');
+    box.innerHTML = '';
+    orderList.forEach((f, i) => {
+      const row = document.createElement('div');
+      row.className = f.on ? '' : 'off';
+      row.innerHTML = '<input type="checkbox"><span class="crop"><canvas width="213" height="78"></canvas></span><span></span>' +
+        '<button type="button">\u25b2</button><button type="button">\u25bc</button>';
+      const label = f.name.replace(/\.json$/, '');
+      const cb = row.querySelector('input');
+      cb.checked = f.on; cb.setAttribute('aria-label', 'Include ' + label);
+      cb.addEventListener('change', () => { f.on = cb.checked; row.className = f.on ? '' : 'off'; });
+      row.querySelectorAll('span')[1].textContent = label;
+      const [up, down] = row.querySelectorAll('button');
+      up.setAttribute('aria-label', 'Move ' + label + ' up'); down.setAttribute('aria-label', 'Move ' + label + ' down');
+      up.disabled = i === 0; down.disabled = i === orderList.length - 1;
+      up.addEventListener('click', () => { [orderList[i - 1], orderList[i]] = [orderList[i], orderList[i - 1]]; drawFaceOrder(); box.querySelectorAll('div')[i - 1].querySelector('button').focus(); });
+      down.addEventListener('click', () => { [orderList[i + 1], orderList[i]] = [orderList[i], orderList[i + 1]]; drawFaceOrder(); box.querySelectorAll('div')[i + 1].querySelectorAll('button')[1].focus(); });
+      const tile = document.querySelector('.face[data-anim="' + CSS.escape(f.name) + '"] canvas');
+      if (tile) { const d = row.querySelector('canvas'); d.width = tile.width; d.height = tile.height; d.getContext('2d').drawImage(tile, 0, 0); }
+      box.appendChild(row);
+    });
+  }
+  $('faceOrderSave').addEventListener('click', async () => {
+    if (!orderList) return;
+    const order = orderList.map(f => f.name).join(';'), skip = orderList.filter(f => !f.on).map(f => f.name).join(';');
+    if (!orderList.some(f => f.on)) { toast('Tick at least one face', true); return; }
+    try {
+      const r = await fetch('/saveconfig?faceOrder=' + encodeURIComponent(order) + '&faceSkip=' + encodeURIComponent(skip), {redirect: 'manual', cache: 'no-store'});
+      if (r.type !== 'opaqueredirect' && !r.ok) { toast(await r.text(), true); return; }
+      cfgNow.faceOrder = order; cfgNow.faceSkip = skip;
+      toast('Order saved');
+    } catch (e) { toast('Could not reach the mask', true); }
   });
 
   async function deleteFace(name) {
@@ -2784,8 +3171,8 @@
   /* ---------- start ---------- */
   setFill($('brightness'));
   document.querySelectorAll('input[type=range][data-key]').forEach(showRange);
-  let savedTab = 'mask';
-  try { savedTab = localStorage.getItem('tab') || 'mask'; } catch (e) {}
+  let savedTab = '001';
+  try { savedTab = localStorage.getItem('tab') || '001'; } catch (e) {}
   showView(location.hash.replace('#', '') || savedTab);   // a link's #tab wins over the last one used
   window.addEventListener('hashchange', () => showView(location.hash.replace('#', '') || 'mask'));
   (async () => {
