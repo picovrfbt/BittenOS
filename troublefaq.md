@@ -81,8 +81,7 @@ filesystem, and check `192.168.4.1/log` for modules failing to start.
 **Every panel mirrored left to right.** `HARDWARE_TYPE` — this build uses `PAROLA_HW`.
 
 **One face looks wrong and every other face looks right.** The fault is in that face file, not the
-mask. This cost four wasted flashes once. Render the face with `tools/render_faces.py`, or load
-`paneltest.json` which shows each panel its own number, before changing any firmware.
+mask. This cost four wasted flashes once. Render the face with `tools/render_faces.py` before changing any firmware.
 
 **The face stutters or pauses.** If the status screen is on, suspect it: a full 1024-byte OLED blit
 blocks I²C for about 30 ms, and the same loop drives the panels. The firmware now sends only the

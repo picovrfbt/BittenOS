@@ -191,7 +191,7 @@ The full list, grouped by area, is in the [README](README.md#changes-from-upstre
 | `data/visType.txt` | layout | your chain order | See section 3 |
 | `data/visTypeMouth.txt` | mouth mask | 14 entries | Which panels move when talking |
 | `data/config.json` | speech, BLE, OLED | off | The repo defaults stay off so a fresh board is quiet. This mask has the mic and the screen fitted and both switched on; BLE is still unused. Speech on with no mic makes the mouth flap randomly, which is why it is not a default. |
-| `data/anims/*.json` | 14 faces | built by `tools/make_faces.py`, plus `warning`, `bsod` and `paneltest` | See section 7 |
+| `data/anims/*.json` | 12 faces | built by `tools/make_faces.py` | See section 7. `warning`, `bsod` and `paneltest` were taken off the mask and are kept outside the repo |
 | `src/fileOp.cpp` | brightness default | `5` | MAX7219 brightness only goes to 15; stock used an RGB value of 100 |
 
 The firmware is 1.40MB, 47% of its 3MB slot.
@@ -400,7 +400,7 @@ python tools\make_faces.py                     # write the files
 - **Mouths** are the `mouth_*` functions above the table. Most are drawn two pixels thick; `mouth_original` uses a face's original mouth squashed a row flatter (default uses it), and `mouth=None` leaves the mouth dark (boop2).
 - `step` is the frame length in ms. Keep it shorter than the quickest frame in a face's original eye sequence, or that frame falls between samples and is lost — angry has a 25 ms twitch, which is why its step is 30.
 - Frames that come out identical are merged and their times added, so files stay small.
-- It doesn't touch `bsod.json`; `sleep.json` comes from `make_sleep_face.py`.
+- `sleep.json` comes from `make_sleep_face.py`.
 
 Update the filesystem afterwards.
 

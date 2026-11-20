@@ -35,8 +35,8 @@ Roughly in order:
    mirrored or not. That one file would replace `mawStrips`, both nose defines and the blink rule.
 3. **Make the effects measure the maw instead of assuming it.** The slot reels, the dino ground,
    the loading bar, the boop counter and the scrolling text are all sized to 32 columns today.
-   They need to ask how wide the maw actually is. Faces drawn to this mask's dimensions —
-   `warning`, `bsod` — would need generating per layout rather than shipping fixed.
+   They need to ask how wide the maw actually is. Faces drawn to this mask's dimensions
+   would need generating per layout rather than shipping fixed.
 4. **Face sets per layout.** A face is a list of panels, so it belongs to a layout.
    `tools/convert_mk2_to_14.py` already converts the stock 11-panel set to this one; that wants
    generalising to any-to-any, driven by the role file rather than by a hand-written table. The

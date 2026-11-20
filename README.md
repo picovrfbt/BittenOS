@@ -27,7 +27,7 @@ The face came with an Arduino Nano running FurBitten's closed-source firmware. T
 ### Faces
 
 - All 14 panels driven as one face — 2 per eye, 4 per mouth side, 1 per nose side
-- **14 faces**, most keeping the eyes and nose the mask came with, animating and blinking by themselves. `warning` scrolls WARNING under a donated angry face; `bsod` lights every panel and punches ERROR through it, so the message is the unlit part; `paneltest` labels each panel for working out a layout
+- **12 faces**, most keeping the eyes and nose the mask came with, animating and blinking by themselves
 - A short dip to black between faces, 20–400 ms
 - **Mouth bob**, a **sleeping face** (on demand, or once the mask has been still a while), and **scrolling text** across the maw at four speeds
 - **The Animator** — draw faces on a phone: pen, line, box, fill, mirror drawing, onion skin, undo, a frame strip you can drag to reorder, and a live preview
