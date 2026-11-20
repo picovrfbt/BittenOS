@@ -54,7 +54,7 @@
 <header class="topbar">
   <div class="topbar-in">
     <div class="brand">How to use<small>FurBitten 14-panel</small></div>
-    <a href="/#009">← Back</a>
+    <a href="/#settings">← Settings</a>
   </div>
 </header>
 
@@ -65,21 +65,15 @@
   <details class="card" open>
     <summary><span>The basics<small>Getting a face on the mask</small></span></summary>
     <div class="body">
-      <p><b class="k">MENU</b> at the top left opens the numbered pages:</p>
+      <p>The page has four tabs along the bottom:</p>
       <table>
-        <tr><th>001 Faces &amp; say</th><td>Faces, blinks, brightness, scrolling text and quick phrases</td></tr>
-        <tr><th>002 Voice &amp; mic</th><td>Voice through the phone and the mouth mic</td></tr>
-        <tr><th>003 Lights &amp; screen</th><td>Cheek strip, auto-brightness, the status screen</td></tr>
-        <tr><th>004 Sensors</th><td>Boop, boop counter, tilt</td></tr>
-        <tr><th>005 Behaviour</th><td>Face changes, sleep and startup</td></tr>
-        <tr><th>006 Buttons &amp; remote</th><td>The button, the remotes, Next face order</td></tr>
-        <tr><th>007 Create</th><td>The face maker, the screen designer, uploading faces</td></tr>
-        <tr><th>008 Network</th><td>The mask's WiFi, joining a network</td></tr>
-        <tr><th>009 System</th><td>How the mask is doing, easter eggs, tools, this guide, the page's accent colour</td></tr>
-        <tr><th>010 Spectrum rave</th><td>Opens rave mode</td></tr>
+        <tr><th>Mask</th><td>Faces, brightness, scrolling text and quick phrases</td></tr>
+        <tr><th>Design</th><td>The face maker and the screen designer</td></tr>
+        <tr><th>Settings</th><td>Everything that can be configured</td></tr>
+        <tr><th>System</th><td>How the mask is doing, and the tools</td></tr>
       </table>
-      <p>Tap a face tile to show it, or hold it for its options. Tiles show half of each face at double size, because nearly every face is a mirror image; a face whose halves genuinely differ is shown whole.</p>
-      <p>The buttons at the top right are <b class="k">rave</b> (the bars), <b class="k">sleep</b> (the moon) and <b class="k">displays off</b> (the power symbol). Displays off darkens the panels while everything else keeps running, so it comes straight back.</p>
+      <p>Tap a face tile to show it. Tiles show half of each face at double size, because nearly every face is a mirror image; a face whose halves genuinely differ is shown whole.</p>
+      <p>The two round buttons at the top right are <b class="k">sleep</b> (the moon) and <b class="k">displays off</b> (the power symbol). Displays off darkens the panels while everything else keeps running, so it comes straight back.</p>
       <div class="note">Every setting saves the moment you change it. There is no save button, and if the mask refuses a change the control goes back to what the mask actually has.</div>
     </div>
   </details>
@@ -88,7 +82,7 @@
     <summary><span>Boops<small>Setting up the sensor so it triggers properly</small></span></summary>
     <div class="body">
       <p>The boop sensor uses two things at once: how close something is, and whether it casts a shadow. A stray closeness reading can't darken the light sensor, so demanding both is what stops random boops.</p>
-      <p><b>Setting it up</b>, in 004 Sensors &gt; Boop:</p>
+      <p><b>Setting it up</b>, in Settings &gt; Boop:</p>
       <ol>
         <li>With nothing near the visor, press <b class="k">Calibrate</b>. Closeness should sit near 0.</li>
         <li>Hold your hand on the snout and watch <b class="k">Closeness</b>. Set <b class="k">Boop distance</b> about halfway between resting and your hand.</li>
@@ -107,7 +101,7 @@
     <div class="body">
       <p>Loudness is measured peak to peak — the loudest reading minus the quietest, many times a second — so there is no resting level to drift and nothing to get stuck on.</p>
       <ol>
-        <li>002 Voice &amp; mic &gt; Microphone, switch <b class="k">Speech</b> on and stay quiet for a second while it measures the room.</li>
+        <li>Settings &gt; Microphone, switch <b class="k">Speech</b> on and stay quiet for a second while it measures the room.</li>
         <li>Press <b class="k">Mic test</b>: keep quiet for two seconds, then talk for three. Quiet should be a small number and talking several times bigger.</li>
         <li>Press <b class="k">Measure loud</b> and talk normally for three seconds. That sets <b class="k">Range</b> so ordinary speech lands about 80 out of 100.</li>
       </ol>
@@ -120,7 +114,7 @@
   <details class="card">
     <summary><span>Brightness<small>Manual, or set from the light around you</small></span></summary>
     <div class="body">
-      <p>The slider on 001 Faces &amp; say sets panel brightness, 0 to 15. With auto-brightness on it locks and shows <b class="k">Auto</b> instead.</p>
+      <p>The slider on the Mask tab sets panel brightness, 0 to 15. With auto-brightness on it locks and shows <b class="k">Auto</b> instead.</p>
       <p><b>Auto-brightness</b> reads the light sensor. The panels shine into that sensor, so a plain reading partly measures the panels themselves, which is what the three methods are about:</p>
       <table>
         <tr><th>Blank</th><td>Switches the panels off for a quarter second at each check and reads the room. Most accurate, brief blink.</td></tr>
@@ -147,7 +141,7 @@
   <details class="card">
     <summary><span>WiFi<small>The mask's own network, and joining yours</small></span></summary>
     <div class="body">
-      <p>The mask always runs its own network, named and secured in 008 Network &gt; <b class="k">The mask's own WiFi</b>. Connecting a phone to it works anywhere, but that network has no internet behind it, so while your phone is on it you lose data, and calls that go over the internet stop working.</p>
+      <p>The mask always runs its own network, named and secured in Settings &gt; <b class="k">The mask's own WiFi</b>. Connecting a phone to it works anywhere, but that network has no internet behind it, so while your phone is on it you lose data, and calls that go over the internet stop working.</p>
       <p><b>Join a network</b> fixes that. Switch it on and give the mask your phone's hotspot or your home WiFi, and it connects to that instead — your phone keeps its own connection and its internet, and still reaches the mask. The mask's own network keeps running the whole time, so a wrong password here can never lock you out.</p>
       <p>Once it has joined, <b class="k">Status</b> shows the address to type into a browser, and the mask also answers to the name you set plus <b class="k">.local</b> (<b class="k">protogen.local</b> by default). You can put the address on the status screen too: add a <b class="k">Live value</b> element set to <b class="k">IP address</b> in the screen designer, and the mask will show you where to find it.</p>
       <p>One quirk worth knowing: the mask has a single radio, so when it joins your network its own network moves to that network's channel. Anything already connected to the mask's own network has to connect again. That is the hardware, not a fault.</p>
@@ -157,7 +151,7 @@
   <details class="card">
     <summary><span>Bluetooth<small>Controlling the mask without touching WiFi</small></span></summary>
     <div class="body">
-      <p>Switch <b class="k">Remote (BLE)</b> on in 006 Buttons &amp; remote and the mask advertises over Bluetooth under the same name as its WiFi. This is the one way to control it that leaves your phone's own connection completely alone — no joining anything, no losing internet.</p>
+      <p>Switch <b class="k">Remote (BLE)</b> on in Settings and the mask advertises over Bluetooth under the same name as its WiFi. This is the one way to control it that leaves your phone's own connection completely alone — no joining anything, no losing internet.</p>
       <p>It works with the older physical BLE remote, and with a phone. Commands are a letter, a colon and a value, written to characteristic <b class="k">ffe1</b> on service <b class="k">ffe0</b>:</p>
       <table>
         <tr><th>s:</th><td>Ask what the mask is doing — face, brightness, boops, sleeping, displays, speech</td></tr>
@@ -177,7 +171,7 @@
   <details class="card">
     <summary><span>Dino<small>A game on the maw</small></span></summary>
     <div class="body">
-      <p>On <b class="k">009 System</b>, beside the diagnostics, is a <b class="k">Start</b> button. Press it and both maws become a playfield: a dinosaur runs along the bottom and cacti come in from the back of the head toward the snout. The game plays on one maw and is mirrored onto the other, so it reads as deliberate rather than lopsided.</p>
+      <p>On the <b class="k">System</b> tab, beside the diagnostics, is a <b class="k">Start</b> button. Press it and both maws become a playfield: a dinosaur runs along the bottom and cacti come in from the back of the head toward the snout. The game plays on one maw and is mirrored onto the other, so it reads as deliberate rather than lopsided.</p>
       <p><b>Jumping:</b> while a game is running the mask's own button jumps, whatever it is normally set to, and goes back to its usual job the moment the game ends. There is a <b class="k">Jump</b> button on the page too, for when the mask is not on your head — though a phone tap has to cross WiFi, so the button on the mask is the responsive one.</p>
       <p>The score counts distance and your best is remembered. Crash and it flashes, shows the wreck for a moment, then puts your face back.</p>
       <p>It takes the panels over completely while it runs, so the face, mouth bob and blinking all stand aside until it finishes. Press <b class="k">Stop</b> to end it early.</p>
@@ -187,7 +181,7 @@
   <details class="card">
     <summary><span>The button<small>Short press, double press and hold</small></span></summary>
     <div class="body">
-      <p>Each of <b class="k">Short press</b>, <b class="k">Double press</b> and <b class="k">Hold</b> can be set separately in 006 Buttons &amp; remote &gt; Button:</p>
+      <p>Each of <b class="k">Short press</b>, <b class="k">Double press</b> and <b class="k">Hold</b> can be set separately in Settings &gt; Button:</p>
       <table>
         <tr><th>Nothing</th><td>Ignore it</td></tr>
         <tr><th>Next / Previous face</th><td>Step through the faces</td></tr>
@@ -205,7 +199,7 @@
   <details class="card">
     <summary><span>Scrolling text and quick phrases<small>Saying something without a keyboard</small></span></summary>
     <div class="body">
-      <p><b>Scrolling text</b> on 001 Faces &amp; say types a one-off message, up to 64 characters. Pick a speed and whether it repeats or plays once, then press Show. It scrolls across the mouth while the eyes keep the current face.</p>
+      <p><b>Scrolling text</b> on the Mask tab types a one-off message, up to 64 characters. Pick a speed and whether it repeats or plays once, then press Show. It scrolls across the mouth while the eyes keep the current face.</p>
       <p><b>Quick phrases</b> are saved messages, one tap each. Press <b class="k">Edit</b>, fill in up to six with their own speed and repeat setting, then Save.</p>
       <div class="note">The mask builds phrases itself rather than the phone doing it, which is why a phrase set on the button works with no phone anywhere near you.</div>
     </div>
@@ -214,10 +208,10 @@
   <details class="card">
     <summary><span>Faces<small>Choosing, managing and drawing them</small></span></summary>
     <div class="body">
-      <p><b>Hold a face tile</b> for its options: show it, edit it in the face maker, rename or delete it. <b>Next face order</b> on 006 Buttons &amp; remote sets what Next and Previous step through. Two faces are protected: <code>default</code>, which loads at startup, and whichever face is showing — switch away first to delete that one.</p>
-      <p><b>Face maker</b> (007 Create in the menu) draws faces pixel by pixel. <b>Mirror</b> draws both sides at once, and on a phone shows the left half at twice the size. The half-view button (a half-filled square by the zoom buttons) switches that off to see the whole face while still mirroring. Pinch to zoom, long-press a frame to drag it, and undo covers everything. <b>On mask</b> tries a face without saving it. <b>Upload faces</b> and <b>Download faces</b> take a single <code>.json</code> or a <code>.zip</code> of them.</p>
+      <p><b>Manage</b> on the Faces card adds Edit, Rename and Delete to every tile. Two faces are protected: <code>default</code>, which loads at startup, and whichever face is showing — switch away first to delete that one.</p>
+      <p><b>Face maker</b> on the Design tab draws faces pixel by pixel. <b>Mirror</b> draws both sides at once, and on a phone shows the left half at twice the size. The half-view button (a half-filled square by the zoom buttons) switches that off to see the whole face while still mirroring. Pinch to zoom, long-press a frame to drag it, and undo covers everything. <b>On mask</b> tries a face without saving it. <b>Upload faces</b> and <b>Download faces</b> take a single <code>.json</code> or a <code>.zip</code> of them.</p>
       <p><b>Transitions</b> dip the panels dark between faces rather than cutting. <b>Mouth bob</b> lifts the mouth a pixel every second or so on any face.</p>
-      <p><b>Blinks</b> appears on 001 only while a face the mask can blink is showing. Most faces are animations that blink themselves; the mask can only take over on a still face. In the face maker, tick <b class="k">The mask may blink this face</b> and you never need to draw blink frames.</p>
+      <p><b>Blinks</b> appears on the Mask tab only while a face the mask can blink is showing. Most faces are animations that blink themselves; the mask can only take over on a still face. In the face maker, tick <b class="k">The mask may blink this face</b> and you never need to draw blink frames.</p>
       <p>The mask's blink takes about 450 ms, the same as the blink the default face draws for itself, so the two read as the same gesture. <b>Double blink</b> sets how many blinks come as a quick pair instead of one on its own — a second blink a tenth of a second behind the first. A single blink on a timer reads as a machine ticking however random the gap; the occasional pair is what makes it look alive. Default is a quarter of them; 0 turns pairs off.</p>
       <div class="warn">Deleting or renaming a face that a setting points at leaves that setting pointing at nothing — the page warns you, so pick another.</div>
     </div>
@@ -237,13 +231,13 @@
   <details class="card">
     <summary><span>The status screen<small>The little screen inside the helmet</small></span></summary>
     <div class="body">
-      <p>Switch it on in 003 Lights &amp; screen &gt; Status screen and pick a brightness. <b class="k">Upside down</b> turns the picture round for how it's mounted.</p>
-      <p><b>Screen designer</b> (007 Create in the menu) lays it out: drag things around, and each element can show always or only in a certain state.</p>
+      <p>Switch it on in Settings &gt; Status screen and pick a brightness. <b class="k">Upside down</b> turns the picture round for how it's mounted.</p>
+      <p><b>Screen designer</b> on the Design tab lays it out: drag things around, and each element can show always or only in a certain state.</p>
       <p><b>Microphone widgets:</b> add a <b class="k">Bar</b> set to <b class="k">Mic level</b> and tick <b class="k">Marker</b> — the bar fills with how loud you are and the marker line sits exactly where the mouth starts moving, so you can see how close you are to setting it off. For a light that comes on when you talk, add an <b class="k">Icon</b> set to <b class="k">mic</b> with <b class="k">While the mouth is moving</b>, and put a second one set to <b class="k">micOff</b> in the same spot with <b class="k">While quiet</b> — the hollow mic fills in as you speak.</p>
-      <p><b>The remote:</b> a three-button remote talks to the mask over ESP-NOW. Press <b class="k">Pair</b> under 006 Buttons &amp; remote, then hold the first button on the remote while powering it up; it blinks five times once it finds the mask. Each button has its own <b>press</b> and <b>hold</b> action, chosen from the same list the mask's own button uses - including <b class="k">Slot machine</b>, <b class="k">Dino game</b> and <b class="k">Boot sequence</b>. While a game is running any remote button jumps instead, exactly as the mask's own button does. <b class="k">Forget</b> unpairs, so a different remote can be paired.</p>
-      <p><b>Easter eggs:</b> 009 System has a row of them, and pressing the mask's own button six times quickly starts one without the page. Which one, and how many presses, are under 006 Buttons &amp; remote. <b class="k">The slot machine</b> spins three reels across the maw and stops them left to right; one spin in three lands on triple sevens. You cannot see your own face, so the same three reels are drawn on the inside screen while it runs, along with how many spins you have won. <b class="k">The dino game</b> is the other one, and while that runs the button jumps.</p>
+      <p><b>The remote:</b> a three-button remote talks to the mask over ESP-NOW. Press <b class="k">Pair</b> under Settings, Remote, then hold the first button on the remote while powering it up; it blinks five times once it finds the mask. Each button has its own <b>press</b> and <b>hold</b> action, chosen from the same list the mask's own button uses - including <b class="k">Slot machine</b>, <b class="k">Dino game</b> and <b class="k">Boot sequence</b>. While a game is running any remote button jumps instead, exactly as the mask's own button does. <b class="k">Forget</b> unpairs, so a different remote can be paired.</p>
+      <p><b>Easter eggs:</b> the System tab has a row of them, and pressing the mask's own button six times quickly starts one without the page. Which one, and how many presses, are under Settings, Button. <b class="k">The slot machine</b> spins three reels across the maw and stops them left to right; one spin in three lands on triple sevens. You cannot see your own face, so the same three reels are drawn on the inside screen while it runs, along with how many spins you have won. <b class="k">The dino game</b> is the other one, and while that runs the button jumps.</p>
       <p><b>Boop sass:</b> boop it too fast and it pulls a face at you. <b class="k">Sass after</b> is how many boops it takes and <b class="k">Counted within</b> how close together they have to land (five inside ten seconds by default), with <b class="k">Sass face</b> choosing the face. Set Sass after to 0 to turn it off. Keep going and it sasses every fifth boop rather than staying put, so the normal boop face comes back in between. A milestone outranks it.</p>
-      <p><b>Boop milestones:</b> set <b class="k">Every N boops</b> in 004 Sensors and each Nth boop plays a special face. Give it a page too: add one set to take over <b class="k">On a boop milestone</b>, with a linger of a second or two, and the screen celebrates alongside the face. Put a <b class="k">Live value</b> showing <b class="k">Boop count</b> on it and it reads like a scoreboard.</p>
+      <p><b>Boop milestones:</b> set <b class="k">Every N boops</b> in Settings and each Nth boop plays a special face. Give it a page too: add one set to take over <b class="k">On a boop milestone</b>, with a linger of a second or two, and the screen celebrates alongside the face. Put a <b class="k">Live value</b> showing <b class="k">Boop count</b> on it and it reads like a scoreboard.</p>
       <p><b>Pages:</b> up to eight, chosen from the bar above the screen. A page <b>in the rotation</b> is stepped by a button set to Next screen page, or automatically if you set a rotation time. A page that <b>takes over</b> appears whenever its condition holds — booped, sleeping, awake, displays off — and lingers for a moment after.</p>
       <p><b>Clock:</b> add a <b class="k">Live value</b> element set to <b class="k">Clock</b>, and <b class="k">am / pm</b> beside it if you want it. The mask has no battery-backed clock and no internet, so it cannot know the time by itself — whichever phone opens this page tells it, and it counts on from there.</p>
       <div class="warn">Until a phone has opened the page, the clock blinks <b>00:00</b>. It forgets the time on every restart, so open the page once after powering up.</div>
@@ -271,7 +265,7 @@
         <tr><th>Boops never fire</th><td>Boop distance too high, or Shadow needed too strict. Watch the meter while you touch the snout.</td></tr>
         <tr><th>Mouth doesn't move</th><td>Run Mic test. "No signal" means wiring; a small difference between quiet and talking means the level settings.</td></tr>
         <tr><th>Mouth moves on its own</th><td>Raise Trigger point, or press Measure silence somewhere quiet.</td></tr>
-        <tr><th>A sensor says not found</th><td>Check <b>I2C devices</b> on 009 System: <code>0x39</code> boop, <code>0x68</code>/<code>0x69</code> tilt, <code>0x3c</code> screen. The mask keeps looking, so a fixed wire is picked up within seconds.</td></tr>
+        <tr><th>A sensor says not found</th><td>Check <b>I2C devices</b> on the System tab: <code>0x39</code> boop, <code>0x68</code>/<code>0x69</code> tilt, <code>0x3c</code> screen. The mask keeps looking, so a fixed wire is picked up within seconds.</td></tr>
         <tr><th>Panels are dark</th><td>Displays may be off — press the power button. If auto-brightness is on in a dark room, Lowest may be 0.</td></tr>
         <tr><th>Page won't load</th><td>Make sure you're on the mask's WiFi with mobile data off.</td></tr>
       </table>
