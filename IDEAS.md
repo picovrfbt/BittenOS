@@ -77,7 +77,7 @@ Two ways to get colour onto the face with WS2812 addressable LEDs, weighed 2026-
 
 **14 small boards, same layout as now.** NCPlyn designed a 32 x 32 mm RGB 8x8 board as a same-size
 replacement for the MAX7219 modules (v3: WS2812B-Mini, domed, 4-layer; v4: WS2812B-2020, square, cheaper,
-needs a diffuser). The production files are in history (removed in 40db374) and restored locally only -
+needs a diffuser). The production files are in history (removed in 073d166) and restored locally only -
 they are not in the repo. Every face, the face maker and the layout carry over, and the firmware still
 has a WS2812 path behind `visorType`, with per-panel and per-pixel colour still parsed from faces. To
 do: put colour controls back on the page, give `mawPush()` (slots, dino, boot bar) a WS2812 branch, and
