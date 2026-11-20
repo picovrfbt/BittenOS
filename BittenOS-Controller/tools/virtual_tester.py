@@ -83,7 +83,7 @@ SAVECONFIG_KEYS = {
     'rmt2D': str, 'rmt2DFace': str, 'rmt2DPhrase': int,
     'bEar': int, 'bVisor': int, 'bOled': int, 'rbSpeed': int, 'rbWidth': int,
     'spMin': int, 'spMax': int, 'spTrig': int,
-    'aTilt': str, 'aTilt2': str, 'aBoop': str, 'aSleep': str,
+    'aTilt': str, 'aTilt2': str, 'aBoop': str, 'aSleep': str, 'faceOrder': str, 'faceSkip': str,
     'neutralX': float, 'neutralY': float, 'neutralZ': float,
     'tiltX': float, 'tiltY': float, 'tiltZ': float,
     'tiltTrig': float,

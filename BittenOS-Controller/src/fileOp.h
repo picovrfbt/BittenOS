@@ -91,6 +91,10 @@ public:
   //sign - so it gets its own taught position rather than being worked out from the other side.
   float tilt2X,tilt2Y,tilt2Z;
   String aTilt,aTilt2,aBoop,aSleep,visColorStr,wifiName = "ProtoWiFi",wifiPass = "Proto1234";
+  //What Next / Previous face step through. faceOrder lists faces in order; faces it does not name
+  //(added since) come after, in disk order. faceSkip lists faces the button passes over. Both are
+  //file names separated by ";". Empty = every face, in disk order, as it always was.
+  String faceOrder, faceSkip;
   unsigned long visColor;
   void setDefault();
   bool save();

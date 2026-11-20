@@ -1758,6 +1758,9 @@ void startWiFiWeb() {
     cfg.getString(request, "aTilt2", cfg.aTilt2);
     cfg.getString(request, "aBoop", cfg.aBoop);
     cfg.getString(request, "aSleep", cfg.aSleep);
+    //the order Next / Previous face step through, and the faces they pass over
+    cfg.getString(request, "faceOrder", cfg.faceOrder);
+    cfg.getString(request, "faceSkip", cfg.faceSkip);
     cfg.getString(request, "aMilestone", cfg.aMilestone);
     cfg.getString(request, "aSass", cfg.aSass);
     for(int i = 0; i < 3; i++) {
@@ -2467,13 +2470,41 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
   if(action == "nextFace" || action == "prevFace") {
     xSemaphoreTake(animQueueMutex, portMAX_DELAY);   //the web task may be rebuilding the list
     if(totalAnims <= 0) { xSemaphoreGive(animQueueMutex); return; }
-    int at = btnNum;
-    for(int i = 0; i < totalAnims; i++) {
-      if(availAnims[i] == currentAnim) { at = i; break; }
+    //The faces in the order Settings gives them, minus the skipped ones.
+    String cyc[MAX_ANIMS];
+    int n = 0;
+    String order = ";" + cfg.faceOrder + ";", skip = ";" + cfg.faceSkip + ";";
+    for(int pass = 0; pass < 2; pass++) {       //pass 0: named in the order; pass 1: everything else
+      if(pass == 0) {
+        int from = 1;
+        while(from < (int)order.length()) {
+          int to = order.indexOf(';', from);
+          String nm = order.substring(from, to);
+          from = to + 1;
+          if(nm.length() == 0 || skip.indexOf(";" + nm + ";") >= 0) continue;
+          for(int i = 0; i < totalAnims; i++) if(availAnims[i] == nm) {
+            bool dup = false;
+            for(int j = 0; j < n; j++) if(cyc[j] == nm) dup = true;
+            if(!dup && n < MAX_ANIMS) cyc[n++] = nm;
+            break;
+          }
+        }
+      } else {
+        for(int i = 0; i < totalAnims && n < MAX_ANIMS; i++) {
+          const String &nm = availAnims[i];
+          if(order.indexOf(";" + nm + ";") >= 0 || skip.indexOf(";" + nm + ";") >= 0) continue;
+          cyc[n++] = nm;
+        }
+      }
     }
-    btnNum = (action == "nextFace") ? (at + 1) % totalAnims
-                                    : (at - 1 + totalAnims) % totalAnims;
-    animToLoad = availAnims[btnNum];
+    if(n == 0) { for(int i = 0; i < totalAnims; i++) cyc[n++] = availAnims[i]; }  //all skipped: ignore the skips
+    int at = -1;
+    for(int i = 0; i < n; i++) if(cyc[i] == currentAnim) { at = i; break; }
+    //On a face that is not in the cycle (boop, sleep, a skipped one): Next starts at the top, Previous at the end.
+    int to = (action == "nextFace") ? (at < 0 ? 0 : (at + 1) % n)
+                                    : (at < 0 ? n - 1 : (at - 1 + n) % n);
+    animToLoad = cyc[to];
+    for(int i = 0; i < totalAnims; i++) if(availAnims[i] == animToLoad) { btnNum = i; break; }
     String picked = animToLoad;
     xSemaphoreGive(animQueueMutex);
     logPrint("[I] Button: " + picked);
