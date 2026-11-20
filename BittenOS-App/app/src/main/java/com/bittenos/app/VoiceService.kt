@@ -43,6 +43,13 @@ class VoiceService : Service() {
             ctx.getSharedPreferences("voice", Context.MODE_PRIVATE).edit().putInt("smooth", ms).apply()
             if (_on.value) restart?.invoke()
         }
+        fun output(ctx: Context): VoiceEngine.Output =
+            ctx.getSharedPreferences("voice", Context.MODE_PRIVATE).getString("output", null)
+                ?.let { n -> VoiceEngine.Output.entries.firstOrNull { it.name == n } } ?: VoiceEngine.Output.Aux
+        fun setOutput(ctx: Context, o: VoiceEngine.Output) {
+            ctx.getSharedPreferences("voice", Context.MODE_PRIVATE).edit().putString("output", o.name).apply()
+            if (_on.value) restart?.invoke()
+        }
         private var restart: (() -> Unit)? = null
     }
 
@@ -78,7 +85,7 @@ class VoiceService : Service() {
         engine = null
         engineHost = h
         if (h != null) {
-            engine = VoiceEngine(this, h, MaskLink.network, smoothingMs(this)).also { it.start() }
+            engine = VoiceEngine(this, h, MaskLink.network, smoothingMs(this), output(this)).also { it.start() }
         }
     }
 

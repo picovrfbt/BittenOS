@@ -2,11 +2,13 @@ package com.bittenos.app
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTimestamp
 import android.media.AudioTrack
 import android.net.Network
+import android.os.Build
 import android.os.Process
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +38,24 @@ class VoiceEngine(
     private val host: String,
     private val network: Network?,
     targetMs: Int,
+    private val output: Output = Output.Aux,
 ) {
+    /** Where the voice comes out. Aux is the quick one; Bluetooth adds the speaker's own radio delay. */
+    enum class Output {
+        Aux, Bluetooth;
+
+        fun matches(d: AudioDeviceInfo): Boolean = d.type in types()
+        private fun types(): Set<Int> = when (this) {
+            Aux -> setOf(AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE,
+                AudioDeviceInfo.TYPE_LINE_ANALOG, AudioDeviceInfo.TYPE_AUX_LINE)
+            Bluetooth -> buildSet {
+                add(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+                if (Build.VERSION.SDK_INT >= 31) { add(AudioDeviceInfo.TYPE_BLE_HEADSET); add(AudioDeviceInfo.TYPE_BLE_SPEAKER) }
+            }
+        }
+    }
+
     data class Stats(
         val running: Boolean = false,
         /** audio received from the mask in the last half second */
@@ -53,6 +72,11 @@ class VoiceEngine(
         val dryOuts: Long = 0,
         val lowLatencyPath: Boolean = false,
         val outputRate: Int = 0,
+        /** what Android is actually playing through, e.g. "Bluetooth: JBL Clip 3" */
+        val routedTo: String = "",
+        /** false while the chosen output is not connected and something else is playing instead */
+        val onChosen: Boolean = true,
+        val output: Output = Output.Aux,
     ) {
         /** Everything this phone can see. WiFi itself (~2-5 ms) and the mask's 10 ms packet are extra. */
         val delayMs: Int get() = if (outputMs < 0) -1 else bufferMs + outputMs + 10
@@ -174,7 +198,15 @@ class VoiceEngine(
         var held = burst * 2
         track.bufferSizeInFrames = held
         val fast = track.performanceMode == AudioTrack.PERFORMANCE_MODE_LOW_LATENCY
+        // Ask for the chosen output. If it is not there yet (cable out, speaker off), Android plays
+        // wherever it would anyway, and the loop below moves over as soon as it turns up.
+        fun choose() {
+            val dev = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull { output.matches(it) }
+            if (dev != null && track.preferredDevice?.id != dev.id) track.setPreferredDevice(dev)
+        }
+        choose()
         track.play()
+        var lastChoose = System.nanoTime()
 
         val out = FloatArray(burst)
         val step0 = IN_RATE.toDouble() / rate
@@ -236,6 +268,8 @@ class VoiceEngine(
                         val played = ts.framePosition + (now - ts.nanoTime) * rate / 1_000_000_000L
                         outMs = (((written - played) * 1000L) / rate).toInt().coerceAtLeast(0)
                     }
+                    if (now - lastChoose > 1_000_000_000L) { choose(); lastChoose = now }
+                    val routed = track.routedDevice
                     val bufMs = if (pos < 0) 0 else ((writePos - pos) * 1000 / IN_RATE).toInt().coerceAtLeast(0)
                     _stats.value = Stats(
                         running = true,
@@ -248,6 +282,9 @@ class VoiceEngine(
                         dryOuts = dry,
                         lowLatencyPath = fast,
                         outputRate = rate,
+                        routedTo = routed?.let { describe(it) } ?: "",
+                        onChosen = routed == null || output.matches(routed),
+                        output = output,
                     )
                     peak = 0f
                     lastPublish = now
@@ -257,5 +294,17 @@ class VoiceEngine(
             try { track.stop() } catch (e: Exception) {}
             track.release()
         }
+    }
+
+    private fun describe(d: AudioDeviceInfo): String {
+        val kind = when {
+            Output.Bluetooth.matches(d) -> "Bluetooth"
+            Output.Aux.matches(d) -> "Aux"
+            d.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "The phone's speaker"
+            d.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "The phone's earpiece"
+            else -> "Output"
+        }
+        val name = d.productName?.toString()?.trim().orEmpty()
+        return if (kind.startsWith("The phone") || name.isEmpty() || name == Build.MODEL) kind else "$kind: $name"
     }
 }

@@ -21,7 +21,7 @@ a backup.
   in the meantime, the app asks which one to keep instead of overwriting it. Faces, sleep, panels
   and rave still need the mask in reach: they are things you want now, not later. Controls and the
   face list show what the mask had last time while it is away.
-- **Voice.** Plays the mask's mic out of the phone's headphone socket:
+- **Voice.** Plays the mask's mic out of the phone, through **Aux** (the headphone socket, quickest) or **Bluetooth** (no cable, adds the speaker's own radio delay). It shows which output is really playing and moves to the chosen one as soon as it is plugged in or connected. The voice goes:
   - over UDP rather than the page's WebSocket, so a lost packet is skipped instead of stalling the
     sound
   - in 10 ms packets, with a 20/40/80 ms jitter buffer (*Smoothing*)

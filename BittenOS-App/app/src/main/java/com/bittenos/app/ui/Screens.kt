@@ -423,6 +423,7 @@ private fun VoiceTab(conn: MaskLink.State.Connected?) {
     val on by VoiceService.on.collectAsState()
     val v by VoiceEngine.stats.collectAsState()
     var smooth by remember { mutableIntStateOf(VoiceService.smoothingMs(ctx)) }
+    var output by remember { mutableStateOf(VoiceService.output(ctx)) }
     var mic by remember { mutableStateOf<JSONObject?>(null) }
     val waiting by Pending.list.collectAsState()
     val queuedGain = waiting.firstOrNull { it.key == Pending.Key.VoiceGain }?.value
@@ -435,7 +436,8 @@ private fun VoiceTab(conn: MaskLink.State.Connected?) {
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Panel {
             Text("Your voice through this phone", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-            Text("Plug the speaker's own cable into the headphone socket. Keeps playing with the screen off.",
+            Text(if (output == VoiceEngine.Output.Aux) "Plug the speaker's own cable into the headphone socket. Keeps playing with the screen off."
+                 else "Pair the speaker with this phone first. Keeps playing with the screen off.",
                 color = Muted, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))
             Button(
@@ -464,11 +466,39 @@ private fun VoiceTab(conn: MaskLink.State.Connected?) {
                 fontSize = 22.sp, color = Accent, fontWeight = FontWeight.SemiBold)
             Text("buffer ${v.bufferMs} ms  ·  phone output ${maxOf(v.outputMs, 0)} ms  ·  mask packet 10 ms",
                 color = Muted, fontSize = 13.sp)
-            Text(if (v.lowLatencyPath) "Using Android's fast audio path (${v.outputRate} Hz)"
+            if (v.routedTo.isNotEmpty())
+                Text("Playing through: ${v.routedTo}", color = if (v.onChosen) Muted else Warn, fontSize = 13.sp)
+            if (!v.onChosen)
+                Text(if (v.output == VoiceEngine.Output.Bluetooth) "No Bluetooth speaker connected yet. It moves over by itself once one is."
+                     else "Nothing in the headphone socket yet. It moves over by itself once the cable is in.",
+                    color = Warn, fontSize = 13.sp)
+            if (v.output == VoiceEngine.Output.Bluetooth && v.onChosen)
+                Text("Bluetooth's own delay is in the figure above as far as Android reports it.", color = Muted, fontSize = 13.sp)
+            else Text(if (v.lowLatencyPath) "Using Android's fast audio path (${v.outputRate} Hz)"
                  else "Android refused the fast audio path: expect more delay",
                 color = if (v.lowLatencyPath) Muted else Warn, fontSize = 13.sp)
             if (v.dryOuts > 0 || v.lostPackets > 0)
                 Text("Crackles: ${v.dryOuts}  ·  packets lost: ${v.lostPackets}", color = Muted, fontSize = 13.sp)
+        }
+
+        Panel {
+            Text("Output", fontWeight = FontWeight.SemiBold)
+            Text(if (output == VoiceEngine.Output.Aux)
+                     "The quickest way out: no radio between the phone and the speaker."
+                 else "No cable. Bluetooth adds its own delay, usually 150-250 ms on older speakers and less on " +
+                      "ones with aptX Low Latency or LE Audio. Around 200 ms is the hardest delay to talk over.",
+                color = Muted, fontSize = 13.sp)
+            Spacer(Modifier.height(8.dp))
+            val outs = VoiceEngine.Output.entries
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                outs.forEachIndexed { i, o ->
+                    SegmentedButton(
+                        selected = output == o,
+                        onClick = { output = o; VoiceService.setOutput(ctx, o) },
+                        shape = SegmentedButtonDefaults.itemShape(i, outs.size),
+                    ) { Text(o.name) }
+                }
+            }
         }
 
         Panel {
