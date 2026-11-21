@@ -13,15 +13,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Updates this app from the GitHub repo. The repo holds the built APK and a version.json next to
- * it; the app reads the newest commit that touched the app, then that commit's version.json, and
- * offers the APK from that same commit if its number is higher than the one running.
+ * Updates this app from the GitHub repo. Each app version is a GitHub release tagged app-<code>
+ * (the versionCode from version.json) with BittenOS.apk attached; the app offers the highest one
+ * if it's above the one running, and lists the recent commits to the app as what changed.
  *
  * The mask's WiFi has no internet and the app binds itself to it, so every request here goes out
  * explicitly over a network that does (mobile data, or a house WiFi).
@@ -32,7 +31,7 @@ object Updater {
     private const val DIR = "BittenOS-App"
 
     data class Change(val sha: String, val title: String, val date: String)
-    data class Release(val code: Int, val name: String, val notes: String, val sha: String, val changes: List<Change>)
+    data class Release(val code: Int, val name: String, val notes: String, val apkUrl: String, val changes: List<Change>)
 
     sealed interface State {
         data object Idle : State
@@ -93,17 +92,25 @@ object Updater {
             try {
                 val net = internet(ctx) ?: return@withContext State.Failed(
                     "No internet. Turn on mobile data, or join a WiFi that has internet.")
+                val rels = JSONArray(text(net, "https://api.github.com/repos/$REPO/releases?per_page=20"))
+                val best = (0 until rels.length()).map { rels.getJSONObject(it) }
+                    .filter { !it.optBoolean("draft") && Regex("app-[0-9]+").matches(it.optString("tag_name")) }
+                    .maxByOrNull { it.getString("tag_name").removePrefix("app-").toInt() }
+                    ?: return@withContext State.Failed("No app releases on GitHub yet")
+                val assets = best.getJSONArray("assets")
+                val apk = (0 until assets.length()).map { assets.getJSONObject(it) }
+                    .firstOrNull { it.optString("name").endsWith(".apk") }
+                    ?: return@withContext State.Failed("The newest release has no APK attached")
                 val log = JSONArray(text(net, "https://api.github.com/repos/$REPO/commits?sha=$BRANCH&path=$DIR&per_page=12"))
-                if (log.length() == 0) return@withContext State.Failed("Nothing found in the repo")
                 val changes = (0 until log.length()).map { i ->
                     val o = log.getJSONObject(i)
                     val cm = o.getJSONObject("commit")
                     Change(o.getString("sha"), cm.getString("message").lineSequence().first(),
                         cm.getJSONObject("committer").optString("date").take(10))
                 }
-                val sha = changes.first().sha
-                val v = JSONObject(text(net, "https://raw.githubusercontent.com/$REPO/$sha/$DIR/version.json"))
-                val r = Release(v.getInt("code"), v.optString("name"), v.optString("notes"), sha, changes)
+                val r = Release(best.getString("tag_name").removePrefix("app-").toInt(),
+                    best.optString("name").removePrefix("BittenOS app ").removePrefix("v"),
+                    best.optString("body").trim(), apk.getString("browser_download_url"), changes)
                 checkedAt = System.currentTimeMillis()
                 if (r.code > current(ctx).first) State.Available(r) else State.Latest(r)
             } catch (e: Exception) {
@@ -112,7 +119,7 @@ object Updater {
         }
     }
 
-    /** Fetch the APK from the same commit the version came from. */
+    /** Fetch the release's APK. */
     suspend fun download(ctx: Context, r: Release) {
         state.value = State.Downloading(r, 0f)
         state.value = withContext(Dispatchers.IO) {
@@ -120,7 +127,7 @@ object Updater {
                 val net = internet(ctx) ?: return@withContext State.Failed("No internet any more")
                 val dir = File(ctx.cacheDir, "update").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
                 val f = File(dir, "BittenOS-${r.code}.apk")
-                val c = open(net, "https://raw.githubusercontent.com/$REPO/${r.sha}/$DIR/BittenOS.apk", 30_000)
+                val c = open(net, r.apkUrl, 30_000)
                 try {
                     if (c.responseCode !in 200..299) throw Exception("GitHub said ${c.responseCode}")
                     val total = c.contentLengthLong.takeIf { it > 0 } ?: 16_000_000L

@@ -46,13 +46,14 @@ a backup.
   link to the mask, remote sounds, the voice and queued changes all carry on with the phone locked,
   even in deep doze. The same panel asks Android to leave the app out of battery saving, which
   Samsung phones otherwise use to pause it after a while.
-- **Updates itself from GitHub.** System › Update › *This app* reads the newest commit that
-  touched `BittenOS-App/` in the repo, then `version.json` from that commit, and if its `code` is
-  higher than the installed one it downloads `BittenOS.apk` from the same commit and hands it to
-  Android's installer. It goes out over mobile data or a WiFi with internet, never the mask's. The
-  home screen shows a strip when there's a newer one (checked at most once an hour). **To release:**
-  bump `code` (and `name`, `notes`) in `version.json`, build, copy the APK to `BittenOS.apk`, commit
-  and push. Builds must be signed with the same key (this PC's debug key) or Android refuses the update.
+- **Updates itself from GitHub.** System › Update › *This app* looks at the repo's GitHub releases
+  tagged `app-<code>`, and if the highest code is above the installed one it downloads the
+  release's APK and hands it to Android's installer, listing the recent commits to the app as what
+  changed. It goes out over mobile data or a WiFi with internet, never the mask's. The home screen
+  shows a strip when there's a newer one (checked at most once an hour). **To release:** bump
+  `code`, `name` and `notes` in `version.json`, build, commit and push, then
+  `python release.py` creates the `app-<code>` release with the APK. Builds must be signed with the
+  same key (this PC's debug key) or Android refuses the update.
 - **Phone mic test mode.** Voice & mic › *Listen to* › *Phone mic · test* plays the phone's own mic
   through the same buffer and output as the mask's, so the speaker, routing and delay can be tried
   without the mask. Keep the speaker away from the phone or it howls.
