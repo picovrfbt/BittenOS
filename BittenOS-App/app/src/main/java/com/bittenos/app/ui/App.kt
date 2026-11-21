@@ -151,6 +151,7 @@ fun HomeScreen(link: MaskLink.State) {
     val s = conn?.stats ?: MaskLink.lastStats ?: JSONObject()
     HudColumn {
         LinkPanel(link) { openWifiSettings(ctx) }
+        UpdateBanner()
         FacesPanel(conn, s)
         BrightnessPanel(conn, s)
         SayPanel(conn)

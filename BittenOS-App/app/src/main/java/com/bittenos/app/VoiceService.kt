@@ -43,6 +43,13 @@ class VoiceService : Service() {
             ctx.getSharedPreferences("voice", Context.MODE_PRIVATE).edit().putInt("smooth", ms).apply()
             if (_on.value) restart?.invoke()
         }
+        /** Test mode: play the phone's own mic instead of the mask's. Needs no mask. */
+        fun phoneMic(ctx: Context) =
+            ctx.getSharedPreferences("voice", Context.MODE_PRIVATE).getBoolean("phoneMic", false)
+        fun setPhoneMic(ctx: Context, v: Boolean) {
+            ctx.getSharedPreferences("voice", Context.MODE_PRIVATE).edit().putBoolean("phoneMic", v).apply()
+            if (_on.value) restart?.invoke()
+        }
         fun output(ctx: Context): VoiceEngine.Output =
             ctx.getSharedPreferences("voice", Context.MODE_PRIVATE).getString("output", null)
                 ?.let { n -> VoiceEngine.Output.entries.firstOrNull { it.name == n } } ?: VoiceEngine.Output.Aux
@@ -51,6 +58,7 @@ class VoiceService : Service() {
             if (_on.value) restart?.invoke()
         }
         private var restart: (() -> Unit)? = null
+        private const val PHONE = "phone-mic"
     }
 
     private var engine: VoiceEngine? = null
@@ -71,7 +79,7 @@ class VoiceService : Service() {
         goForeground()
         _on.value = true
         holdLocks()
-        restart = { engineHost = null; follow(MaskLink.state.value) }
+        restart = { goForeground(); engineHost = null; engine?.stop(); engine = null; follow(MaskLink.state.value) }
         // Follows the connection: plays while the mask is there, and picks up again by itself if
         // the WiFi drops and comes back.
         watch = scope.launch { MaskLink.state.collect { follow(it) } }
@@ -79,6 +87,14 @@ class VoiceService : Service() {
     }
 
     private fun follow(s: MaskLink.State) {
+        if (phoneMic(this)) {
+            // The mask doesn't matter here: start once and keep going whatever the WiFi does
+            if (engine != null && engineHost == PHONE) return
+            engine?.stop()
+            engineHost = PHONE
+            engine = VoiceEngine(this, "", null, smoothingMs(this), output(this), phoneMic = true).also { it.start() }
+            return
+        }
         val h = (s as? MaskLink.State.Connected)?.host
         if (h == engineHost && engine != null) return
         engine?.stop()
@@ -119,12 +135,17 @@ class VoiceService : Service() {
         val n = Notification.Builder(this, CH)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("Voice is on")
-            .setContentText("The mask's mic is playing through this phone")
+            .setContentText(if (phoneMic(this)) "Test mode: this phone's mic is playing through it" else "The mask's mic is playing through this phone")
             .setContentIntent(open)
             .addAction(Notification.Action.Builder(null, "Stop", stop).build())
             .setOngoing(true)
             .build()
-        if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        // Recording with the screen off needs the microphone type as well
+        val mic = phoneMic(this) && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (Build.VERSION.SDK_INT >= 30) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK or
+            if (mic) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
+        else if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         else startForeground(1, n)
     }
 

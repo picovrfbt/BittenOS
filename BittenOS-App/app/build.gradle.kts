@@ -12,8 +12,10 @@ android {
         applicationId = "com.bittenos.app"
         minSdk = 26          // AudioTrack's low-latency mode arrived in 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        // From version.json, which the app also reads from GitHub to know when there's a newer one
+        val v = groovy.json.JsonSlurper().parse(rootProject.file("version.json")) as Map<*, *>
+        versionCode = (v["code"] as Number).toInt()
+        versionName = v["name"].toString()
     }
     buildTypes {
         release {

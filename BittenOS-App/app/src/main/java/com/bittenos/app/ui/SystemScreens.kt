@@ -208,7 +208,7 @@ fun SystemScreen() {
         }
         Panel("04", "Firmware & help") {
             Row(horizontalArrangement = Arrangement.spacedBy(Hud.SegGap)) {
-                HudButton("Update", { Nav.go("update") }, Modifier.weight(1f), BtnKind.Out, enabled = on)
+                HudButton("Update", { Nav.go("update") }, Modifier.weight(1f), BtnKind.Out)
                 HudButton("How to use", { Nav.web("/docs.html") }, Modifier.weight(1f), enabled = on)
             }
         }
@@ -302,6 +302,7 @@ fun UpdateScreen() {
             Hint("The mask checks the image before it switches over, and goes back to the old one if the new one doesn't start.",
                 Modifier.padding(top = 8.dp))
         }
+        AppUpdatePanel("03")
     }
     if (ask) Confirm("Send ${if (kind == "fs") "the filesystem" else "the firmware"}?", "The mask restarts when it's done. Keep this phone close.", "Send", {
         val f = file ?: return@Confirm

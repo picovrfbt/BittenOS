@@ -28,6 +28,16 @@ fun VoiceScreen(link: MaskLink.State) {
     val v by VoiceEngine.stats.collectAsState()
     var smooth by remember { mutableIntStateOf(VoiceService.smoothingMs(ctx)) }
     var output by remember { mutableStateOf(VoiceService.output(ctx)) }
+    var phoneMic by remember { mutableStateOf(VoiceService.phoneMic(ctx)) }
+    fun micAllowed() = ctx.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+    var startAfterAsk by remember { mutableStateOf(false) }
+    val askMic = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        if (!ok) { Toast.bad("The phone mic needs the microphone permission"); phoneMic = false; VoiceService.setPhoneMic(ctx, false) }
+        else if (startAfterAsk) VoiceService.start(ctx)
+        startAfterAsk = false
+    }
     var mic by remember { mutableStateOf<JSONObject?>(null) }
     val waiting by Pending.list.collectAsState()
     val queuedGain = waiting.firstOrNull { it.key == Pending.Key.VoiceGain }?.value
@@ -42,14 +52,31 @@ fun VoiceScreen(link: MaskLink.State) {
         }) {
             Note(if (output == VoiceEngine.Output.Aux) "Plug the speaker's cable into the headphone socket. Keeps playing with the screen off."
                  else "Pair the speaker with this phone first. Keeps playing with the screen off.")
+            Gap(10)
+            Caps("Listen to"); Gap(4)
+            Seg(listOf(false to "The mask's mic", true to "Phone mic · test"), phoneMic, { v ->
+                phoneMic = v
+                VoiceService.setPhoneMic(ctx, v)
+                if (v && !micAllowed()) askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+            })
+            if (phoneMic) Hint("For testing the speaker and delay without the mask. Use the aux cable or Bluetooth speaker, " +
+                "and keep it away from the phone or it will howl.", Modifier.padding(top = 6.dp), Hud.Amber)
             Gap(12)
-            HudButton(if (on) "Stop" else "Start listening", { if (on) VoiceService.stop(ctx) else VoiceService.start(ctx) },
-                Modifier.fillMaxWidth(), if (on) BtnKind.Amber else BtnKind.Cyan, enabled = on || conn != null, height = 52.dp, size = 12.sp)
+            HudButton(if (on) "Stop" else "Start listening", {
+                when {
+                    on -> VoiceService.stop(ctx)
+                    phoneMic && !micAllowed() -> { startAfterAsk = true; askMic.launch(android.Manifest.permission.RECORD_AUDIO) }
+                    else -> VoiceService.start(ctx)
+                }
+            }, Modifier.fillMaxWidth(), if (on) BtnKind.Amber else BtnKind.Cyan, enabled = on || conn != null || phoneMic,
+                height = 52.dp, size = 12.sp)
             if (mic?.optBoolean("ready", true) == false)
                 Hint("The mask says its mic isn't ready (type ${mic?.optString("type")}).", Modifier.padding(top = 8.dp), Hud.Amber)
             if (on) {
                 Gap(14)
                 LabVal("Level", when {
+                    v.micFailed -> "PHONE MIC WON'T OPEN"
+                    v.phoneMic -> if (v.receiving) "PHONE MIC" else "STARTING THE MIC"
                     conn == null -> "WAITING FOR THE MASK"
                     !v.receiving -> "WAITING FOR SOUND"
                     else -> "PLAYING"

@@ -46,6 +46,16 @@ a backup.
   link to the mask, remote sounds, the voice and queued changes all carry on with the phone locked,
   even in deep doze. The same panel asks Android to leave the app out of battery saving, which
   Samsung phones otherwise use to pause it after a while.
+- **Updates itself from GitHub.** System › Update › *This app* reads the newest commit that
+  touched `BittenOS-App/` in the repo, then `version.json` from that commit, and if its `code` is
+  higher than the installed one it downloads `BittenOS.apk` from the same commit and hands it to
+  Android's installer. It goes out over mobile data or a WiFi with internet, never the mask's. The
+  home screen shows a strip when there's a newer one (checked at most once an hour). **To release:**
+  bump `code` (and `name`, `notes`) in `version.json`, build, copy the APK to `BittenOS.apk`, commit
+  and push. Builds must be signed with the same key (this PC's debug key) or Android refuses the update.
+- **Phone mic test mode.** Voice & mic › *Listen to* › *Phone mic · test* plays the phone's own mic
+  through the same buffer and output as the mask's, so the speaker, routing and delay can be tried
+  without the mask. Keep the speaker away from the phone or it howls.
 - **Soundboard.** Import audio files from the phone (up to 24), name them, set each one's volume,
   and play them with a tap. They come out of the same output as the voice. In Buttons & remote, a
   press, hold or double tap (or the mask's own button) can be set to *A sound (this phone)*: the

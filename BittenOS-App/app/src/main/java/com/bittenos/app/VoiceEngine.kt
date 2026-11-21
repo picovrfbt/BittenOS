@@ -6,7 +6,9 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTimestamp
+import android.media.AudioRecord
 import android.media.AudioTrack
+import android.media.MediaRecorder
 import android.net.Network
 import android.os.Build
 import android.os.Process
@@ -39,6 +41,8 @@ class VoiceEngine(
     private val network: Network?,
     targetMs: Int,
     private val output: Output = Output.Aux,
+    /** Test mode: this phone's own mic instead of the mask's, so no mask is needed. */
+    private val phoneMic: Boolean = false,
 ) {
     /** Where the voice comes out. Aux is the quick one; Bluetooth adds the speaker's own radio delay. */
     enum class Output {
@@ -77,6 +81,9 @@ class VoiceEngine(
         /** false while the chosen output is not connected and something else is playing instead */
         val onChosen: Boolean = true,
         val output: Output = Output.Aux,
+        val phoneMic: Boolean = false,
+        /** The phone's mic couldn't be opened (no permission, or another app has it) */
+        val micFailed: Boolean = false,
     ) {
         /** Everything this phone can see. WiFi itself (~2-5 ms) and the mask's 10 ms packet are extra. */
         val delayMs: Int get() = if (outputMs < 0) -1 else bufferMs + outputMs + 10
@@ -98,12 +105,19 @@ class VoiceEngine(
     @Volatile private var lastRx = 0L
     @Volatile private var lost = 0L
     @Volatile private var late = 0L
+    @Volatile private var micFailed = false
     private var socket: DatagramSocket? = null
     private val threads = mutableListOf<Thread>()
 
     fun start() {
         if (running) return
         running = true
+        if (phoneMic) {
+            threads += Thread(::micLoop, "voice-phonemic")
+            threads += Thread(::audioLoop, "voice-audio")
+            threads.forEach { it.start() }
+            return
+        }
         val s = DatagramSocket()
         network?.bindSocket(s)                // the mask's WiFi, even with mobile data on
         s.soTimeout = 300
@@ -165,6 +179,35 @@ class VoiceEngine(
             }
             writePos = w + samples      // published last, so the audio thread never reads ahead of it
             expected = (seq + 1) and 0xFFFF
+        }
+    }
+
+    /** The phone's mic, 10 ms at a time, into the same ring the mask's packets go in. */
+    private fun micLoop() {
+        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+        val min = AudioRecord.getMinBufferSize(IN_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val rec = try {
+            // VOICE_RECOGNITION: no automatic gain or noise gate pumping the level, like the mask's mic
+            AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, IN_RATE, AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT, maxOf(min, CHUNK * 2 * 4))
+        } catch (e: Exception) { micFailed = true; return }
+        if (rec.state != AudioRecord.STATE_INITIALIZED) { rec.release(); micFailed = true; return }
+        try { rec.startRecording() } catch (e: Exception) { rec.release(); micFailed = true; return }
+        val b = ShortArray(CHUNK)
+        val mask = (ringSize - 1).toLong()
+        var w = 0L
+        try {
+            while (running) {
+                val n = rec.read(b, 0, CHUNK)
+                if (n <= 0) { if (n < 0) { micFailed = true; return }; continue }
+                for (k in 0 until n) ring[((w + k) and mask).toInt()] = b[k] / 32768f
+                w += n
+                writePos = w
+                lastRx = System.nanoTime()
+            }
+        } finally {
+            try { rec.stop() } catch (e: Exception) {}
+            rec.release()
         }
     }
 
@@ -285,6 +328,8 @@ class VoiceEngine(
                         routedTo = routed?.let { describe(it) } ?: "",
                         onChosen = routed == null || output.matches(routed),
                         output = output,
+                        phoneMic = phoneMic,
+                        micFailed = micFailed,
                     )
                     peak = 0f
                     lastPublish = now

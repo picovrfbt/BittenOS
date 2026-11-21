@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         // Started while the app is on screen: Android won't allow it from the background.
         if (AppPrefs.screenOff.value) AwakeService.start(this)
+        lifecycleScope.launch { Updater.check(this@MainActivity, quiet = true) }   // at most hourly
     }
 
     override fun onResume() {
