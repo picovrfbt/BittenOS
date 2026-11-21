@@ -2450,8 +2450,10 @@ void startWiFiWeb() {
     d["built"] = String(__DATE__) + " " + __TIME__;
     d["fw"] = BITTENOS_FW;
     d["fwName"] = BITTENOS_FW_NAME;
-    File wv = LittleFS.open("/webver.txt", "r");      //which release the web pages came from
-    d["web"] = wv ? wv.readString().toInt() : 0;
+    //Which release the web pages came from. No file means a USB filesystem flash put them on, from
+    //the same source tree as this firmware, so they match it.
+    File wv = LittleFS.open("/webver.txt", "r");
+    d["web"] = wv ? wv.readString().toInt() : BITTENOS_FW;
     if(wv) wv.close();
     String out;
     serializeJson(d, out);

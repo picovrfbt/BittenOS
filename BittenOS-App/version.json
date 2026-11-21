@@ -1,5 +1,5 @@
 {
-  "code": 3,
-  "name": "0.3",
-  "notes": "Updates the mask from GitHub: firmware, web pages and new built-in faces, without touching settings or your faces."
+  "code": 4,
+  "name": "0.4",
+  "notes": "Carries the matching mask update inside the app (v1.1), to send over WiFi with no internet when the PC is not to hand."
 }

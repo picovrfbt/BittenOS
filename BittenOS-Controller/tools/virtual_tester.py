@@ -886,7 +886,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, json.dumps({
                 'running': 'app0', 'next': 'app1', 'appSize': 1379936, 'appSlot': 3145728,
                 'fsSize': 4063232, 'staging': True, 'confirmed': True, 'built': 'virtual tester',
-                **({'fw': board.fw, 'fwName': 'virtual', 'web': board.web} if board.fw else {})}),
+                **({'fw': board.fw, 'fwName': 'virtual', 'web': board.web or board.fw} if board.fw else {})}),
                 'application/json')
 
         if path == '/webfile' and method == 'POST':
