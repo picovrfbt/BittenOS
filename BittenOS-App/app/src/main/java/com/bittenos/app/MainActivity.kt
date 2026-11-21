@@ -36,6 +36,12 @@ class MainActivity : ComponentActivity() {
         setContent { AppScreen() }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Started while the app is on screen: Android won't allow it from the background.
+        if (AppPrefs.screenOff.value) AwakeService.start(this)
+    }
+
     override fun onResume() {
         super.onResume()
         MaskLink.kick()           // back from WiFi settings: look straight away

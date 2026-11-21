@@ -58,8 +58,6 @@ object Soundboard {
     val lastRemote = MutableStateFlow<String?>(null)
     /** Let a new sound cut off the one playing (on), or play over it (off). */
     val oneAtATime = MutableStateFlow(true)
-    /** Keep listening for the remote with the app closed (a foreground service). */
-    val background = MutableStateFlow(false)
 
     private var player: MediaPlayer? = null
     private val extra = mutableListOf<MediaPlayer>()
@@ -72,11 +70,9 @@ object Soundboard {
         app = ctx.applicationContext
         _sounds.value = load()
         oneAtATime.value = prefs.getBoolean("one", true)
-        background.value = prefs.getBoolean("bg", false)
         scope.launch { listen() }
         scope.launch { watchStats() }
         scope.launch { syncNames() }
-        if (background.value) SoundService.start(app)
     }
 
     private fun load(): List<Sound> = try {
@@ -99,12 +95,6 @@ object Soundboard {
     }
 
     fun setOneAtATime(v: Boolean) { oneAtATime.value = v; prefs.edit().putBoolean("one", v).apply() }
-
-    fun setBackground(v: Boolean) {
-        background.value = v
-        prefs.edit().putBoolean("bg", v).apply()
-        if (v) SoundService.start(app) else SoundService.stop(app)
-    }
 
     // ---- importing -----------------------------------------------------------------------------
 

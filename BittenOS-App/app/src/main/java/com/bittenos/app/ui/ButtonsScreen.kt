@@ -144,8 +144,8 @@ private fun RemotePanel() {
         ActionRows("rmt${b}D", "${REMOTE[b]} double tap")
         Rule(Modifier.padding(vertical = 8.dp))
         Hint(if (sounds.isEmpty()) "Pick \"A sound (this phone)\" to play one from the soundboard. Add sounds in Soundboard first."
-             else "\"A sound (this phone)\" plays from the soundboard here, through the voice output. The app has to be open, " +
-                "or Listen with the app closed switched on in Soundboard.")
+             else "\"A sound (this phone)\" plays from the soundboard here, through the voice output, even with the screen " +
+                "off as long as Work with the screen off is on in Network & app.")
         lastRemote?.let { Mono("LAST SOUND · ${it.uppercase()}", Modifier.padding(top = 6.dp), color = Hud.Cyan, size = 9.5.sp) }
     }
     if (forgetAsk) Confirm("Forget the remote?", "It stops working until it's paired again.", "Forget",

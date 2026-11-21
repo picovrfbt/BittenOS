@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- asks once to be left out of battery saving, so the screen-off link isn't cut -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- The mask speaks plain HTTP on its own network: there is no certificate to check. -->
     <application
@@ -39,7 +41,7 @@
             android:foregroundServiceType="mediaPlayback" />
 
         <service
-            android:name=".SoundService"
+            android:name=".AwakeService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
     </application>

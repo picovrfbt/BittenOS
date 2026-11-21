@@ -32,6 +32,17 @@ fun NetworkScreen() {
     val on = link is MaskLink.State.Connected
     val accent by AppPrefs.accent.collectAsState()
     val keepOn by AppPrefs.keepOn.collectAsState()
+    val screenOff by AppPrefs.screenOff.collectAsState()
+    var batteryFree by remember { mutableStateOf(com.bittenos.app.AwakeService.batteryFree(ctx)) }
+    // Back from Android's battery question: look again
+    val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) batteryFree = com.bittenos.app.AwakeService.batteryFree(ctx)
+        }
+        owner.lifecycle.addObserver(o)
+        onDispose { owner.lifecycle.removeObserver(o) }
+    }
     var wifiName by remember(cfg) { mutableStateOf(Cfg.str("wifiName")) }
     var wifiPass by remember(cfg) { mutableStateOf(Cfg.str("wifiPass")) }
     var staName by remember(cfg) { mutableStateOf(Cfg.str("staName")) }
@@ -92,6 +103,15 @@ fun NetworkScreen() {
             Caps("Accent"); Gap(6)
             Seg(com.bittenos.app.ui.AccentChoice.entries.map { it to it.label }, accent,
                 { AppPrefs.setAccent(it); Faces.clearPictures() }, cols = 5, height = 38.dp)
+            SetRow("Work with the screen off", "Stays linked to the mask with the phone locked: remote sounds, voice, " +
+                "and changes waiting to send. Shows a small notification.") {
+                HudToggle(screenOff, { AppPrefs.setScreenOff(ctx, it) })
+            }
+            if (screenOff) SetRow("Battery saving", if (batteryFree) "Left out, so Android won't cut the link"
+                else "Android may still pause the app after a while. Let it run to stop that.") {
+                if (batteryFree) Mono("OK", color = LocalAccent.current, size = 10.sp)
+                else LinkBtn("Let it run ›", { com.bittenos.app.AwakeService.askBatteryFree(ctx) }, Hud.Amber)
+            }
             SetRow("Keep the screen on", "While the app is open") { HudToggle(keepOn, { AppPrefs.setKeepOn(it) }) }
             SetRow("Mask address", "Only if it isn't found by itself, e.g. 192.168.1.40") {}
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

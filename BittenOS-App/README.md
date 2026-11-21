@@ -41,12 +41,17 @@ a backup.
   The Voice tab shows the delay it can measure, split into the jitter buffer and the phone's output
   stage.
 
+- **Works with the screen off.** `AwakeService` is a foreground service, on by default (*Work with
+  the screen off* in Network & app). It holds a WiFi high-perf lock and a partial wake lock, so the
+  link to the mask, remote sounds, the voice and queued changes all carry on with the phone locked,
+  even in deep doze. The same panel asks Android to leave the app out of battery saving, which
+  Samsung phones otherwise use to pause it after a while.
 - **Soundboard.** Import audio files from the phone (up to 24), name them, set each one's volume,
   and play them with a tap. They come out of the same output as the voice. In Buttons & remote, a
   press, hold or double tap (or the mask's own button) can be set to *A sound (this phone)*: the
   mask sends a small UDP packet to port 7374 on every phone running the app, and `/stats` counts it
-  too, so a lost packet still plays a second later. The app has to be open, or *Listen with the app
-  closed* switched on (a small notification keeps it running). Each sound keeps its slot number,
+  too, so a lost packet still plays a second later. This works with the screen off too (see below).
+  Each sound keeps its slot number,
   because the button settings point at the number. The app tells the mask the names (`sndNames`)
   so the web page's pickers show them too.
 
@@ -96,7 +101,8 @@ The UI is kept apart from the plumbing so a redesign only touches `ui/`:
 | `VoiceService.kt` | Foreground service, WiFi and wake locks |
 | `Cfg.kt` | The mask's settings (config.json), saved one key at a time; app-only prefs |
 | `Faces.kt` | Face list, cached face files, tile pictures, scrolling text, upload/rename/delete |
-| `Soundboard.kt`, `SoundService.kt` | Imported sounds, playing them, hearing the remote through the mask |
+| `Soundboard.kt` | Imported sounds, playing them, hearing the remote through the mask |
+| `AwakeService.kt` | Keeps everything running with the screen off |
 | `ui/Hud.kt`, `ui/Kit.kt` | The HUD design: colours, spacing, panels, buttons, settings rows |
 | `ui/App.kt` | Navigation, header, home screen, menu, changes waiting |
 | `ui/*Screen*.kt` | The other screens |

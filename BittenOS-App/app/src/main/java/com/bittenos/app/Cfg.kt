@@ -20,7 +20,7 @@ object Cfg {
     /** True once this run has read the settings from the mask itself, not the copy kept from last time. */
     val fresh = MutableStateFlow(false)
 
-    fun init() { MaskLink.lastConfig?.let { _data.value = it } }
+    fun init() { if (_data.value.length() == 0) MaskLink.lastConfig?.let { _data.value = it } }
 
     suspend fun load(): Boolean {
         val c = MaskLink.config() ?: return false
@@ -108,13 +108,20 @@ object AppPrefs {
     private val prefs by lazy { app.getSharedPreferences("app", Context.MODE_PRIVATE) }
     val accent = MutableStateFlow(AccentChoice.Mint)
     val keepOn = MutableStateFlow(false)
+    /** Keep working with the screen off (AwakeService). On by default. */
+    val screenOff = MutableStateFlow(true)
     val raveMode = MutableStateFlow(1)
     val raveMic = MutableStateFlow(true)
     /** The face maker's last face, for "Continue". */
     val lastEdited = MutableStateFlow<String?>(null)
 
+    private var started = false
+
     fun init(ctx: Context) {
+        if (started) return
+        started = true
         app = ctx.applicationContext
+        screenOff.value = prefs.getBoolean("screenOff", true)
         accent.value = AccentChoice.entries.firstOrNull { it.name == prefs.getString("accent", null) } ?: AccentChoice.Mint
         keepOn.value = prefs.getBoolean("keepOn", false)
         raveMode.value = prefs.getInt("raveMode", 1)
@@ -124,6 +131,11 @@ object AppPrefs {
 
     fun setAccent(a: AccentChoice) { accent.value = a; prefs.edit().putString("accent", a.name).apply() }
     fun setKeepOn(v: Boolean) { keepOn.value = v; prefs.edit().putBoolean("keepOn", v).apply() }
+    fun setScreenOff(ctx: Context, v: Boolean) {
+        screenOff.value = v
+        prefs.edit().putBoolean("screenOff", v).apply()
+        if (v) AwakeService.start(ctx) else AwakeService.stop(ctx)
+    }
     fun setRaveMode(v: Int) { raveMode.value = v; prefs.edit().putInt("raveMode", v).apply() }
     fun setRaveMic(v: Boolean) { raveMic.value = v; prefs.edit().putBoolean("raveMic", v).apply() }
     fun setLastEdited(v: String) { lastEdited.value = v; prefs.edit().putString("lastEdited", v).apply() }

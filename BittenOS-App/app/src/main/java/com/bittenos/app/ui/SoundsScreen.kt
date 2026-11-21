@@ -30,7 +30,7 @@ fun SoundsScreen() {
     val sounds by Soundboard.sounds.collectAsState()
     val playing by Soundboard.playing.collectAsState()
     val one by Soundboard.oneAtATime.collectAsState()
-    val bg by Soundboard.background.collectAsState()
+    val bg by com.bittenos.app.AppPrefs.screenOff.collectAsState()
     val lastRemote by Soundboard.lastRemote.collectAsState()
     val cfg by Cfg.data.collectAsState()
     @Suppress("UNUSED_EXPRESSION") cfg
@@ -87,8 +87,8 @@ fun SoundsScreen() {
             SetRow("One at a time", "A new sound cuts off the one playing. Off plays them over each other.", top = false) {
                 HudToggle(one, { Soundboard.setOneAtATime(it) }, color = Hud.Cyan)
             }
-            SetRow("Listen with the app closed", "Keeps a small notification so remote buttons still play sounds") {
-                HudToggle(bg, { Soundboard.setBackground(it) }, color = Hud.Cyan)
+            SetRow("Work with the screen off", "Remote buttons still play sounds with the phone locked or the app closed") {
+                HudToggle(bg, { com.bittenos.app.AppPrefs.setScreenOff(ctx, it) }, color = Hud.Cyan)
             }
             SetRow("Comes out of", "The same output as the voice · change it in Voice & mic") {
                 Mono(if (out == VoiceEngine.Output.Aux) "AUX CABLE" else "BLUETOOTH", color = Hud.Cyan, size = 10.sp)
