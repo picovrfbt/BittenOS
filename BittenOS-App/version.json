@@ -1,5 +1,5 @@
 {
-  "code": 2,
-  "name": "0.2",
-  "notes": "Works with the screen off. Updates itself from GitHub. Phone mic test mode for the voice."
+  "code": 3,
+  "name": "0.3",
+  "notes": "Updates the mask from GitHub: firmware, web pages and new built-in faces, without touching settings or your faces."
 }

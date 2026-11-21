@@ -92,9 +92,15 @@ fun AppUpdatePanel(code: String) {
 @Composable
 fun UpdateBanner() {
     val st by Updater.state.collectAsState()
-    val ready = st is Updater.State.Available || st is Updater.State.Ready
-    if (!ready) return
+    val ms by com.bittenos.app.MaskUpdate.state.collectAsState()
+    val link by com.bittenos.app.MaskLink.state.collectAsState()
+    val app = st is Updater.State.Available || st is Updater.State.Ready
+    // /stats carries fwVer from versioned firmware on; anything older counts as behind
+    val stats = (link as? com.bittenos.app.MaskLink.State.Connected)?.stats
+    val mask = (ms as? com.bittenos.app.MaskUpdate.State.Found)?.r?.let { r -> stats != null && stats.optInt("fwVer", 0) < r.code } == true
+    if (!app && !mask) return
     Row(Modifier.fillMaxWidth().padding(horizontal = Hud.Edge, vertical = 4.dp)) {
-        HudButton("App update available", { Nav.go("update") }, Modifier.fillMaxWidth(), BtnKind.Amber, sub = "TAP TO SEE WHAT'S NEW")
+        HudButton(when { app && mask -> "App and mask updates available"; app -> "App update available"; else -> "Mask update available" },
+            { Nav.go("update") }, Modifier.fillMaxWidth(), BtnKind.Amber, sub = "TAP TO SEE WHAT'S NEW")
     }
 }

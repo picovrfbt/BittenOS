@@ -290,7 +290,8 @@ fun UpdateScreen() {
                 Stat("Filesystem", i?.let { mb(it.optLong("fsSize")) + if (!it.optBoolean("staging")) " · no staging" else "" } ?: "—", Modifier.weight(1f))
             }
         }
-        Panel("02", "Send an update") {
+        MaskUpdatePanel("02", info, on) { scope.launch { info = MaskLink.json("/otainfo") } }
+        Panel("03", "Send a file") {
             HudButton(file?.let { "${it.first} · %.2f MB".format(it.second.size / 1048576.0) } ?: "Pick a .bin file",
                 { pick.launch(arrayOf("application/octet-stream", "*/*")) }, Modifier.fillMaxWidth(), enabled = on && progress < 0,
                 sub = when (kind) { "app" -> "FIRMWARE"; "fs" -> "FILESYSTEM"; null -> if (file != null) "UNKNOWN" else null; else -> null })
@@ -302,7 +303,7 @@ fun UpdateScreen() {
             Hint("The mask checks the image before it switches over, and goes back to the old one if the new one doesn't start.",
                 Modifier.padding(top = 8.dp))
         }
-        AppUpdatePanel("03")
+        AppUpdatePanel("04")
     }
     if (ask) Confirm("Send ${if (kind == "fs") "the filesystem" else "the firmware"}?", "The mask restarts when it's done. Keep this phone close.", "Send", {
         val f = file ?: return@Confirm

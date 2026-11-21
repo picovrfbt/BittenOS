@@ -95,6 +95,7 @@ ezButton hwBtn(animBtn);
 #include <LittleFS.h>
 
 #include "fileOp.h" //CRC + Config variables store/save/load/default
+#include "version.h" //BITTENOS_FW, for updates from the app
 Config cfg;
 
 #include "misc.h" //Misc/helping functions (lower case: the file is misc.h, and Linux and macOS care)
@@ -1317,6 +1318,49 @@ bool otaFlushBlock() { //erase one sector, then write it, so the erase is spread
   return true;
 }
 
+//--------------------------------//Web pages from the app
+//Only the page files themselves: a name with no folders and one of these endings. config.json,
+//screen.json and the faces in /anims can't be reached this way, so an update never loses them.
+String webFileError = "";
+bool webFileOk = false;
+File webFile;
+String webFileName = "";
+
+bool webNameOk(const String &n) {
+  if(n.length() == 0 || n.length() > 40 || n[0] == '.') return false;
+  for(size_t i = 0; i < n.length(); i++) {
+    char c = n[i];
+    if(!(isalnum(c) || c == '.' || c == '-' || c == '_')) return false;
+  }
+  if(n == "manifest.json") return true;
+  const char *ends[] = {".html", ".js", ".js.gz", ".css", ".png", ".svg", ".ico"};
+  for(const char *e : ends) if(n.endsWith(e)) return true;
+  return false;
+}
+
+void webFileUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+  if(index == 0) {
+    webFileError = ""; webFileOk = false;
+    webFileName = filename;
+    if(!webNameOk(filename)) { webFileError = "Not a web page file: " + filename; return; }
+    webFile = LittleFS.open("/" + filename + ".part", "w");   //the old copy stays until this one is whole
+    if(!webFile) { webFileError = "Couldn't open " + filename + " for writing"; return; }
+  }
+  if(webFileError != "" || filename != webFileName) return;
+  if(len && webFile.write(data, len) != len) {
+    webFileError = "The mask's storage is full";
+    webFile.close();
+    LittleFS.remove("/" + filename + ".part");
+    return;
+  }
+  if(final) {
+    webFile.close();
+    LittleFS.remove("/" + filename);
+    if(!LittleFS.rename("/" + filename + ".part", "/" + filename)) { webFileError = "Couldn't put " + filename + " in place"; return; }
+    webFileOk = true;
+  }
+}
+
 void otaUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
   if(index == 0) {
     otaKind = OTA_NONE; otaError = ""; otaBytes = 0; otaBlockFill = 0;
@@ -2109,7 +2153,8 @@ void startWiFiWeb() {
     String anim = currentAnim;
     xSemaphoreGive(animQueueMutex);
     JsonDocument st;
-    st["fw"] = "BittenOS";                                            //how the app knows it found a mask
+    st["fw"] = "BittenOS";
+    st["fwVer"] = BITTENOS_FW;                                            //how the app knows it found a mask
     if(request->hasParam("app")) sndNoteApp((uint32_t)request->client()->remoteIP());   //where to send sounds
     st["snd"] = sndSeq;                                               //sounds asked for since boot
     st["sndSlot"] = sndSlot;
@@ -2403,9 +2448,30 @@ void startWiFiWeb() {
     d["staging"] = stage != nullptr;
     d["confirmed"] = otaConfirmed;
     d["built"] = String(__DATE__) + " " + __TIME__;
+    d["fw"] = BITTENOS_FW;
+    d["fwName"] = BITTENOS_FW_NAME;
+    File wv = LittleFS.open("/webver.txt", "r");      //which release the web pages came from
+    d["web"] = wv ? wv.readString().toInt() : 0;
+    if(wv) wv.close();
     String out;
     serializeJson(d, out);
     request->send(200, "application/json", out);
+  });
+
+  //The app updating the web pages one file at a time, so faces and settings are never touched
+  server.on("/webfile", HTTP_POST, [](AsyncWebServerRequest *request){
+    if(webFileError != "" || !webFileOk) request->send(500, "text/plain", webFileError == "" ? "Nothing was received" : webFileError);
+    else request->send(200, "text/plain", "ok");
+  }, webFileUpload);
+
+  server.on("/webdone", HTTP_GET, [](AsyncWebServerRequest *request){ //all the files are in: note the release
+    if(!request->hasParam("ver")) { request->send(400, "text/plain", "ver?"); return; }
+    File f = LittleFS.open("/webver.txt", "w");
+    if(!f) { request->send(500, "text/plain", "Couldn't write webver.txt"); return; }
+    f.print(request->getParam("ver")->value().toInt());
+    f.close();
+    logPrint("[I] Web pages updated to release " + request->getParam("ver")->value());
+    request->send(200, "text/plain", "ok");
   });
 
   server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){ //where ElegantOTA used to live

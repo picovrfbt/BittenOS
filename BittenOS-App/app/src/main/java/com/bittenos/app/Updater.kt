@@ -55,7 +55,7 @@ object Updater {
     }
 
     /** A network that reaches the internet: never the mask's own WiFi. */
-    private fun internet(ctx: Context): Network? {
+    internal fun internet(ctx: Context): Network? {
         val cm = ctx.getSystemService(ConnectivityManager::class.java)
         @Suppress("DEPRECATION")
         val all = cm.allNetworks.filter { n ->
@@ -67,14 +67,14 @@ object Updater {
             ?: all.firstOrNull()
     }
 
-    private fun open(net: Network, url: String, timeout: Int): HttpURLConnection =
+    internal fun open(net: Network, url: String, timeout: Int): HttpURLConnection =
         (net.openConnection(URL(url)) as HttpURLConnection).apply {
             connectTimeout = timeout; readTimeout = timeout
             setRequestProperty("User-Agent", "BittenOS-app")
             setRequestProperty("Cache-Control", "no-cache")
         }
 
-    private fun text(net: Network, url: String): String {
+    internal fun text(net: Network, url: String): String {
         val c = open(net, url, 10_000)
         try {
             if (c.responseCode !in 200..299) throw Exception("GitHub said ${c.responseCode}")

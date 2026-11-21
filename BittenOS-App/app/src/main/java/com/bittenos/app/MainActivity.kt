@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
         // Started while the app is on screen: Android won't allow it from the background.
         if (AppPrefs.screenOff.value) AwakeService.start(this)
         lifecycleScope.launch { Updater.check(this@MainActivity, quiet = true) }   // at most hourly
+        lifecycleScope.launch { if (MaskUpdate.state.value is MaskUpdate.State.Idle) MaskUpdate.check(this@MainActivity) }
     }
 
     override fun onResume() {

@@ -54,6 +54,17 @@ a backup.
   `code`, `name` and `notes` in `version.json`, build, commit and push, then
   `python release.py` creates the `app-<code>` release with the APK. Builds must be signed with the
   same key (this PC's debug key) or Android refuses the update.
+- **Updates the mask from GitHub.** System › Update › *Update from GitHub* finds the highest
+  release tagged `mask-<n>` (n is `BITTENOS_FW` in `BittenOS-Controller/src/version.h`), downloads
+  its `firmware.bin` and `web.zip` over the internet and keeps them, so it can be fetched at home and
+  sent later. On the mask's WiFi it sends the firmware to `/ota`, waits for the restart and checks the
+  mask reports the new number (if the firmware doesn't start the mask rolls back and the app says
+  so), then each web page to `/webfile` and `/webdone?ver=n`, then any built-in face the mask doesn't
+  have. `/webfile` only takes page files (no folders, no `config.json` or `screen.json`), so settings,
+  the screen layout and the person's own faces can't be replaced. **To release:** bump
+  `BITTENOS_FW` and `BITTENOS_FW_NAME`, build the firmware, commit and push, then
+  `python tools/release_mask.py "notes"` from `BittenOS-Controller`. The first update needs the mask to
+  be on firmware with OTA already (it is, since September); the new endpoints arrive with that update.
 - **Phone mic test mode.** Voice & mic › *Listen to* › *Phone mic · test* plays the phone's own mic
   through the same buffer and output as the mask's, so the speaker, routing and delay can be tried
   without the mask. Keep the speaker away from the phone or it howls.

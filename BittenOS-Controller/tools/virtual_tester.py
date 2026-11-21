@@ -118,6 +118,15 @@ def to_float(value):
         return 0.0
 
 
+def firmware_version():
+    """BITTENOS_FW from src/version.h, the number a firmware update made from src/ would report."""
+    try:
+        with open(os.path.join(os.path.dirname(HERE), 'src', 'version.h'), encoding='utf-8') as f:
+            return int(re.search(r'#define BITTENOS_FW (\d+)', f.read()).group(1))
+    except Exception:
+        return 1
+
+
 def safe_name(name):
     return bool(name) and '/' not in name and '\\' not in name and '..' not in name
 
@@ -130,6 +139,9 @@ class VirtualBoard:
         with open(os.path.join(BOARD_DIR, 'config.json'), encoding='utf-8') as f:
             self.config = json.load(f)
         self.current = 'default.json'  # the firmware loads this at boot
+        self.fw = 0                    # 0: firmware from before versions, like the mask today
+        self.web = 0
+        self.down_until = 0            # "restarting" after a firmware update
         self.post_anim = None          # JSON text from the Animator's "Try animation"
         self.version = 0               # bumps on any change the dashboard shows
         self.anim_version = 0          # bumps when the face changes
@@ -288,7 +300,7 @@ def stats_dict():
         'speaking': mic > int(board.config.get('spTrig') or 10),
         'bright': auto['bright'], 'autoLevel': auto['level'], 'ambient': auto['ambient'],
         'ambientLive': board.ambient + 12, 'measuredAgo': auto['ago'], 'oled': bool(board.config.get('oledEna')),
-        'fw': 'BittenOS',
+        'fw': 'BittenOS', 'fwVer': board.fw,
         'uptime': int(time.time() - START), 'heapFree': 196000, 'heapSize': 327680,
         'psramFree': 8200000, 'psramSize': 8388608, 'fsUsed': 160000 + anims_bytes, 'fsTotal': 4063232,
         'tempC': 41.5, 'loopHz': 5200, 'wifiClients': 1, 'tilt': True, 'boop': True,
@@ -395,10 +407,15 @@ class Handler(BaseHTTPRequestHandler):
             msg = email.parser.BytesParser(policy=email.policy.HTTP).parsebytes(
                 b'Content-Type: ' + ctype.encode() + b'\r\n\r\n' + body)
             form = {}
+            self.files = {}          # field -> (file name, raw bytes), for uploads that aren't text
             for part in msg.iter_parts():
                 name = part.get_param('name', header='content-disposition')
                 if name:
-                    form[name] = (part.get_payload(decode=True) or b'').decode('utf-8', 'replace')
+                    raw = part.get_payload(decode=True) or b''
+                    form[name] = raw.decode('utf-8', 'replace')
+                    fn = part.get_param('filename', header='content-disposition')
+                    if fn:
+                        self.files[name] = (fn, raw)
             return form
         return {k: v[0] for k, v in parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True).items()}
 
@@ -416,6 +433,9 @@ class Handler(BaseHTTPRequestHandler):
             # Before the lock on purpose: this call does not return until the page goes away.
             return self.mic_socket()
         form = self.read_form() if method == 'POST' else {}
+        if time.time() < board.down_until:          # restarting: nobody home
+            self.close_connection = True
+            return
         self.status = 0
         with board.lock:
             self.dispatch(method, path, q, form)
@@ -856,13 +876,35 @@ class Handler(BaseHTTPRequestHandler):
             data = form.get('file', '')
             kind = 'filesystem' if 'littlefs' in data[:32] else 'firmware'
             board.log('[I] Update received (%s, %d bytes) - the tester writes nothing' % (kind, len(data)))
+            if kind == 'firmware':
+                # Pretend it was the firmware in src/: report its version after a short "restart"
+                board.fw = firmware_version()
+                board.down_until = time.time() + 4
             return self.text(kind)
 
         if path == '/otainfo':   # roughly what the new partition table reports
             return self.reply(200, json.dumps({
                 'running': 'app0', 'next': 'app1', 'appSize': 1379936, 'appSlot': 3145728,
-                'fsSize': 4063232, 'staging': True, 'confirmed': True, 'built': 'virtual tester'}),
+                'fsSize': 4063232, 'staging': True, 'confirmed': True, 'built': 'virtual tester',
+                **({'fw': board.fw, 'fwName': 'virtual', 'web': board.web} if board.fw else {})}),
                 'application/json')
+
+        if path == '/webfile' and method == 'POST':
+            # Kept in the tester's own folder: data/ is the real source and is never written
+            fn, raw = getattr(self, 'files', {}).get('file', ('', b''))
+            if not re.fullmatch(r'[A-Za-z0-9._-]{1,40}', fn or '') or fn.startswith('.') or not (
+                    fn == 'manifest.json' or fn.endswith(('.html', '.js', '.js.gz', '.css', '.png', '.svg', '.ico'))):
+                return self.reply(500, 'Not a web page file: ' + (fn or '?'))
+            os.makedirs(os.path.join(BOARD_DIR, 'web'), exist_ok=True)
+            with open(os.path.join(BOARD_DIR, 'web', fn), 'wb') as f:
+                f.write(raw)
+            board.log('[I] Web file %s (%d bytes)' % (fn, len(raw)))
+            return self.text('ok')
+
+        if path == '/webdone':
+            board.web = int(q.get('ver', '0') or 0)
+            board.log('[I] Web pages updated to release %d' % board.web)
+            return self.text('ok')
 
         if path == '/update':
             return self.redirect('/update.html')
