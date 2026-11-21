@@ -2255,7 +2255,7 @@
   // Kept in step with doButtonAction() in src/main.cpp
   const BTN_ACTIONS = {none: 'Nothing', nextFace: 'Next face', prevFace: 'Previous face',
                        displays: 'Displays on/off', sleep: 'Sleep / wake', face: 'A chosen face',
-                       phrase: 'A quick phrase', screen: 'Next screen page',
+                       phrase: 'A quick phrase', sound: 'A sound (phone app)', screen: 'Next screen page',
                        slots: 'Slot machine', dino: 'Dino game', boot: 'Boot sequence',
                        shutdown: 'Fake low battery'};
   const BTN_SLOTS = ['btnShort', 'btnDouble', 'btnHold', ...RMT_SLOTS];
@@ -2268,16 +2268,31 @@
         if (keep) sel.value = keep;
       }
     }
-    // the phrase pickers list the six slots, showing their text so the choice means something
-    for (const id of ['btnShortPhrase', 'btnDoublePhrase', 'btnHoldPhrase',
-                      ...RMT_SLOTS.map(k => k + 'Phrase')]) {
-      const sel = $(id), keep = sel.value;
-      sel.innerHTML = '';
+    for (const id of BTN_SLOTS) fillSlotPicker(id);
+  }
+
+  // The second picker under an action holds a number: which quick phrase, or which sound on the
+  // phone app's soundboard. The app tells the mask its sound names, so they show here too.
+  let sndNames = [];
+  function fillSlotPicker(id) {
+    const sel = $(id + 'Phrase'), keep = sel.dataset.v !== undefined ? sel.dataset.v : sel.value;
+    const sound = $(id).value === 'sound';
+    sel.innerHTML = '';
+    if (sound) {
+      sndNames.forEach((n, i) => { if (n) sel.add(new Option((i + 1) + ': ' + n, String(i))); });
+      if (!sel.options.length) sel.add(new Option('No sounds in the app yet', '0'));
+    } else {
       for (let i = 0; i < 6; i++) {
         const text = (phrases[i] && phrases[i].text) || '';
         sel.add(new Option((i + 1) + (text ? ': ' + text : ' (empty)'), String(i)));
       }
-      if (keep) sel.value = keep;
+    }
+    if (keep !== '' && [...sel.options].some(o => o.value === keep)) sel.value = keep;
+    delete sel.dataset.v;
+    const b = $(id + 'PhraseRow').querySelector('b');
+    if (b) {
+      if (!b.dataset.t) b.dataset.t = b.textContent;
+      b.textContent = sound ? b.dataset.t.replace(/phrase/, 'sound') : b.dataset.t;
     }
   }
 
@@ -2286,7 +2301,8 @@
     for (const id of BTN_SLOTS) {
       const action = $(id).value;
       $(id + 'FaceRow').hidden = action !== 'face';
-      $(id + 'PhraseRow').hidden = action !== 'phrase';
+      $(id + 'PhraseRow').hidden = action !== 'phrase' && action !== 'sound';
+      fillSlotPicker(id);
     }
     $('btnDoubleHint').textContent = $('btnDouble').value === 'none'
       ? 'Off, so a single press acts the moment you let go'
@@ -2425,6 +2441,7 @@
   document.querySelector('[data-key=autoBriEna]').addEventListener('change', () => setTimeout(refreshStats, 800));
 
   function loadIntoInputs(o) {
+    sndNames = typeof o.sndNames === 'string' && o.sndNames ? o.sndNames.split(';') : [];
     // phrases come back as three parallel arrays, the way the config stores them
     for (let i = 0; i < 6; i++) {
       phrases[i] = {
@@ -2445,6 +2462,8 @@
     showTaught();
     for (const k of ['staName', 'staPass', 'mdnsName']) if (o[k] !== undefined && $(k)) $(k).value = o[k];
     if ($('mdnsHint')) $('mdnsHint').textContent = (o.mdnsName || 'protogen') + '.local';
+    // the second pickers were filled for whatever action was there before: say what they should hold
+    for (const id of BTN_SLOTS) if (o[id + 'Phrase'] !== undefined) $(id + 'Phrase').dataset.v = String(o[id + 'Phrase']);
     updateButtonRows();
     blushMap = typeof o.stripBlushMap === 'string' ? o.stripBlushMap : '';
     drawBlushMap();

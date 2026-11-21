@@ -95,6 +95,9 @@ public:
   //(added since) come after, in disk order. faceSkip lists faces the button passes over. Both are
   //file names separated by ";". Empty = every face, in disk order, as it always was.
   String faceOrder, faceSkip;
+  //The phone app's soundboard, as the app last told the mask: one name a slot, separated by ";".
+  //Only for showing names in the action pickers; the sounds themselves live on the phone.
+  String sndNames;
   unsigned long visColor;
   void setDefault();
   bool save();

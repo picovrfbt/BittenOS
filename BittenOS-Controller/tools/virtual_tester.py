@@ -66,7 +66,7 @@ SAVECONFIG_KEYS = {
     'phraseOnce0': bool, 'phraseOnce1': bool, 'phraseOnce2': bool,
     'phraseOnce3': bool, 'phraseOnce4': bool, 'phraseOnce5': bool,
     'sleepDeepEna': bool, 'sleepDeepMins': int,
-    'staEna': bool, 'staName': str, 'staPass': str, 'mdnsName': str,
+    'staEna': bool, 'staName': str, 'staPass': str, 'mdnsName': str, 'sndNames': str,
     'wakeFlickEna': bool, 'wakeFlickBoot': bool, 'wakeFlickStyle': str, 'wakeFlickMs': int, 'wakeFlickGlitch': int,
     'bootBarEna': bool, 'bootBarMs': int, 'dinoBest': int,
     'eggPresses': int, 'eggAction': str, 'slotWins': int, 'slotSpins': int,
@@ -150,6 +150,8 @@ class VirtualBoard:
         self.clock_24 = False
         self.rave_on = False           # /rave: the virtual face has no mic, so only the state is kept
         self.rave_mode = 1
+        self.snd_seq = 0               # /sndtest: a remote button set to a sound, for the app's soundboard
+        self.snd_slot = 0
         self.strip_test = 0            # /strip: the cheek strip. The virtual face has no LEDs on it
         self.rave_mic = True
         self.mic_listeners = 0      # pages listening to /mic.ws
@@ -298,6 +300,7 @@ def stats_dict():
         'staRssi': -54 if board.config.get('staEna') and board.config.get('staName') else 0,
         'staName': board.config.get('staName') or '',
         'mdns': board.config.get('mdnsName') or 'protogen',
+        'snd': board.snd_seq, 'sndSlot': board.snd_slot,
         'boopRaw': 40 + sig, 'boopBase': 40, 'boopSig': sig, 'booping': paw,
         'als0': int(180 * (100 - shade) / 100), 'als1': 420, 'lightNormal': 180, 'shade': shade,
         'lightOk': True, 'boopsIgnored': 0, 'i2c': '0x39 0x68 (virtual)',
@@ -650,6 +653,12 @@ class Handler(BaseHTTPRequestHandler):
                 'boopSig': s['boopSig'], 'shade': s['shade'], 'booping': s['booping'],
                 'tilt': s['tilt'], 'boop': s['boop'],
             }), 'application/json')
+
+        if path == '/sndtest':   # tester only: as if a remote button set to "A sound" was pressed
+            board.snd_slot = max(0, min(23, to_int(q.get('slot', '0'))))
+            board.snd_seq += 1
+            board.log('[I] Sound %d for the app' % (board.snd_slot + 1))
+            return self.reply(200, 'ok', 'text/plain')
 
         if path == '/rave':   # rave mode. There is no mic here, so this keeps the state the page reads
             if 'mode' in q:

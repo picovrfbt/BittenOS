@@ -58,6 +58,7 @@ void Config::setDefault() {
   aSleep = "sleep.json";
   faceOrder = "";
   faceSkip = "";
+  sndNames = "";
   transEna = true;
   bobEna = false;
   boopCountEna = true;
@@ -193,6 +194,7 @@ bool Config::save() {
   doc["aSleep"] = aSleep;
   doc["faceOrder"] = faceOrder;
   doc["faceSkip"] = faceSkip;
+  doc["sndNames"] = sndNames;
   doc["transEna"] = transEna;
   doc["bobEna"] = bobEna;
   doc["boopCountEna"] = boopCountEna;
@@ -398,6 +400,7 @@ bool Config::load() {
   aSleep = doc["aSleep"] | "sleep.json";
   faceOrder = doc["faceOrder"] | "";
   faceSkip = doc["faceSkip"] | "";
+  sndNames = doc["sndNames"] | "";
   transEna = doc["transEna"] | true;
   bobEna = doc["bobEna"] | false;
   boopCountEna = doc["boopCountEna"] | true;

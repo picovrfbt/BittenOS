@@ -358,6 +358,40 @@ AsyncUDP micUdp;
 volatile uint32_t micUdpPeerIp = 0;    //written by the UDP task, read by loop(): plain words, no locking
 volatile uint16_t micUdpPeerPort = 0;
 volatile uint32_t micUdpHeardAt = 0;
+//The soundboard lives on the phone: a button or remote set to "sound" tells every app that has
+//been in touch lately, by UDP on its own port, and counts the press in /stats as well so an app
+//that missed the packet still catches it on its next poll.
+#define SND_PORT 7374
+#define SND_SLOTS 24
+#define SND_APPS 4
+volatile uint32_t sndSeq = 0;           //one more for every sound asked for
+volatile int sndSlot = -1;              //and which one it was
+uint32_t sndAppIp[SND_APPS] = {0};      //apps that polled /stats lately, and when
+uint32_t sndAppAt[SND_APPS] = {0};
+void sndNoteApp(uint32_t ip) {
+  int slot = 0;
+  for(int i = 0; i < SND_APPS; i++) {
+    if(sndAppIp[i] == ip) { slot = i; break; }
+    if(sndAppAt[i] < sndAppAt[slot]) slot = i;   //otherwise the one heard from longest ago
+  }
+  sndAppIp[slot] = ip;
+  sndAppAt[slot] = millis() | 1;
+}
+void sndPlay(int slot) {
+  sndSlot = slot;
+  sndSeq++;
+  uint8_t pkt[9] = {'B', 'S', 'N', 'D', 0, 0, 0, 0, (uint8_t)slot};
+  uint32_t q = sndSeq;
+  memcpy(pkt + 4, &q, 4);
+  int sent = 0;
+  for(int i = 0; i < SND_APPS; i++) {
+    if(!sndAppIp[i] || millis() - sndAppAt[i] > 15000) continue;   //not polled for a while: gone
+    IPAddress ip(sndAppIp[i]);
+    for(int r = 0; r < 2; r++) micUdp.writeTo(pkt, sizeof(pkt), ip, SND_PORT);   //twice: UDP may drop one
+    sent++;
+  }
+  logPrint("[I] Sound " + String(slot + 1) + " to " + String(sent) + (sent == 1 ? " app" : " apps"));
+}
 bool micUdpAlive() { return micUdpPeerIp && micUdpHeardAt && (millis() - micUdpHeardAt) < MICUDP_ALIVE_MS; }
 
 //--------------------------------//Config vars
@@ -1761,19 +1795,20 @@ void startWiFiWeb() {
     //the order Next / Previous face step through, and the faces they pass over
     cfg.getString(request, "faceOrder", cfg.faceOrder);
     cfg.getString(request, "faceSkip", cfg.faceSkip);
+    cfg.getString(request, "sndNames", cfg.sndNames);       //the app's soundboard, for the pickers
     cfg.getString(request, "aMilestone", cfg.aMilestone);
     cfg.getString(request, "aSass", cfg.aSass);
     for(int i = 0; i < 3; i++) {
       String k = "rmt" + String(i);
       cfg.getString(request, k.c_str(), cfg.rmtAct[i]);
       cfg.getString(request, (k + "Face").c_str(), cfg.rmtFace[i]);
-      if(cfg.getInt(request, (k + "Phrase").c_str(), cfg.rmtPhrase[i])) cfg.rmtPhrase[i] = constrain(cfg.rmtPhrase[i], 0, 5);
+      if(cfg.getInt(request, (k + "Phrase").c_str(), cfg.rmtPhrase[i])) cfg.rmtPhrase[i] = constrain(cfg.rmtPhrase[i], 0, SND_SLOTS - 1);
       cfg.getString(request, (k + "H").c_str(), cfg.rmtHAct[i]);
       cfg.getString(request, (k + "HFace").c_str(), cfg.rmtHFace[i]);
-      if(cfg.getInt(request, (k + "HPhrase").c_str(), cfg.rmtHPhrase[i])) cfg.rmtHPhrase[i] = constrain(cfg.rmtHPhrase[i], 0, 5);
+      if(cfg.getInt(request, (k + "HPhrase").c_str(), cfg.rmtHPhrase[i])) cfg.rmtHPhrase[i] = constrain(cfg.rmtHPhrase[i], 0, SND_SLOTS - 1);
       cfg.getString(request, (k + "D").c_str(), cfg.rmtDAct[i]);
       cfg.getString(request, (k + "DFace").c_str(), cfg.rmtDFace[i]);
-      if(cfg.getInt(request, (k + "DPhrase").c_str(), cfg.rmtDPhrase[i])) cfg.rmtDPhrase[i] = constrain(cfg.rmtDPhrase[i], 0, 5);
+      if(cfg.getInt(request, (k + "DPhrase").c_str(), cfg.rmtDPhrase[i])) cfg.rmtDPhrase[i] = constrain(cfg.rmtDPhrase[i], 0, SND_SLOTS - 1);
     }
     //button
     cfg.getString(request, "btnShort", cfg.btnShort);
@@ -1783,9 +1818,9 @@ void startWiFiWeb() {
     cfg.getString(request, "btnDoubleFace", cfg.btnDoubleFace);
     cfg.getString(request, "btnHoldFace", cfg.btnHoldFace);
     if(cfg.getInt(request, "btnHoldMs", cfg.btnHoldMs)) cfg.btnHoldMs = constrain(cfg.btnHoldMs, 300, 5000);
-    if(cfg.getInt(request, "btnShortPhrase", cfg.btnShortPhrase)) cfg.btnShortPhrase = constrain(cfg.btnShortPhrase, 0, 5);
-    if(cfg.getInt(request, "btnDoublePhrase", cfg.btnDoublePhrase)) cfg.btnDoublePhrase = constrain(cfg.btnDoublePhrase, 0, 5);
-    if(cfg.getInt(request, "btnHoldPhrase", cfg.btnHoldPhrase)) cfg.btnHoldPhrase = constrain(cfg.btnHoldPhrase, 0, 5);
+    if(cfg.getInt(request, "btnShortPhrase", cfg.btnShortPhrase)) cfg.btnShortPhrase = constrain(cfg.btnShortPhrase, 0, SND_SLOTS - 1);
+    if(cfg.getInt(request, "btnDoublePhrase", cfg.btnDoublePhrase)) cfg.btnDoublePhrase = constrain(cfg.btnDoublePhrase, 0, SND_SLOTS - 1);
+    if(cfg.getInt(request, "btnHoldPhrase", cfg.btnHoldPhrase)) cfg.btnHoldPhrase = constrain(cfg.btnHoldPhrase, 0, SND_SLOTS - 1);
     //quick phrases, one slot per request: phraseN, phraseSpeedN, phraseOnceN
     for(int i = 0; i < 6; i++) {
       cfg.getString(request, ("phrase" + String(i)).c_str(), cfg.phrase[i]);
@@ -2075,6 +2110,9 @@ void startWiFiWeb() {
     xSemaphoreGive(animQueueMutex);
     JsonDocument st;
     st["fw"] = "BittenOS";                                            //how the app knows it found a mask
+    if(request->hasParam("app")) sndNoteApp((uint32_t)request->client()->remoteIP());   //where to send sounds
+    st["snd"] = sndSeq;                                               //sounds asked for since boot
+    st["sndSlot"] = sndSlot;
     st["uptime"] = millis() / 1000;
     st["heapFree"] = ESP.getFreeHeap();
     st["heapSize"] = ESP.getHeapSize();
@@ -2534,6 +2572,10 @@ void doButtonAction(const String &action, const String &face, int phraseSlot) {
   }
   if(action == "phrase") {
     showPhrase(phraseSlot);
+    return;
+  }
+  if(action == "sound") {                  //played by the phone app's soundboard, not the mask
+    if(phraseSlot >= 0 && phraseSlot < SND_SLOTS) sndPlay(phraseSlot);
     return;
   }
   if(action == "shutdown") {               //the fake low-battery death

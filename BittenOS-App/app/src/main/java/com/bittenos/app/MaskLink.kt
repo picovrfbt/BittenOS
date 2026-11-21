@@ -125,6 +125,7 @@ object MaskLink {
                     fails = 0
                     _state.value = cur.copy(stats = s, at = System.currentTimeMillis())
                     remember(s)
+                    if (s.optInt("clockMins", 0) < 0 || System.currentTimeMillis() - timeSentAt > 300_000) sendTime(cur.host)
                 } else if (++fails >= 3) {          // three missed seconds: it has gone
                     fails = 0
                     network?.let { network = null; cm.bindProcessToNetwork(null) }
@@ -150,6 +151,15 @@ object MaskLink {
         }
     }
 
+    private var timeSentAt = 0L
+    private suspend fun sendTime(h: String) {
+        timeSentAt = System.currentTimeMillis()
+        val c = java.util.Calendar.getInstance()
+        val mins = c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
+        val h24 = android.text.format.DateFormat.is24HourFormat(app)
+        if (httpGet(h, "/settime?mins=$mins&h24=" + (if (h24) 1 else 0), 1500) == null) timeSentAt = 0
+    }
+
     private suspend fun probeAll(): Pair<String, JSONObject>? = coroutineScope {
         // Probed even with no WiFi: the mask can join the phone's own hotspot, and then the phone
         // is on no WiFi network at all.
@@ -165,15 +175,20 @@ object MaskLink {
         j.optString("fw") == "BittenOS" || (j.has("loopHz") && j.has("anim") && j.has("boops"))
 
     private suspend fun fetchStats(h: String, timeout: Int = 1500): JSONObject? =
-        httpGet(h, "/stats", timeout)?.let {
+        httpGet(h, "/stats?app=1", timeout)?.let {
             try { JSONObject(it).takeIf(::isMask) } catch (e: Exception) { null }
         }
 
+    /** A connection that goes over the mask's WiFi even when Android would rather use mobile data. */
+    fun open(h: String, path: String): HttpURLConnection {
+        val url = URL("http://$h$path")
+        val n = network ?: wifi
+        return (n?.openConnection(url) ?: url.openConnection()) as HttpURLConnection
+    }
+
     private suspend fun httpGet(h: String, path: String, timeout: Int): String? = withContext(Dispatchers.IO) {
         try {
-            val url = URL("http://$h$path")
-            val n = network ?: wifi
-            val c = (n?.openConnection(url) ?: url.openConnection()) as HttpURLConnection
+            val c = open(h, path)
             c.connectTimeout = timeout
             c.readTimeout = timeout
             c.useCaches = false
@@ -210,7 +225,110 @@ object MaskLink {
         return r
     }
 
-    private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+    fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
+
+    /** GET that also hands back failures as text: the mask answers most mistakes in words. */
+    suspend fun fetch(path: String, timeout: Int = 4000): String? {
+        val h = host ?: return null
+        return httpGet(h, path, timeout)
+    }
+
+    suspend fun json(path: String, timeout: Int = 4000): JSONObject? =
+        fetch(path, timeout)?.let { try { JSONObject(it) } catch (e: Exception) { null } }
+
+    /** A request the mask answers with a redirect when it worked (the face and file endpoints). */
+    suspend fun okRedirect(path: String, timeout: Int = 4000): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        val h = host ?: return@withContext false to "The mask is out of reach"
+        try {
+            val c = open(h, path)
+            c.instanceFollowRedirects = false
+            c.connectTimeout = timeout; c.readTimeout = timeout; c.useCaches = false
+            try {
+                val code = c.responseCode
+                if (code in 300..399) true to ""
+                else {
+                    val t = try { c.inputStream.bufferedReader().use { it.readText() } } catch (e: Exception) { "" }
+                    (code in 200..299 && t.isBlank()) to t.ifBlank { "The mask said no ($code)" }
+                }
+            } finally { c.disconnect(); kick() }
+        } catch (e: Exception) { false to "The mask is out of reach" }
+    }
+
+    /** /saveconfig with one or more settings. Only what is named changes on the mask. */
+    suspend fun saveConfig(params: List<Pair<String, String>>): Pair<Boolean, String> {
+        val q = params.joinToString("&") { (k, v) -> enc(k) + "=" + enc(v) }
+        return okRedirect("/saveconfig?$q").let { (ok, t) ->
+            // saved.html is where a save lands; following it is not needed to know it worked
+            ok to t
+        }
+    }
+
+    suspend fun config(): JSONObject? = json("/config.json")?.also {
+        prefs.edit().putString("config", it.toString()).apply()
+    }
+
+    /** The settings last seen, for showing them while the mask is away. */
+    val lastConfig: JSONObject?
+        get() = prefs.getString("config", null)?.let { try { JSONObject(it) } catch (e: Exception) { null } }
+
+    /**
+     * A multipart POST, the way the web page sends faces, firmware and text. Each part is a field
+     * name, an optional file name and the bytes. Progress goes 0..1 while the body is written.
+     */
+    suspend fun post(
+        path: String,
+        parts: List<Triple<String, String?, ByteArray>>,
+        timeout: Int = 15000,
+        progress: (Float) -> Unit = {},
+    ): Pair<Int, String>? = withContext(Dispatchers.IO) {
+        val h = host ?: return@withContext null
+        val boundary = "----bittenos" + System.nanoTime()
+        try {
+            val c = open(h, path)
+            c.instanceFollowRedirects = false
+            c.connectTimeout = 4000; c.readTimeout = timeout; c.useCaches = false
+            c.doOutput = true
+            c.requestMethod = "POST"
+            c.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            val pieces = mutableListOf<ByteArray>()
+            for ((name, file, data) in parts) {
+                val head = StringBuilder("--$boundary\r\nContent-Disposition: form-data; name=\"$name\"")
+                if (file != null) head.append("; filename=\"$file\"\r\nContent-Type: application/octet-stream")
+                head.append("\r\n\r\n")
+                pieces += head.toString().toByteArray()
+                pieces += data
+                pieces += "\r\n".toByteArray()
+            }
+            pieces += "--$boundary--\r\n".toByteArray()
+            val total = pieces.sumOf { it.size.toLong() }
+            c.setFixedLengthStreamingMode(total)
+            var sent = 0L
+            c.outputStream.use { o ->
+                for (b in pieces) {
+                    var at = 0
+                    while (at < b.size) {
+                        val n = minOf(16384, b.size - at)
+                        o.write(b, at, n); at += n; sent += n
+                        progress(sent.toFloat() / total)
+                    }
+                }
+            }
+            val code = c.responseCode
+            val text = try { (if (code < 400) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: "" }
+                       catch (e: Exception) { "" }
+            c.disconnect()
+            kick()
+            code to text
+        } catch (e: Exception) { null }
+    }
+
+    /** The panel layout, kept so face previews still draw while the mask is away. */
+    suspend fun layout(): String? {
+        val t = fetch("/visType.txt") ?: return prefs.getString("layout", null)
+        prefs.edit().putString("layout", t).apply()
+        return t
+    }
+    val lastLayout: String? get() = prefs.getString("layout", null)
 
     /** The faces on the mask, as the firmware names the files ("happy.json"). */
     suspend fun faces(): List<String>? =
