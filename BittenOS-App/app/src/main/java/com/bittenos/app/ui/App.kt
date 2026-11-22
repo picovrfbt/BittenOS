@@ -118,6 +118,7 @@ private fun Top(link: MaskLink.State) {
     val scope = rememberCoroutineScope()
     HudHeader(
         onMenu = { if (Nav.stack.last() == "menu") Nav.back() else Nav.go("menu") },
+        onBack = if (Nav.stack.size > 1) ({ Nav.back() }) else null,
         // Rave toggles: pressed on the rave screen it goes back home
         onRave = { if (Nav.stack.last() == "rave") Nav.home() else { Nav.home(); Nav.go("rave") } },
         rave = conn != null && s.optBoolean("rave"),
@@ -547,7 +548,7 @@ private fun ConflictSheet() {
 private fun WebPage(path: String) {
     val host = MaskLink.host
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = Hud.Edge, vertical = 10.dp),
+        Row(Modifier.fillMaxWidth().cutoutTop().padding(horizontal = Hud.Edge, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             HudButton("‹ Back", { Nav.back() }, kind = BtnKind.On, height = 38.dp)
             Caps(when {

@@ -9,6 +9,9 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.bittenos.app.ui.AppScreen
 import kotlinx.coroutines.launch
@@ -35,7 +38,25 @@ class MainActivity : ComponentActivity() {
         // The app stays alive with the screen off, so a fresh open would land on the last screen: start at home
         if (savedInstanceState == null) com.bittenos.app.ui.Nav.home()
         enableEdgeToEdge()
+        hideBars()
         setContent { AppScreen() }
+    }
+
+    /** Full screen: the phone's status bar and navigation bar hide; a swipe from the edge shows them for a moment. */
+    private fun hideBars() {
+        if (Build.VERSION.SDK_INT >= 28) window.attributes = window.attributes.also {
+            it.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    // Dialogs, the keyboard and other apps can bring the bars back: hide them again on return
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideBars()
     }
 
     override fun onStart() {

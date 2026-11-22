@@ -13,6 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -45,26 +51,34 @@ import com.bittenos.app.MaskLink
 import com.bittenos.app.Soundboard
 import kotlinx.coroutines.launch
 
+/** Room for the camera cutout only: the phone's own bars are hidden. */
+@Composable
+fun Modifier.cutoutTop(): Modifier = windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top))
+
 // ---- the header ------------------------------------------------------------------------------
 
 @Composable
 fun HudHeader(onMenu: () -> Unit, onRave: () -> Unit, rave: Boolean, sleeping: Boolean, display: Boolean,
-              online: Boolean, onSleep: () -> Unit, onPower: () -> Unit) {
+              online: Boolean, onSleep: () -> Unit, onPower: () -> Unit, onBack: (() -> Unit)? = null) {
     val a = LocalAccent.current
-    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = Hud.Edge, end = Hud.Edge, top = 14.dp, bottom = 8.dp),
+    // The phone's bars are hidden, so only the camera cutout needs room
+    Row(Modifier.fillMaxWidth().cutoutTop().padding(start = Hud.Edge, end = Hud.Edge, top = 14.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Off home: a small back button, and the menu shrinks to its icon to make room
+        if (onBack != null) IconBtn(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack, a)
         Row(Modifier.height(44.dp).background(accentDeep(a), RoundedCornerShape(2.dp))
-            .border(1.dp, a, RoundedCornerShape(2.dp)).clickable(onClick = onMenu).padding(horizontal = 12.dp),
+            .border(1.dp, a, RoundedCornerShape(2.dp)).clickable(onClick = onMenu).padding(horizontal = if (onBack != null) 14.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Filled.Menu, null, Modifier.size(16.dp), tint = a)
-            Caps("MENU", color = a, size = 11.sp, weight = FontWeight.Bold)
+            Icon(Icons.Filled.Menu, "Menu", Modifier.size(16.dp), tint = a)
+            if (onBack == null) Caps("MENU", color = a, size = 11.sp, weight = FontWeight.Bold)
         }
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Text("BITTEN·OS", Modifier.padding(bottom = 6.dp).drawBehind {
                 val w = 34.dp.toPx()
                 drawLine(a, Offset(size.width / 2 - w / 2, size.height + 4.dp.toPx()),
                     Offset(size.width / 2 + w / 2, size.height + 4.dp.toPx()), 2.dp.toPx())
-            }, color = Hud.Text, fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 0.34.em, maxLines = 1)
+            }, color = Hud.Text, fontWeight = FontWeight.Bold, fontSize = if (onBack != null) 12.sp else 14.sp,
+                letterSpacing = if (onBack != null) 0.2.em else 0.34.em, maxLines = 1, softWrap = false)
         }
         IconBtn(Icons.Filled.GraphicEq, "Rave mode", onRave, if (rave) Hud.Pink else Hud.Pink, lit = rave, border = Color(0xFF5A1F37))
         IconBtn(Icons.Filled.Bedtime, if (sleeping) "Wake up" else "Sleeping face", onSleep, if (sleeping) a else Hud.Text2,
