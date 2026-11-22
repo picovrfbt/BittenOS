@@ -1,5 +1,5 @@
 {
-  "code": 5,
-  "name": "0.5",
-  "notes": "Home is the main page again: the app opens on it, the menu has no numbers, Back from any screen lands on home, and the rave button takes you back home when pressed again."
+  "code": 1,
+  "name": "1.0",
+  "notes": "First release."
 }
