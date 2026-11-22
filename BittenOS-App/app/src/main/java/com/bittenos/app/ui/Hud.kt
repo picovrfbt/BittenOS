@@ -164,11 +164,23 @@ fun Modifier.stripes(): Modifier = this.background(Hud.Bg).drawBehind {
     }
 }
 
+/** True inside [Combined]: a screen's own HudColumn then just stacks, the outer one scrolls. */
+val LocalCombined = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 /** A scrolling screen body with the HUD's edge spacing. */
 @Composable
 fun HudColumn(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    if (LocalCombined.current) { Column(modifier.fillMaxWidth().padding(bottom = 10.dp)) { content() }; return }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()
         .padding(top = 2.dp, bottom = 24.dp)) { content() }
+}
+
+/** Several screens on one page, one after the other, each under its own title line. */
+@Composable
+fun Combined(vararg screens: @Composable () -> Unit) {
+    HudColumn {
+        androidx.compose.runtime.CompositionLocalProvider(LocalCombined provides true) { screens.forEach { it() } }
+    }
 }
 
 // ---- panels -----------------------------------------------------------------------------------

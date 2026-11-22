@@ -93,12 +93,11 @@ fun AppScreen() {
                         "voice" -> VoiceScreen(link)
                         "mic" -> MicScreen()
                         "lights" -> LightsScreen()
-                        "sensors" -> SensorsScreen()
-                        "behaviour" -> BehaviourScreen()
+                        // Fewer pages: related screens share one, each under its own title line
+                        "sensors", "behaviour" -> Combined({ SensorsScreen() }, { BehaviourScreen() })
                         "buttons" -> ButtonsScreen()
                         "create" -> CreateScreen()
-                        "network" -> NetworkScreen()
-                        "system" -> SystemScreen()
+                        "system", "network" -> Combined({ SystemScreen() }, { NetworkScreen() })
                         "update" -> UpdateScreen()
                         "rave" -> RaveScreen()
                         "sounds" -> SoundsScreen()
@@ -438,16 +437,13 @@ private fun SoundsPanel() {
 private val MENU = listOf(
     Triple("home", "Home", "Faces · brightness · say · sounds"),
     Triple("voice", "Voice & mic", "Through the phone · mouth mic"),
-    Triple("lights", "Lights & screen", "Cheeks · auto-bright · status screen"),
-    Triple("sensors", "Sensors", "Boop · boop counter · tilt"),
-    Triple("behaviour", "Behaviour", "Face changes · sleep · startup"),
-    Triple("buttons", "Buttons & remote", "Presses · next face order · ESP-NOW remote"),
     Triple("create", "Create", "Face maker · screen designer · files · phrases"),
-    Triple("network", "Network & app", "Mask WiFi · join a network · this app"),
-    Triple("system", "System", "Status · easter eggs · firmware"),
-    Triple("rave", "Spectrum rave", "VU bar · spectrum · cheeks"),
-    Triple("sounds", "Soundboard", "Sounds from this phone · remote buttons"),
+    Triple("lights", "Lights & screen", "Cheeks · auto-bright · status screen"),
+    Triple("sensors", "Sensors & behaviour", "Boop · tilt · face changes · sleep · startup"),
+    Triple("buttons", "Buttons & remote", "Presses · next face order · ESP-NOW remote"),
+    Triple("system", "System & network", "Status · update · mask WiFi · this app"),
 )
+// Rave is the button at the top; the soundboard opens from home
 
 @Composable
 fun MenuScreen(link: MaskLink.State) {
