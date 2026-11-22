@@ -224,6 +224,15 @@ Needs a passive 2-into-1 summing cable (~GBP 5) to keep phone music, because plu
 the Clip 3's Bluetooth off. Only worth it if B feels laggy and A's GBP 30 is not wanted. This is how
 commercial fursuit voice amps work, and the wire is exactly why.
 
+**CHOSEN (2026-11-21): Route D - an all-in-one portable voice amplifier. ~0 ms.** After measuring
+the app over Bluetooth on the A50 (Select 4 Go): buffer 28 ms, Bluetooth output 254 ms, codec already
+SBC, A2DP offload switch greyed out - nothing left to tune. The user wants the literal simplest thing
+and will do the mounting. A "teacher / tour guide" waist amp (GBP 15-30) is mic + amp + speaker +
+battery in one, analogue, no phone, no app, no soldering. Wired headset mic inside the mask, amp on
+the belt or chest facing away. Buying notes: wired headset/boom mic (not wireless, not a lav), a
+volume knob, USB-C charging, 10 W or more. The maw still animates off the mask's own SPH0645 mic, so
+nothing in the firmware changes. The phone voice route stays in the app for testing.
+
 **Feedback is the real limit, not latency.** Speaker on the hip or chest facing away, tight-pattern
 headset/boom mic rather than an open lav, gain no higher than needed. Testing with the phone's own
 mic next to the speaker will howl - that is physics, not a fault.
