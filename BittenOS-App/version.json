@@ -1,5 +1,5 @@
 {
-  "code": 4,
-  "name": "0.4",
-  "notes": "Carries the matching mask update inside the app (v1.1), to send over WiFi with no internet when the PC is not to hand."
+  "code": 5,
+  "name": "0.5",
+  "notes": "Home is the main page again: the app opens on it, the menu has no numbers, Back from any screen lands on home, and the rave button takes you back home when pressed again."
 }

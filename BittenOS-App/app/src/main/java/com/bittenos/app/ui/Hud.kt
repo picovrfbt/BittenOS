@@ -184,7 +184,8 @@ fun Panel(
         .padding(Hud.PanelPad)) {
         Row(Modifier.fillMaxWidth().padding(bottom = Hud.HeadGap).heightIn(min = 18.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Caps(if (code.isEmpty()) title else "$code // $title", Modifier.weight(1f), color = titleColor,
+            // code is kept in the calls but no longer shown: the numbers read as clutter
+            Caps(title, Modifier.weight(1f), color = titleColor,
                 size = 11.sp, weight = FontWeight.Bold, spacing = 0.18.em, maxLines = 2)
             trailing?.invoke(this)
         }
@@ -199,7 +200,7 @@ fun Crumb(code: String, title: String) {
     val linked = st is com.bittenos.app.MaskLink.State.Connected
     Row(Modifier.fillMaxWidth().padding(start = Hud.Edge, end = Hud.Edge, top = 6.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Mono("$code // ${title.uppercase()}", color = LocalAccent.current, size = 10.sp)
+        Mono(title.uppercase(), color = LocalAccent.current, size = 10.sp)
         Box(Modifier.weight(1f).height(1.dp).background(Hud.Line))
         Box(Modifier.size(6.dp).background(if (linked) LocalAccent.current else Hud.Amber, CircleShape))
         Mono(if (linked) "LINKED" else "AWAY", color = if (linked) LocalAccent.current else Hud.Amber, size = 10.sp)

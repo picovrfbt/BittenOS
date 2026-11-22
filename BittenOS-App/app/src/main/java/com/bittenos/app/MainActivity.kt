@@ -32,6 +32,8 @@ class MainActivity : ComponentActivity() {
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }
+        // The app stays alive with the screen off, so a fresh open would land on the last screen: start at home
+        if (savedInstanceState == null) com.bittenos.app.ui.Nav.home()
         enableEdgeToEdge()
         setContent { AppScreen() }
     }

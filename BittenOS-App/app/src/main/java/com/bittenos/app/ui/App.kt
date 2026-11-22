@@ -119,7 +119,8 @@ private fun Top(link: MaskLink.State) {
     val scope = rememberCoroutineScope()
     HudHeader(
         onMenu = { if (Nav.stack.last() == "menu") Nav.back() else Nav.go("menu") },
-        onRave = { if (Nav.stack.last() != "rave") Nav.go("rave") },
+        // Rave toggles: pressed on the rave screen it goes back home
+        onRave = { if (Nav.stack.last() == "rave") Nav.home() else { Nav.home(); Nav.go("rave") } },
         rave = conn != null && s.optBoolean("rave"),
         sleeping = conn != null && s.optBoolean("sleeping"),
         display = s.optBoolean("display", true),
@@ -435,7 +436,7 @@ private fun SoundsPanel() {
 // ---- menu -----------------------------------------------------------------------------------
 
 private val MENU = listOf(
-    Triple("home", "Faces & say", "Tiles · blinks · brightness · text"),
+    Triple("home", "Home", "Faces · brightness · say · sounds"),
     Triple("voice", "Voice & mic", "Through the phone · mouth mic"),
     Triple("lights", "Lights & screen", "Cheeks · auto-bright · status screen"),
     Triple("sensors", "Sensors", "Boop · boop counter · tilt"),
@@ -453,19 +454,18 @@ fun MenuScreen(link: MaskLink.State) {
     val a = LocalAccent.current
     val voice by com.bittenos.app.VoiceService.on.collectAsState()
     HudColumn {
-        Crumb("000", "Menu // navigation")
-        MENU.forEachIndexed { i, (r, t, sub) ->
+        Gap(6)
+        MENU.forEach { (r, t, sub) ->
             val c = if (r == "rave") Hud.Pink else if (r == "sounds") Hud.Cyan else a
             Row(Modifier.padding(horizontal = Hud.Edge).padding(bottom = 6.dp).fillMaxWidth().heightIn(min = 58.dp)
                 .background(Hud.PanelBg, RoundedCornerShape(2.dp)).border(1.dp, Hud.Line, RoundedCornerShape(2.dp))
-                .clickable { if (r == "home") Nav.home() else { Nav.back(); Nav.go(r) } }.padding(horizontal = 14.dp, vertical = 8.dp),
+                // Every screen opens on top of home, so Back always lands there
+                .clickable { Nav.home(); if (r != "home") Nav.go(r) }.padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Caps(t, color = Hud.Text, size = 12.sp, weight = FontWeight.Bold, spacing = 0.14.em)
                     Caps(sub, color = Hud.Faint, size = 9.sp, spacing = 0.08.em)
                 }
-                Mono("%03d".format(i + 1), color = c, size = 11.sp)
-                HGap(8)
                 Text("›", color = c, fontSize = 20.sp)
             }
         }
@@ -555,9 +555,9 @@ private fun WebPage(path: String) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             HudButton("‹ Back", { Nav.back() }, kind = BtnKind.On, height = 38.dp)
             Caps(when {
-                path.startsWith("/animator") -> "007 // Face maker"
-                path.startsWith("/screen") -> "007 // Screen designer"
-                path.startsWith("/docs") -> "009 // How to use"
+                path.startsWith("/animator") -> "Face maker"
+                path.startsWith("/screen") -> "Screen designer"
+                path.startsWith("/docs") -> "How to use"
                 else -> "The web page"
             }, Modifier.weight(1f), color = LocalAccent.current, size = 11.sp, weight = FontWeight.Bold)
         }
