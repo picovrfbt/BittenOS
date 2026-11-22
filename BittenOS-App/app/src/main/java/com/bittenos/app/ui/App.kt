@@ -190,8 +190,9 @@ private fun FacesPanel(conn: MaskLink.State.Connected?, s: JSONObject) {
                 row.forEach { f ->
                     val on = f == current
                     val a = LocalAccent.current
-                    Column(Modifier.weight(1f).background(if (on) accentDeep(a) else Hud.FieldBg, RoundedCornerShape(2.dp))
-                        .border(1.dp, if (held == f) Hud.Text else if (on) a else Hud.Line, RoundedCornerShape(2.dp))
+                    // The face showing now: thicker accent frame and a stronger fill, so it stands out in the grid
+                    Column(Modifier.weight(1f).background(if (on) lerpColor(Hud.Bg, a, 0.22f) else Hud.FieldBg, RoundedCornerShape(2.dp))
+                        .border(if (on || held == f) 2.dp else 1.dp, if (held == f) Hud.Text else if (on) a else Hud.Line, RoundedCornerShape(2.dp))
                         .combinedClickable(onLongClick = { held = f }) {
                             if (conn == null) { Toast.bad("Faces need the mask in reach"); return@combinedClickable }
                             busy = f
@@ -454,7 +455,7 @@ fun MenuScreen(link: MaskLink.State) {
         Gap(6)
         MENU.forEach { (r, t, sub) ->
             val c = if (r == "rave") Hud.Pink else if (r == "sounds") Hud.Cyan else a
-            Row(Modifier.padding(horizontal = Hud.Edge).padding(bottom = 6.dp).fillMaxWidth().heightIn(min = 58.dp)
+            Row(Modifier.padding(horizontal = Hud.Edge).padding(bottom = 6.dp).fillMaxWidth().heightIn(min = 50.dp)
                 .background(Hud.PanelBg, RoundedCornerShape(2.dp)).border(1.dp, Hud.Line, RoundedCornerShape(2.dp))
                 // Every screen opens on top of home, so Back always lands there
                 .clickable { Nav.home(); if (r != "home") Nav.go(r) }.padding(horizontal = 14.dp, vertical = 8.dp),

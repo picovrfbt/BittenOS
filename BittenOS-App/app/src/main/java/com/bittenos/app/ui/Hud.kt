@@ -37,6 +37,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
@@ -241,7 +244,7 @@ fun SetRow(title: String, hint: String? = null, enabled: Boolean = true, top: Bo
            control: @Composable RowScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.45f)) {
         if (top) Box(Modifier.fillMaxWidth().height(1.dp).background(Hud.Line.copy(alpha = 0.6f)))
-        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 8.dp),
+        Row(Modifier.fillMaxWidth().heightIn(min = 46.dp).padding(vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f)) {
                 Caps(title, color = Hud.Text, size = 10.5.sp, maxLines = 2)
@@ -259,12 +262,13 @@ enum class BtnKind { Plain, On, Out, Fill, Danger, Pink, Cyan, Amber }
 @Composable
 fun HudButton(
     text: String, onClick: () -> Unit, modifier: Modifier = Modifier, kind: BtnKind = BtnKind.Plain,
-    sub: String? = null, enabled: Boolean = true, height: Dp = 44.dp, size: TextUnit = 10.sp,
+    sub: String? = null, enabled: Boolean = true, height: Dp = if (sub != null) 44.dp else 38.dp, size: TextUnit = 10.sp,
 ) {
     val a = LocalAccent.current
     val (border, bg, fg) = when (kind) {
         BtnKind.Plain -> Triple(Hud.Line2, Hud.FieldBg, Hud.Text2)
-        BtnKind.On -> Triple(a, accentDeep(a), a)
+        // Selected: a much stronger fill than before (13% -> 26%), so it reads at a glance
+        BtnKind.On -> Triple(a, lerpColor(Hud.Bg, a, 0.26f), lerpColor(a, Color.White, 0.25f))
         BtnKind.Out -> Triple(a, Color.Transparent, a)
         BtnKind.Fill -> Triple(a, a, onAccent(a))
         BtnKind.Danger -> Triple(Hud.Red, lerpColor(Hud.Bg, Hud.Red, 0.12f), Hud.Red)
@@ -276,7 +280,11 @@ fun HudButton(
         .background(bg, RoundedCornerShape(2.dp)).border(1.dp, border, RoundedCornerShape(2.dp))
         .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Caps(text, color = fg, size = size, weight = FontWeight.Bold, align = TextAlign.Center, maxLines = 2)
+        if (kind == BtnKind.On) Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Check, "Selected", Modifier.size(12.dp), tint = fg)
+            Spacer(Modifier.width(4.dp))
+            Caps(text, color = fg, size = size, weight = FontWeight.Bold, align = TextAlign.Center, maxLines = 2)
+        } else Caps(text, color = fg, size = size, weight = FontWeight.Bold, align = TextAlign.Center, maxLines = 2)
         if (sub != null) Mono(sub, color = fg.copy(alpha = 0.75f), size = 8.5.sp)
     }
 }
@@ -284,7 +292,7 @@ fun HudButton(
 /** A row of equal buttons, one of them on. */
 @Composable
 fun <T> Seg(options: List<Pair<T, String>>, selected: T?, onPick: (T) -> Unit, modifier: Modifier = Modifier,
-            subs: List<String?>? = null, enabled: Boolean = true, height: Dp = 44.dp, cols: Int = options.size) {
+            subs: List<String?>? = null, enabled: Boolean = true, height: Dp = if (subs != null) 44.dp else 36.dp, cols: Int = options.size) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Hud.SegGap)) {
         options.chunked(cols).forEachIndexed { r, row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Hud.SegGap)) {
@@ -310,7 +318,7 @@ fun LinkBtn(text: String, onClick: () -> Unit, color: Color = LocalAccent.curren
 @Composable
 fun Stepper(value: String, onMinus: () -> Unit, onPlus: () -> Unit, enabled: Boolean = true) {
     val a = LocalAccent.current
-    Row(Modifier.height(34.dp).alpha(if (enabled) 1f else 0.4f).border(1.dp, Hud.Line2, RoundedCornerShape(2.dp)),
+    Row(Modifier.height(32.dp).alpha(if (enabled) 1f else 0.4f).border(1.dp, Hud.Line2, RoundedCornerShape(2.dp)),
         verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(34.dp).clickable(enabled = enabled, onClick = onMinus), contentAlignment = Alignment.Center) {
             Text("−", color = a, fontSize = 17.sp)
@@ -333,12 +341,13 @@ fun NumStepper(v: Double, min: Double, max: Double, step: Double, fmt: (Double) 
 @Composable
 fun HudToggle(checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true, color: Color = LocalAccent.current) {
     val off = Hud.Faint
-    Box(Modifier.size(42.dp, 24.dp).alpha(if (enabled) 1f else 0.4f)
-        .background(if (checked) lerpColor(Hud.Bg, color, 0.2f) else Hud.Track, RoundedCornerShape(12.dp))
-        .border(1.dp, if (checked) color else Hud.Line2, RoundedCornerShape(12.dp))
+    // On is a solid accent track with a dark knob: unmistakable next to the dark off state
+    Box(Modifier.size(38.dp, 22.dp).alpha(if (enabled) 1f else 0.4f)
+        .background(if (checked) color else Hud.Track, RoundedCornerShape(11.dp))
+        .border(1.dp, if (checked) color else Hud.Line2, RoundedCornerShape(11.dp))
         .clickable(enabled = enabled) { onChange(!checked) }) {
-        Box(Modifier.padding(4.dp).offset(x = if (checked) 18.dp else 0.dp).size(14.dp)
-            .background(if (checked) color else off, CircleShape))
+        Box(Modifier.padding(4.dp).offset(x = if (checked) 16.dp else 0.dp).size(14.dp)
+            .background(if (checked) onAccent(color) else off, CircleShape))
     }
 }
 
@@ -406,8 +415,8 @@ fun HudInput(
     singleLine: Boolean = true,
 ) {
     var show by remember { mutableStateOf(false) }
-    Box(modifier.heightIn(min = 44.dp).background(Hud.FieldBg, RoundedCornerShape(2.dp))
-        .border(1.dp, Hud.Line2, RoundedCornerShape(2.dp)).padding(horizontal = 10.dp, vertical = 12.dp),
+    Box(modifier.heightIn(min = 40.dp).background(Hud.FieldBg, RoundedCornerShape(2.dp))
+        .border(1.dp, Hud.Line2, RoundedCornerShape(2.dp)).padding(horizontal = 10.dp, vertical = 10.dp),
         contentAlignment = Alignment.CenterStart) {
         if (value.isEmpty()) Mono(placeholder.uppercase(), color = Hud.Faint, size = 12.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -448,7 +457,7 @@ fun <T> Picker(value: T?, options: List<Pair<T, String>>, onPick: (T) -> Unit, t
                 .padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(l, Modifier.weight(1f), color = if (on) LocalAccent.current else Hud.Text, fontSize = 14.sp,
                     fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal)
-                if (on) Text("✓", color = LocalAccent.current)
+                if (on) Icon(Icons.Filled.Check, "Selected", Modifier.size(18.dp), tint = LocalAccent.current)
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(Hud.Line.copy(alpha = 0.5f)))
         }
