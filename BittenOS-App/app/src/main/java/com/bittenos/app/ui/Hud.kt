@@ -263,6 +263,7 @@ enum class BtnKind { Plain, On, Out, Fill, Danger, Pink, Cyan, Amber }
 fun HudButton(
     text: String, onClick: () -> Unit, modifier: Modifier = Modifier, kind: BtnKind = BtnKind.Plain,
     sub: String? = null, enabled: Boolean = true, height: Dp = if (sub != null) 44.dp else 38.dp, size: TextUnit = 10.sp,
+    checked: Boolean = false,   // the chosen option in a Seg: shows a check mark
 ) {
     val a = LocalAccent.current
     val (border, bg, fg) = when (kind) {
@@ -280,7 +281,7 @@ fun HudButton(
         .background(bg, RoundedCornerShape(2.dp)).border(1.dp, border, RoundedCornerShape(2.dp))
         .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        if (kind == BtnKind.On) Row(verticalAlignment = Alignment.CenterVertically) {
+        if (checked) Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Check, "Selected", Modifier.size(12.dp), tint = fg)
             Spacer(Modifier.width(4.dp))
             Caps(text, color = fg, size = size, weight = FontWeight.Bold, align = TextAlign.Center, maxLines = 2)
@@ -298,7 +299,7 @@ fun <T> Seg(options: List<Pair<T, String>>, selected: T?, onPick: (T) -> Unit, m
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Hud.SegGap)) {
                 row.forEachIndexed { i, (v, label) ->
                     HudButton(label, { onPick(v) }, Modifier.weight(1f), if (v == selected) BtnKind.On else BtnKind.Plain,
-                        sub = subs?.getOrNull(r * cols + i), enabled = enabled, height = height)
+                        sub = subs?.getOrNull(r * cols + i), enabled = enabled, height = height, checked = v == selected)
                 }
                 repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
             }
