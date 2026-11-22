@@ -224,14 +224,17 @@ Needs a passive 2-into-1 summing cable (~GBP 5) to keep phone music, because plu
 the Clip 3's Bluetooth off. Only worth it if B feels laggy and A's GBP 30 is not wanted. This is how
 commercial fursuit voice amps work, and the wire is exactly why.
 
-**CHOSEN (2026-11-21): Route D - an all-in-one portable voice amplifier. ~0 ms.** After measuring
-the app over Bluetooth on the A50 (Select 4 Go): buffer 28 ms, Bluetooth output 254 ms, codec already
-SBC, A2DP offload switch greyed out - nothing left to tune. The user wants the literal simplest thing
-and will do the mounting. A "teacher / tour guide" waist amp (GBP 15-30) is mic + amp + speaker +
-battery in one, analogue, no phone, no app, no soldering. Wired headset mic inside the mask, amp on
-the belt or chest facing away. Buying notes: wired headset/boom mic (not wireless, not a lav), a
-volume knob, USB-C charging, 10 W or more. The maw still animates off the mask's own SPH0645 mic, so
-nothing in the firmware changes. The phone voice route stays in the app for testing.
+**CHOSEN (2026-11-21): Route E - speaker amp built into the mask, fed by the mask's own mic. ~5-10 ms.**
+After measuring the app over Bluetooth on the A50 (Select 4 Go): buffer 28 ms, Bluetooth output
+254 ms, codec already SBC, A2DP offload switch greyed out - nothing left to tune. The user wants the
+literal simplest option and it must all live in the mask: take the mask off and it still works, no
+belt pack or wire to the body (a waist amp was offered and turned down). The user does the mounting.
+- Parts: one MAX98357A I2S amp board (~GBP 5) + a small 4-8 ohm speaker (2-3 W, ~28-40 mm).
+- Wiring, 5 wires: VIN 5 V, GND, BCLK -> GPIO 4 and LRC -> GPIO 6 (shared with the SPH0645, same
+  I2S port in full duplex, so no second clock), DIN -> a free pin (11 = J1 pin 17, or 7).
+- Firmware (not written yet): add a TX channel on I2S_NUM_0 next to micRxChan, pass mic samples
+  straight through with a volume and a noise gate, on/off + volume on the page and in the app.
+- Speaker facing out through the mesh, away from the mic; feedback is the limit. Peaks ~0.6 A at 5 V.
 
 **Feedback is the real limit, not latency.** Speaker on the hip or chest facing away, tight-pattern
 headset/boom mic rather than an open lav, gain no higher than needed. Testing with the phone's own
