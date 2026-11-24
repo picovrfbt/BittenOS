@@ -541,6 +541,19 @@ uint16_t currentEarsFrame = 0, currentVisorFrame = 0; //frame indexes: scrolling
 uint8_t numOfSegm, numAnimBlush, totalAnims;
 uint16_t visorLedsNum = MATRIXESNUM*64;
 String currentAnim = "", animToLoad = "", availAnims[50], getfilesCache;
+//The boop and tilt faces are reactions laid over the face you picked. oldanim is the face from before
+//a tilt, boopoldanim the one from before a boop and tiltFace the tilt face showing. While both are on,
+//oldanim holds the face you picked, so whichever ends last can still find its way back to it.
+String oldanim, boopoldanim, tiltFace;
+bool booping = false, wasTilt = false;
+//The face to come back to once the reactions are over. Anything that plays and then returns (a
+//phrase, the dino, sleep...) must go back here, not to currentAnim, or it returns to the boop face
+//and stays on it, because the boop that would have ended it is over.
+String baseFace() {
+  if(wasTilt) return oldanim;
+  if(booping) return boopoldanim;
+  return currentAnim;
+}
 // Web and BLE requests run on other tasks while loop() draws from visorNow->frames.
 // They only queue a load here; loop() does the actual loadAnim() between frames.
 String postAnimToLoad = "";
@@ -1029,6 +1042,12 @@ bool loadAnim(String anim, String temp) {
     }
     //One-shot animations (e.g. scrolling text set to play once) name the face to go back to
     visorThen = doc["visor"]["then"] | "";
+    //Text sent mid-boop or mid-lean names the boop or tilt face as the one to go back to, since
+    //that is what was showing. Going back there would leave it up for good: go to the picked face.
+    if((booping || wasTilt) && visorThen != "" &&
+       (visorThen == cfg.aBoop || visorThen == cfg.aSass || visorThen == cfg.aMilestone ||
+        visorThen == cfg.aTilt || visorThen == cfg.aTilt2))
+      visorThen = baseFace();
     //isMouth
     //Everything below is indexed by panel, so a face drawn for a bigger mask is cut to this one
     //rather than allowed to write past the end of the arrays.
@@ -2555,8 +2574,9 @@ void showPhrase(int slot) {
     out += "]}";
   }
   //Play once then go back to the face that was showing, or loop until something else is picked
-  if(cfg.phraseOnce[slot] && currentAnim != "" && currentAnim != "POSTAnimLoad")
-    out += "],\"then\":\"" + currentAnim + "\"}}";
+  String back = baseFace();
+  if(cfg.phraseOnce[slot] && back != "" && back != "POSTAnimLoad")
+    out += "],\"then\":\"" + back + "\"}}";
   else out += "]}}";
 
   xSemaphoreTake(animQueueMutex, portMAX_DELAY);
@@ -2874,7 +2894,7 @@ void dinoStart() {
   for(int t = 0; t < 2; t++)
     for(int k = 0; k < 4; k++)
       if(mawStrips[t].panel[k] >= numOfSegm) return;            //not this mask's layout
-  dinoBackTo = currentAnim;
+  dinoBackTo = baseFace();
   dinoActive = true;
   dinoArcAt = 0;
   dinoJustJumped = false;
@@ -3062,7 +3082,7 @@ void slotStart(const String &backTo) {
   for(int t = 0; t < 2; t++)
     for(int k = 0; k < 4; k++)
       if(mawStrips[t].panel[k] >= numOfSegm) return;           //not this mask's layout
-  slotBackTo = (backTo != "") ? backTo : currentAnim;
+  slotBackTo = (backTo != "") ? backTo : baseFace();
   slotActive = true;
   slotOutcome = -1;
   slotDoneAt = 0;
@@ -3262,7 +3282,7 @@ void setSleeping(bool on) { //loop task only: it loads animations
   if(on == sleeping) return;
   sleeping = on;
   if(on) {
-    wakeAnim = currentAnim;
+    wakeAnim = baseFace();
     logPrint("[I] Sleeping: " + cfg.aSleep);
     loadAnim(cfg.aSleep,"");
     sleepDeepAt = millis();
@@ -3472,8 +3492,7 @@ void setup() {
 }
 
 //--------------------------------//Loop vars
-String oldanim, boopoldanim;
-bool FdisplayVisor = false, FdisplayBlush = false, FdisplayEar = false, booping = false, wasTilt = false, boopRea = false, remoteSign = false, speaking = true;
+bool FdisplayVisor = false, FdisplayBlush = false, FdisplayEar = false, boopRea = false, remoteSign = false, speaking = true;
 float zAx,yAx,finalMicAvg; //the envelope follower and its averaging array went with peak-to-peak sampling
 int boopRead, startIndex = 1, micVolume, btnNum = 0, currFade = 1;
 unsigned long lastMillsEars = 0, lastMillsVisor = 0, lastMillsTilt = 0, laskSpeakCheck = 0, lastMillsBoop = 0, lastFLED = 0, vaStatLast = 0, btnPressTime = 0, tiltChange = 0, check0button = 0, looptime = 0, fadeTime = 0, laskSpeakAnim = 0, lastBoopCheck = 0;
@@ -3732,6 +3751,20 @@ String boopFaceNow() {
     return cfg.aSass;
   }
   return cfg.aBoop;
+}
+
+//The paw has gone. Still leaning: back to the tilt face. Otherwise the face from before the boop,
+//which a lean that ended during the boop has already set to the face from before the lean.
+void boopBackFace() {
+  loadAnim(wasTilt ? tiltFace : boopoldanim, "");
+}
+
+//The lean is over. Mid-boop the boop face stays, and the boop ends on the face from before the lean.
+void tiltEnd() {
+  logPrint(F("[I] Tilt: back to neutral"));
+  wasTilt = false;
+  if(booping) boopoldanim = oldanim;
+  else loadAnim(oldanim,"");
 }
 
 void endBoop() { //the paw has gone: now pop the total up, over the face the boop face left behind
@@ -4289,7 +4322,7 @@ static void deathRender() {
 
 void deathStart(const String &backTo) {
   if(visorType != "MAX72XX" || deathActive) return;
-  deathBackTo = (backTo != "") ? backTo : currentAnim;
+  deathBackTo = (backTo != "") ? backTo : baseFace();
   deathActive = true;
   deathHeldDrawn = false;
   deathAt = millis();
@@ -5027,17 +5060,20 @@ void loop() {
         //Leaning somewhere nothing was taught should do nothing rather than pick the nearest guess
         if(!wasTilt && align >= 0.5f && best >= cfg.tiltTrig) {
           logPrint("[I] Tilt: " + which + " (" + String((int)(best * 100)) + "% of the way)");
+          //Leaning during a boop: the face to come back to is the one from before the boop, not the
+          //boop face, and the boop face stays until the paw goes
+          oldanim = booping ? boopoldanim : currentAnim;
           wasTilt = true;
-          oldanim = currentAnim;
+          tiltFace = face;
           tiltChange = millis();
-          loadAnim(face,"");
+          if(!booping) loadAnim(face,"");
         //Lets go a good way below the trigger so it cannot chatter on the boundary, and still
         //gives up after revertTilt in case the sensor or the taught positions have drifted.
         } else if (wasTilt && (best < cfg.tiltTrig * 0.7f || tiltChange+revertTilt<millis())) {
-          logPrint(F("[I] Tilt: back to neutral"));
-          wasTilt = false;
-          loadAnim(oldanim,"");
+          tiltEnd();
         }
+      } else if(wasTilt) {
+        tiltEnd();                       //switched off mid-lean: don't leave the tilt face up
       }
     }
     //the retry that used to live here was gated on Tilt being switched on, so a sensor knocked
@@ -5200,7 +5236,7 @@ void loop() {
       //the face remembered is the one from before the first press of the burst.
       bool eggFired = false;
       if(!dinoActive && !slotActive) {
-        if(millis() - eggLastPress > EGG_GAP_MS) { eggPressCount = 0; eggBackTo = currentAnim; }
+        if(millis() - eggLastPress > EGG_GAP_MS) { eggPressCount = 0; eggBackTo = baseFace(); }
         eggLastPress = millis();
         eggPressCount++;
         if(cfg.eggAction != "none" && cfg.eggPresses >= 2 && eggPressCount >= cfg.eggPresses) {
@@ -5280,6 +5316,12 @@ void loop() {
 
   //looptime = micros();
   //--------------------------------//BOOP Detection; 14-800uS
+  if(booping && !cfg.boopEna) {            //switched off mid-boop: don't leave the boop face up
+    logPrint(F("[I] Boop off: back to the face"));
+    booping = false;
+    endBoop();
+    boopBackFace();
+  }
   if(lastBoopCheck+BOOP_POLL_MS<=millis() && cfg.boopEna) {
     if(boopIs("KY-032")) {
       digitalWrite(T_en, HIGH);
@@ -5300,9 +5342,7 @@ void loop() {
         logPrint(F("[I] IR unBOOP"));
         booping = false;
         endBoop();
-        if(!wasTilt) {
-          loadAnim(boopoldanim,"");
-        }
+        boopBackFace();
       }
     } else if (boopIs("Capac")) {
       if(booping == false && digitalRead(T_in)) {
@@ -5319,9 +5359,7 @@ void loop() {
         logPrint(F("[I] Touch unBOOP"));
         booping = false;
         endBoop();
-        if(!wasTilt) {
-          loadAnim(boopoldanim,"");
-        }
+        boopBackFace();
       }
     } else if (boopIsApds()) {
       if(ToFInitDone) {
@@ -5368,9 +5406,7 @@ void loop() {
             boopUnder = 0;
             booping = false;
             endBoop();
-            if(!wasTilt) {
-              loadAnim(boopoldanim,"");
-            }
+            boopBackFace();
           }
         }
       }
@@ -5391,9 +5427,7 @@ void loop() {
           logPrint(F("[I] ToF unBOOP"));
           booping = false;
           endBoop();
-          if(!wasTilt) {
-            loadAnim(boopoldanim,"");
-          }
+          boopBackFace();
         }
       } else {
         Wire.beginTransmission(0x29);
