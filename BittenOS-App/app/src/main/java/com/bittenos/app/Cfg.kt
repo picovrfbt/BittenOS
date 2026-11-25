@@ -78,6 +78,11 @@ object Cfg {
         return done
     }
 
+    /** Show a value at once without saving it yet: a held stepper saves once, when it settles. */
+    fun preview(k: String, v: Any) {
+        val next = JSONObject(_data.value.toString()); next.put(k, v); _data.value = next
+    }
+
     /** The phrase arrays are saved one slot at a time, with an index in the key. */
     fun putPhraseLocal(i: Int, text: String, speed: Int, once: Boolean) {
         val next = JSONObject(_data.value.toString())

@@ -64,7 +64,7 @@ fun SoundsScreen() {
                         Column(Modifier.weight(1f).heightIn(min = 70.dp)
                             .background(if (lit) lerpColor(Hud.Bg, Hud.Cyan, 0.16f) else Hud.FieldBg, RoundedCornerShape(2.dp))
                             .border(1.dp, if (held == snd.slot) Hud.Text else if (lit) Hud.Cyan else Hud.Line2, RoundedCornerShape(2.dp))
-                            .combinedClickable(onLongClick = { held = snd.slot }) {
+                            .hudClick(pressed = 0.95f, onLongClick = { held = snd.slot }) {
                                 if (lit) Soundboard.stop() else Soundboard.play(snd.slot)
                             }.padding(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {

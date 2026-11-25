@@ -72,9 +72,9 @@ private fun OrderSheet(close: () -> Unit) {
                 Caps(Faces.label(f), Modifier.weight(1f), color = if (skipped) Hud.Ghost else Hud.Text, size = 10.5.sp)
                 LinkBtn(if (skipped) "Skipped" else "In", { if (skipped) skip.remove(f) else skip.add(f) },
                     if (skipped) Hud.Faint else LocalAccent.current)
-                Box(Modifier.size(40.dp).clickable(enabled = i > 0) { order.removeAt(i); order.add(i - 1, f) },
+                Box(Modifier.size(40.dp).hudClick(enabled = i > 0, pressed = 0.85f) { order.removeAt(i); order.add(i - 1, f) },
                     contentAlignment = Alignment.Center) { Text("▲", color = if (i > 0) Hud.Dim else Hud.Ghost) }
-                Box(Modifier.size(40.dp).clickable(enabled = i < order.size - 1) { order.removeAt(i); order.add(i + 1, f) },
+                Box(Modifier.size(40.dp).hudClick(enabled = i < order.size - 1, pressed = 0.85f) { order.removeAt(i); order.add(i + 1, f) },
                     contentAlignment = Alignment.Center) { Text("▼", color = if (i < order.size - 1) Hud.Dim else Hud.Ghost) }
             }
         }

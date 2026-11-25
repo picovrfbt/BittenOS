@@ -1,6 +1,20 @@
 package com.bittenos.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ScrollState
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -59,7 +73,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -157,24 +174,29 @@ fun Hint(text: String, modifier: Modifier = Modifier, color: Color = Hud.Faint) 
 
 // ---- the striped page --------------------------------------------------------------------------
 
-fun Modifier.stripes(): Modifier = this.background(Hud.Bg).drawBehind {
+fun Modifier.stripes(): Modifier = this.background(Hud.Bg).drawWithCache {
+    // Built once per size, not once per frame: a hundred-odd lines is real work on a slow phone
     val step = 16.dp.toPx()
-    val c = Color.White.copy(alpha = 0.022f)
+    val path = androidx.compose.ui.graphics.Path()
     var x = -size.height
-    while (x < size.width) {
-        drawLine(c, Offset(x, size.height), Offset(x + size.height, 0f), strokeWidth = 2.dp.toPx())
-        x += step
-    }
+    while (x < size.width) { path.moveTo(x, size.height); path.lineTo(x + size.height, 0f); x += step }
+    val c = Color.White.copy(alpha = 0.022f)
+    val st = Stroke(width = 2.dp.toPx())
+    onDrawBehind { drawPath(path, c, style = st) }
 }
 
 /** True inside [Combined]: a screen's own HudColumn then just stacks, the outer one scrolls. */
 val LocalCombined = androidx.compose.runtime.staticCompositionLocalOf { false }
 
+/** The page's scroll position, kept by Nav so Back lands where you left off. */
+val LocalScroll = androidx.compose.runtime.staticCompositionLocalOf<ScrollState?> { null }
+
 /** A scrolling screen body with the HUD's edge spacing. */
 @Composable
 fun HudColumn(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     if (LocalCombined.current) { Column(modifier.fillMaxWidth().padding(bottom = 10.dp)) { content() }; return }
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()
+    val scroll = LocalScroll.current ?: rememberScrollState()
+    Column(modifier.fillMaxSize().verticalScroll(scroll).navigationBarsPadding()
         .padding(top = 2.dp, bottom = 24.dp)) { content() }
 }
 
@@ -277,16 +299,21 @@ fun HudButton(
         BtnKind.Cyan -> Triple(Hud.Cyan, lerpColor(Hud.Bg, Hud.Cyan, 0.12f), Hud.Cyan)
         BtnKind.Amber -> Triple(Hud.Amber, Hud.Amber, Color(0xFF1C1405))
     }
+    // Colours ease between states, so picking an option reads as a change rather than a flicker
+    val bgA by animateColorAsState(bg, tween(160), label = "bg")
+    val borderA by animateColorAsState(border, tween(160), label = "border")
+    val fgA by animateColorAsState(fg, tween(160), label = "fg")
     Column(modifier.heightIn(min = height).alpha(if (enabled) 1f else 0.4f)
-        .background(bg, RoundedCornerShape(2.dp)).border(1.dp, border, RoundedCornerShape(2.dp))
-        .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 8.dp, vertical = 4.dp),
+        .hudClick(enabled = enabled, onClick = onClick)
+        .background(bgA, RoundedCornerShape(2.dp)).border(1.dp, borderA, RoundedCornerShape(2.dp))
+        .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         if (checked) Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Check, "Selected", Modifier.size(12.dp), tint = fg)
+            Icon(Icons.Filled.Check, "Selected", Modifier.size(12.dp), tint = fgA)
             Spacer(Modifier.width(4.dp))
-            Caps(text, color = fg, size = size, weight = FontWeight.Bold, align = TextAlign.Center, maxLines = 2)
-        } else Caps(text, color = fg, size = size, weight = FontWeight.Bold, align = TextAlign.Center, maxLines = 2)
-        if (sub != null) Mono(sub, color = fg.copy(alpha = 0.75f), size = 8.5.sp)
+            Caps(text, color = fgA, size = size, weight = FontWeight.Bold, align = TextAlign.Center, maxLines = 2)
+        } else Caps(text, color = fgA, size = size, weight = FontWeight.Bold, align = TextAlign.Center, maxLines = 2)
+        if (sub != null) Mono(sub, color = fgA.copy(alpha = 0.75f), size = 8.5.sp)
     }
 }
 
@@ -310,7 +337,7 @@ fun <T> Seg(options: List<Pair<T, String>>, selected: T?, onPick: (T) -> Unit, m
 /** The small text-link button: "EDIT ›". */
 @Composable
 fun LinkBtn(text: String, onClick: () -> Unit, color: Color = LocalAccent.current) {
-    Box(Modifier.heightIn(min = 32.dp).clickable(onClick = onClick).padding(horizontal = 4.dp),
+    Box(Modifier.heightIn(min = 32.dp).hudClick(onClick = onClick).padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center) {
         Caps(text, color = color, size = 10.sp, weight = FontWeight.Bold)
     }
@@ -321,11 +348,11 @@ fun Stepper(value: String, onMinus: () -> Unit, onPlus: () -> Unit, enabled: Boo
     val a = LocalAccent.current
     Row(Modifier.height(32.dp).alpha(if (enabled) 1f else 0.4f).border(1.dp, Hud.Line2, RoundedCornerShape(2.dp)),
         verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(34.dp).clickable(enabled = enabled, onClick = onMinus), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(34.dp).repeatStep(enabled, onMinus), contentAlignment = Alignment.Center) {
             Text("−", color = a, fontSize = 17.sp)
         }
         Mono(value, Modifier.widthIn(min = 50.dp), color = Hud.Text, size = 11.sp)
-        Box(Modifier.size(34.dp).clickable(enabled = enabled, onClick = onPlus), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(34.dp).repeatStep(enabled, onPlus), contentAlignment = Alignment.Center) {
             Text("+", color = a, fontSize = 17.sp)
         }
     }
@@ -336,19 +363,26 @@ fun Stepper(value: String, onMinus: () -> Unit, onPlus: () -> Unit, enabled: Boo
 fun NumStepper(v: Double, min: Double, max: Double, step: Double, fmt: (Double) -> String,
                enabled: Boolean = true, onSet: (Double) -> Unit) {
     fun snap(x: Double) = (Math.round(x / step) * step).coerceIn(min, max)
-    Stepper(fmt(v), { onSet(snap(v - step)) }, { onSet(snap(v + step)) }, enabled)
+    // Held down, the steps come faster than the value comes back round: count from our own copy
+    val cur = remember { doubleArrayOf(v) }
+    cur[0] = v
+    Stepper(fmt(v), { val n = snap(cur[0] - step); if (n != cur[0]) { cur[0] = n; onSet(n) } },
+        { val n = snap(cur[0] + step); if (n != cur[0]) { cur[0] = n; onSet(n) } }, enabled)
 }
 
 @Composable
 fun HudToggle(checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true, color: Color = LocalAccent.current) {
     val off = Hud.Faint
     // On is a solid accent track with a dark knob: unmistakable next to the dark off state
+    val track by animateColorAsState(if (checked) color else Hud.Track, tween(180), label = "track")
+    val edge by animateColorAsState(if (checked) color else Hud.Line2, tween(180), label = "edge")
+    val knob by animateColorAsState(if (checked) onAccent(color) else off, tween(180), label = "knob")
+    val x by animateDpAsState(if (checked) 16.dp else 0.dp, spring(dampingRatio = 0.62f, stiffness = 700f), label = "x")
     Box(Modifier.size(38.dp, 22.dp).alpha(if (enabled) 1f else 0.4f)
-        .background(if (checked) color else Hud.Track, RoundedCornerShape(11.dp))
-        .border(1.dp, if (checked) color else Hud.Line2, RoundedCornerShape(11.dp))
-        .clickable(enabled = enabled) { onChange(!checked) }) {
-        Box(Modifier.padding(4.dp).offset(x = if (checked) 16.dp else 0.dp).size(14.dp)
-            .background(if (checked) onAccent(color) else off, CircleShape))
+        .hudClick(enabled = enabled, pressed = 0.92f) { onChange(!checked) }
+        .background(track, RoundedCornerShape(11.dp))
+        .border(1.dp, edge, RoundedCornerShape(11.dp))) {
+        Box(Modifier.padding(4.dp).offset(x = x).size(14.dp).background(knob, CircleShape))
     }
 }
 
@@ -360,7 +394,9 @@ fun HudSlider(
     steps: Int = 0, enabled: Boolean = true, onDone: () -> Unit = {}, color: Color = LocalAccent.current,
     mark: Float? = null,
 ) {
-    Slider(value = value.coerceIn(range.start, range.endInclusive), onValueChange = onChange,
+    val tick = rememberTicker()
+    Slider(value = value.coerceIn(range.start, range.endInclusive),
+        onValueChange = { if (steps > 0) tick(Math.round(it)); onChange(it) },
         modifier = modifier.fillMaxWidth().height(30.dp), enabled = enabled, valueRange = range, steps = steps,
         onValueChangeFinished = onDone,
         thumb = {
@@ -416,24 +452,38 @@ fun HudInput(
     singleLine: Boolean = true,
 ) {
     var show by remember { mutableStateOf(false) }
-    Box(modifier.heightIn(min = 40.dp).background(Hud.FieldBg, RoundedCornerShape(2.dp))
-        .border(1.dp, Hud.Line2, RoundedCornerShape(2.dp)).padding(horizontal = 10.dp, vertical = 10.dp),
-        contentAlignment = Alignment.CenterStart) {
-        if (value.isEmpty()) Mono(placeholder.uppercase(), color = Hud.Faint, size = 12.sp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            BasicTextField(value, { onChange(it.take(maxLen)) }, Modifier.weight(1f), singleLine = singleLine,
-                textStyle = TextStyle(color = Hud.Text, fontSize = 13.sp, fontFamily = Hud.Mono),
-                cursorBrush = SolidColor(LocalAccent.current),
-                visualTransformation = if (password && !show) PasswordVisualTransformation() else VisualTransformation.None,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = if (number) KeyboardType.Number else if (password) KeyboardType.Password else KeyboardType.Text,
-                    imeAction = if (onDone != null) ImeAction.Send else ImeAction.Done),
-                keyboardActions = KeyboardActions(onSend = { onDone?.invoke() }))
-            if (password) Box(Modifier.clickable { show = !show }.padding(start = 8.dp)) {
-                Caps(if (show) "HIDE" else "SHOW", color = Hud.Faint, size = 9.sp)
+    var focused by remember { mutableStateOf(false) }
+    val kb = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    val a = LocalAccent.current
+    // The frame lights up while typing
+    val edge by animateColorAsState(if (focused) a else Hud.Line2, tween(160), label = "inputEdge")
+    // The whole box is the text field, so a tap anywhere in it starts typing
+    BasicTextField(value, { onChange(it.take(maxLen)) },
+        modifier.heightIn(min = 40.dp).onFocusChanged { focused = it.isFocused },
+        singleLine = singleLine,
+        textStyle = TextStyle(color = Hud.Text, fontSize = 13.sp, fontFamily = Hud.Mono),
+        cursorBrush = SolidColor(a),
+        visualTransformation = if (password && !show) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (number) KeyboardType.Number else if (password) KeyboardType.Password else KeyboardType.Text,
+            imeAction = if (onDone != null) ImeAction.Send else ImeAction.Done),
+        // Sent or done: the keyboard goes away so the result can be seen
+        keyboardActions = KeyboardActions(
+            onSend = { onDone?.invoke(); kb?.hide(); focus.clearFocus() },
+            onDone = { kb?.hide(); focus.clearFocus() }),
+        decorationBox = { inner ->
+            Row(Modifier.background(Hud.FieldBg, RoundedCornerShape(2.dp)).border(1.dp, edge, RoundedCornerShape(2.dp))
+                .padding(horizontal = 10.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) Mono(placeholder.uppercase(), color = Hud.Faint, size = 12.sp)
+                    inner()
+                }
+                if (password) Box(Modifier.hudClick(buzz = false) { show = !show }.padding(start = 8.dp)) {
+                    Caps(if (show) "HIDE" else "SHOW", color = Hud.Faint, size = 9.sp)
+                }
             }
-        }
-    }
+        })
 }
 
 // ---- pickers and sheets ----------------------------------------------------------------------
@@ -445,7 +495,7 @@ fun <T> Picker(value: T?, options: List<Pair<T, String>>, onPick: (T) -> Unit, t
     var open by remember { mutableStateOf(false) }
     val label = options.firstOrNull { it.first == value }?.second ?: (value?.toString() ?: "—")
     Row(modifier.heightIn(min = 36.dp).widthIn(max = 200.dp).alpha(if (enabled) 1f else 0.4f)
-        .border(1.dp, Hud.Line2, RoundedCornerShape(2.dp)).clickable(enabled = enabled) { open = true }
+        .hudClick(enabled = enabled, pressed = 0.97f) { open = true }.border(1.dp, Hud.Line2, RoundedCornerShape(2.dp))
         .padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Mono(label, Modifier.weight(1f, fill = false), color = Hud.Text, size = 11.sp)
         Spacer(Modifier.width(6.dp))
@@ -454,7 +504,7 @@ fun <T> Picker(value: T?, options: List<Pair<T, String>>, onPick: (T) -> Unit, t
     if (open) Sheet(title, { open = false }) {
         options.forEach { (v, l) ->
             val on = v == value
-            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onPick(v); open = false }
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).hudClick(pressed = 0.99f) { onPick(v); open = false }
                 .padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(l, Modifier.weight(1f), color = if (on) LocalAccent.current else Hud.Text, fontSize = 14.sp,
                     fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal)
@@ -475,6 +525,16 @@ fun Sheet(title: String, onClose: () -> Unit, titleColor: Color = LocalAccent.cu
         shape = RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp), dragHandle = {
             Box(Modifier.padding(top = 8.dp).size(36.dp, 3.dp).background(Hud.Line2))
         }) {
+        // The sheet is a window of its own, and Android shows the phone's bars again for it: hide them
+        val view = LocalView.current
+        LaunchedEffect(Unit) {
+            (view.parent as? DialogWindowProvider)?.window?.let { w ->
+                WindowCompat.getInsetsController(w, w.decorView).apply {
+                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    hide(WindowInsetsCompat.Type.systemBars())
+                }
+            }
+        }
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
             .padding(bottom = 24.dp).navigationBarsPadding()) {
             Caps(title, Modifier.padding(vertical = 12.dp), color = titleColor, size = 11.sp, weight = FontWeight.Bold,
@@ -509,10 +569,23 @@ object Toast {
 @Composable
 fun ToastHost(modifier: Modifier = Modifier) {
     val m by Toast.msg.collectAsState()
-    val cur = m ?: return
-    LaunchedEffect(cur) { delay(2200); if (Toast.msg.value == cur) Toast.msg.value = null }
+    // The last message stays drawn while it slides away
+    var last by remember { mutableStateOf<Toast.Msg?>(null) }
+    m?.let { last = it }
+    m?.let { cur -> LaunchedEffect(cur) { delay(2200); if (Toast.msg.value == cur) Toast.msg.value = null } }
+    val view = LocalView.current
+    LaunchedEffect(m) { if (m?.bad == true) Buzz.on(view, Buzz.Long) }
+    AnimatedVisibility(m != null, modifier,
+        enter = slideInVertically(spring(dampingRatio = 0.7f, stiffness = 600f)) { it / 2 } + fadeIn(tween(140)),
+        exit = slideOutVertically(tween(180)) { it / 2 } + fadeOut(tween(180))) {
+        last?.let { ToastBox(it) }
+    }
+}
+
+@Composable
+private fun ToastBox(cur: Toast.Msg) {
     val c = if (cur.bad) Hud.Red else LocalAccent.current
-    Row(modifier.padding(horizontal = 16.dp, vertical = 12.dp).fillMaxWidth()
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp).fillMaxWidth()
         .background(lerpColor(Hud.Bg, c, 0.14f), RoundedCornerShape(2.dp)).border(1.dp, c, RoundedCornerShape(2.dp))
         .padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Caps((if (cur.bad) "! " else "✓ ") + cur.text, color = c, size = 10.sp, weight = FontWeight.Bold, maxLines = 3)
@@ -535,7 +608,8 @@ fun LinkNode(text: String, color: Color, dotFirst: Boolean = false) {
 fun Wire(modifier: Modifier, color: Color, moving: Boolean = true, delayMs: Int = 0) {
     val t = rememberInfiniteTransition(label = "wire")
     val x by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1600, delayMs, LinearEasing), RepeatMode.Restart), label = "pkt")
-    Canvas(modifier.height(2.dp)) {
+    // Its own layer: the moving packet redraws only this line, not the whole screen behind it
+    Canvas(modifier.height(2.dp).graphicsLayer()) {
         drawLine(Color(0xFF24323A), Offset(0f, 1f), Offset(size.width, 1f), 2.dp.toPx(),
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx())))
         if (moving) {

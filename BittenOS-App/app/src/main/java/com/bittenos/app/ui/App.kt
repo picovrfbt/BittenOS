@@ -8,7 +8,19 @@ import android.provider.Settings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,9 +74,15 @@ import org.json.JSONObject
 /** Where the app is: a stack of screens, so Back walks out the way you came in. */
 object Nav {
     val stack = androidx.compose.runtime.mutableStateListOf("home")
-    fun go(r: String) { stack.add(r) }
-    fun back() { if (stack.size > 1) stack.removeAt(stack.size - 1) }
-    fun home() { while (stack.size > 1) stack.removeAt(stack.size - 1) }
+    /** Which way the last move went, so the page slides in from the right side. */
+    var forward = true
+        private set
+    // Each page's scroll position: Back lands where you were, a fresh visit starts at the top
+    private val scrolls = HashMap<String, ScrollState>()
+    fun scroll(r: String): ScrollState = scrolls.getOrPut(r) { ScrollState(0) }
+    fun go(r: String) { forward = true; scrolls.remove(r); stack.add(r) }
+    fun back() { forward = false; if (stack.size > 1) stack.removeAt(stack.size - 1) }
+    fun home() { forward = false; while (stack.size > 1) stack.removeAt(stack.size - 1) }
     /** A page from the mask itself: the face maker, the screen designer, the guide. */
     fun web(path: String) = go("web:$path")
 }
@@ -86,8 +104,14 @@ fun AppScreen() {
             else Column(Modifier.fillMaxSize()) {
                 Top(link)
                 WaitingBar(link is MaskLink.State.Connected)
-                Box(Modifier.weight(1f)) {
-                    when (route) {
+                // Pages slide a little and fade: forward from the right, back from the left
+                AnimatedContent(route, Modifier.weight(1f), transitionSpec = {
+                    val d = if (Nav.forward) 1 else -1
+                    (slideInHorizontally(tween(240, easing = FastOutSlowInEasing)) { d * it / 7 } + fadeIn(tween(220))) togetherWith
+                        (slideOutHorizontally(tween(200, easing = FastOutSlowInEasing)) { -d * it / 12 } + fadeOut(tween(140)))
+                }, label = "page") { r ->
+                  CompositionLocalProvider(LocalScroll provides Nav.scroll(r)) {
+                    when (r) {
                         "home" -> HomeScreen(link)
                         "menu" -> MenuScreen(link)
                         "voice" -> VoiceScreen(link)
@@ -103,6 +127,7 @@ fun AppScreen() {
                         "sounds" -> SoundsScreen()
                         else -> HomeScreen(link)
                     }
+                  }
                 }
             }
             ToastHost(Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp))
@@ -128,12 +153,12 @@ private fun Top(link: MaskLink.State) {
         onSleep = { scope.launch {
             val want = !s.optBoolean("sleeping")
             val t = MaskLink.sleep(want)?.trim()
-            if (t == "on" || t == "off") Toast.ok(if (t == "on") "Sleeping" else "Awake") else Toast.bad(t ?: "No mask")
+            if (t == "on" || t == "off") { Toast.ok(if (t == "on") "Sleeping" else "Awake"); MaskLink.kick() } else Toast.bad(t ?: "No mask")
         } },
         onPower = { scope.launch {
             val want = !s.optBoolean("display", true)
             val t = MaskLink.panels(want)?.trim()
-            if (t == "on" || t == "off") Toast.ok(if (t == "on") "Displays on" else "Displays off") else Toast.bad(t ?: "No mask")
+            if (t == "on" || t == "off") { Toast.ok(if (t == "on") "Displays on" else "Displays off"); MaskLink.kick() } else Toast.bad(t ?: "No mask")
         } },
     )
 }
@@ -180,10 +205,14 @@ private fun FacesPanel(conn: MaskLink.State.Connected?, s: JSONObject) {
     val cfg by Cfg.data.collectAsState()
     @Suppress("UNUSED_EXPRESSION") cfg
     val scope = rememberCoroutineScope()
-    val current = s.optString("anim")
+    // The tapped face lights up at once; the mask's own word takes over when it arrives
+    var picked by remember { mutableStateOf<String?>(null) }
+    val onMask = s.optString("anim")
+    LaunchedEffect(onMask) { if (onMask == picked) picked = null }
+    val current = picked ?: onMask
     var held by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf<String?>(null) }
-    Panel("01", "Faces", trailing = { Mono("HOLD A FACE FOR OPTIONS", color = Hud.Faint, size = 9.sp) }) {
+    Panel("01", "Faces", Modifier.animateContentSize(tween(220)), trailing = { Mono("HOLD A FACE FOR OPTIONS", color = Hud.Faint, size = 9.sp) }) {
         if (faces.isEmpty()) Note(if (conn == null) "No faces seen yet. Join the mask's WiFi and they appear here." else "Loading faces…")
         faces.chunked(4).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(bottom = Hud.TileGap), horizontalArrangement = Arrangement.spacedBy(Hud.TileGap)) {
@@ -191,17 +220,24 @@ private fun FacesPanel(conn: MaskLink.State.Connected?, s: JSONObject) {
                     val on = f == current
                     val a = LocalAccent.current
                     // The face showing now: thicker accent frame and a stronger fill, so it stands out in the grid
-                    Column(Modifier.weight(1f).background(if (on) lerpColor(Hud.Bg, a, 0.22f) else Hud.FieldBg, RoundedCornerShape(2.dp))
-                        .border(if (on || held == f) 2.dp else 1.dp, if (held == f) Hud.Text else if (on) a else Hud.Line, RoundedCornerShape(2.dp))
-                        .combinedClickable(onLongClick = { held = f }) {
-                            if (conn == null) { Toast.bad("Faces need the mask in reach"); return@combinedClickable }
-                            busy = f
+                    val fill by animateColorAsState(if (on) lerpColor(Hud.Bg, a, 0.22f) else Hud.FieldBg, tween(180), label = "tile")
+                    val edge by animateColorAsState(if (held == f) Hud.Text else if (on) a else Hud.Line, tween(180), label = "tileEdge")
+                    Column(Modifier.weight(1f)
+                        .hudClick(pressed = 0.94f, onLongClick = { held = f }) {
+                            if (conn == null) { Toast.bad("Faces need the mask in reach"); return@hudClick }
+                            if (f == current) return@hudClick
+                            busy = f; picked = f
                             scope.launch {
                                 val (ok, why) = MaskLink.okRedirect("/change?anim=" + MaskLink.enc(f))
-                                if (!ok) Toast.bad(why)
+                                if (!ok) { Toast.bad(why); if (picked == f) picked = null }
+                                else MaskLink.kick()              // read the mask straight away, not at the next tick
                                 busy = null
+                                delay(4000); if (picked == f) picked = null
                             }
-                        }.padding(start = 4.dp, end = 4.dp, top = 4.dp)) {
+                        }
+                        .background(fill, RoundedCornerShape(2.dp))
+                        .border(if (on || held == f) 2.dp else 1.dp, edge, RoundedCornerShape(2.dp))
+                        .padding(start = 4.dp, end = 4.dp, top = 4.dp)) {
                         FacePic(f, Modifier.fillMaxWidth())
                         Row(Modifier.fillMaxWidth().height(20.dp), verticalAlignment = Alignment.CenterVertically) {
                             Caps(Faces.label(f) + if (busy == f) " …" else "", Modifier.weight(1f), color = if (on) a else Color(0xFF9AA6AF),
@@ -215,8 +251,8 @@ private fun FacesPanel(conn: MaskLink.State.Connected?, s: JSONObject) {
                 repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
-        Box(Modifier.fillMaxWidth().height(34.dp).border(1.dp, lerpColor(Hud.Bg, LocalAccent.current, 0.5f), RoundedCornerShape(2.dp))
-            .clickable(enabled = conn != null) { Nav.web("/animator.html") }, contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().height(34.dp).hudClick(enabled = conn != null, pressed = 0.98f) { Nav.web("/animator.html") }
+            .border(1.dp, lerpColor(Hud.Bg, LocalAccent.current, 0.5f), RoundedCornerShape(2.dp)), contentAlignment = Alignment.Center) {
             Caps("+ New face", color = LocalAccent.current, size = 9.5.sp, weight = FontWeight.Bold)
         }
         if (conn != null && current.endsWith(".json") && Faces.canBlink(current)) {
@@ -257,7 +293,7 @@ private fun FaceSheet(name: String, current: String, online: Boolean, close: () 
         Gap(12)
         Column(verticalArrangement = Arrangement.spacedBy(Hud.SegGap)) {
             HudButton("Show on the mask", {
-                scope.launch { val (ok, why) = MaskLink.okRedirect("/change?anim=" + MaskLink.enc(name)); if (!ok) Toast.bad(why) }
+                scope.launch { val (ok, why) = MaskLink.okRedirect("/change?anim=" + MaskLink.enc(name)); if (!ok) Toast.bad(why) else MaskLink.kick() }
                 close()
             }, Modifier.fillMaxWidth(), BtnKind.Fill, enabled = online && !onNow)
             HudButton("Edit in face maker", { AppPrefs.setLastEdited(name); close(); Nav.web("/animator.html?face=" + MaskLink.enc(name)) },
@@ -381,7 +417,9 @@ private fun SayPanel(conn: MaskLink.State.Connected?) {
     Panel("03", "Say") {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             HudInput(text, { text = it }, "Type a message", Modifier.weight(1f), onDone = { send() })
-            HudButton("Show", { send() }, kind = BtnKind.Out, enabled = online)
+            val kb = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+            val fm = androidx.compose.ui.platform.LocalFocusManager.current
+            HudButton("Show", { send(); kb?.hide(); fm.clearFocus() }, kind = BtnKind.Out, enabled = online)
         }
         Gap(6)
         Seg(SPEEDS, speed, { speed = it })
@@ -451,17 +489,23 @@ private val MENU = listOf(
 fun MenuScreen(link: MaskLink.State) {
     val a = LocalAccent.current
     val voice by com.bittenos.app.VoiceService.on.collectAsState()
+    // The page the menu was opened from is marked, so you can see where you are
+    val from = Nav.stack.getOrNull(Nav.stack.size - 2).let { when (it) { "behaviour" -> "sensors"; "network" -> "system"; else -> it } }
     HudColumn {
         Gap(6)
         MENU.forEach { (r, t, sub) ->
             val c = if (r == "rave") Hud.Pink else if (r == "sounds") Hud.Cyan else a
+            val here = r == from
             Row(Modifier.padding(horizontal = Hud.Edge).padding(bottom = 6.dp).fillMaxWidth().heightIn(min = 50.dp)
-                .background(Hud.PanelBg, RoundedCornerShape(2.dp)).border(1.dp, Hud.Line, RoundedCornerShape(2.dp))
                 // Every screen opens on top of home, so Back always lands there
-                .clickable { Nav.home(); if (r != "home") Nav.go(r) }.padding(horizontal = 14.dp, vertical = 8.dp),
+                .hudClick(pressed = 0.98f) { if (here) Nav.back() else { Nav.home(); if (r != "home") Nav.go(r) } }
+                .background(if (here) accentDeep(a) else Hud.PanelBg, RoundedCornerShape(2.dp))
+                .border(1.dp, if (here) a else Hud.Line, RoundedCornerShape(2.dp))
+                .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically) {
+                if (here) { Box(Modifier.size(3.dp, 28.dp).background(a)); HGap(10) }
                 Column(Modifier.weight(1f)) {
-                    Caps(t, color = Hud.Text, size = 12.sp, weight = FontWeight.Bold, spacing = 0.14.em)
+                    Caps(t, color = if (here) a else Hud.Text, size = 12.sp, weight = FontWeight.Bold, spacing = 0.14.em)
                     Caps(sub, color = Hud.Faint, size = 9.sp, spacing = 0.08.em)
                 }
                 Text("›", color = c, fontSize = 20.sp)
@@ -474,7 +518,7 @@ fun MenuScreen(link: MaskLink.State) {
             HGap(6)
             Mono(if (conn == null) "NO MASK" else if (conn.ownWifi) "ON MASK WIFI" else "SAME NETWORK · ${conn.host}",
                 Modifier.weight(1f), color = if (conn != null) a else Hud.Amber, size = 10.sp)
-            Mono((if (voice) "VOICE ON" else "VOICE OFF") + (conn?.stats?.let { " · ${it.optInt("wifiClients")} PHONES" } ?: ""),
+            Mono((if (voice) "VOICE ON" else "VOICE OFF") + (conn?.stats?.let { it.optInt("wifiClients").let { n -> if (n == 1) " · 1 PHONE" else " · $n PHONES" } } ?: ""),
                 color = Hud.Dim, size = 10.sp)
         }
     }
@@ -497,7 +541,7 @@ private fun WaitingBar(connected: Boolean) {
     if (list.isEmpty()) return
     Column(Modifier.padding(horizontal = Hud.Edge).padding(bottom = 10.dp).fillMaxWidth()
         .background(Color(0xFF160F05), RoundedCornerShape(2.dp)).border(1.dp, Color(0xFF6A4E17), RoundedCornerShape(2.dp))) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clickable { open = !open }.padding(horizontal = 10.dp),
+        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).hudClick(pressed = 0.99f) { open = !open }.padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Caps("${list.size} waiting", color = Hud.Amber, weight = FontWeight.Bold)
             Mono(if (asking.isNotEmpty()) " · NEEDS YOUR ANSWER" else if (connected) " · SENDING…" else " · GO ACROSS WHEN THE MASK IS BACK",
@@ -513,7 +557,7 @@ private fun WaitingBar(connected: Boolean) {
                 }
                 Mono("${c.value}${c.key.unit}", color = Hud.Amber, size = 11.sp)
                 HGap(8)
-                Box(Modifier.border(1.dp, Color(0xFF3A2E14), RoundedCornerShape(2.dp)).clickable { Pending.discard(c.key) }
+                Box(Modifier.border(1.dp, Color(0xFF3A2E14), RoundedCornerShape(2.dp)).hudClick { Pending.discard(c.key) }
                     .padding(horizontal = 10.dp, vertical = 8.dp)) { Caps("Discard", color = Color(0xFFC9A55A), size = 9.sp, weight = FontWeight.Bold) }
             }
         }
@@ -551,7 +595,7 @@ private fun WebPage(path: String) {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().cutoutTop().padding(horizontal = Hud.Edge, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HudButton("‹ Back", { Nav.back() }, kind = BtnKind.On, height = 38.dp)
+            IconBtn(BackIcon, "Back", { Nav.back() }, LocalAccent.current)
             Caps(when {
                 path.startsWith("/animator") -> "Face maker"
                 path.startsWith("/screen") -> "Screen designer"

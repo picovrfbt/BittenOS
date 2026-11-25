@@ -66,8 +66,8 @@ fun HudHeader(onMenu: () -> Unit, onRave: () -> Unit, rave: Boolean, sleeping: B
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         // Off home: a small back button, and the menu shrinks to its icon to make room
         if (onBack != null) IconBtn(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack, a)
-        Row(Modifier.height(44.dp).background(accentDeep(a), RoundedCornerShape(2.dp))
-            .border(1.dp, a, RoundedCornerShape(2.dp)).clickable(onClick = onMenu).padding(horizontal = if (onBack != null) 14.dp else 12.dp),
+        Row(Modifier.height(44.dp).hudClick(pressed = 0.94f, onClick = onMenu).background(accentDeep(a), RoundedCornerShape(2.dp))
+            .border(1.dp, a, RoundedCornerShape(2.dp)).padding(horizontal = if (onBack != null) 14.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Filled.Menu, "Menu", Modifier.size(16.dp), tint = a)
             if (onBack == null) Caps("MENU", color = a, size = 11.sp, weight = FontWeight.Bold)
@@ -91,10 +91,13 @@ fun HudHeader(onMenu: () -> Unit, onRave: () -> Unit, rave: Boolean, sleeping: B
 @Composable
 fun IconBtn(icon: ImageVector, desc: String, onClick: () -> Unit, tint: Color, lit: Boolean = false,
             enabled: Boolean = true, border: Color = Hud.Line2) {
-    Box(Modifier.size(44.dp).background(if (lit) lerpColor(Hud.Bg, tint, 0.13f) else Hud.PanelBg, RoundedCornerShape(2.dp))
-        .border(1.dp, if (lit) tint else border, RoundedCornerShape(2.dp))
-        .clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, desc, Modifier.size(18.dp), tint = if (enabled) tint else Hud.Ghost)
+    val fill by androidx.compose.animation.animateColorAsState(if (lit) lerpColor(Hud.Bg, tint, 0.13f) else Hud.PanelBg, label = "fill")
+    val edge by androidx.compose.animation.animateColorAsState(if (lit) tint else border, label = "edge")
+    val ink by androidx.compose.animation.animateColorAsState(if (enabled) tint else Hud.Ghost, label = "ink")
+    Box(Modifier.size(44.dp).hudClick(enabled = enabled, pressed = 0.9f, onClick = onClick)
+        .background(fill, RoundedCornerShape(2.dp)).border(1.dp, edge, RoundedCornerShape(2.dp)),
+        contentAlignment = Alignment.Center) {
+        Icon(icon, desc, Modifier.size(18.dp), tint = ink)
     }
 }
 
@@ -185,9 +188,14 @@ fun CfgStep(key: String, title: String, hint: String? = null, min: Double, max: 
     val scope = rememberCoroutineScope()
     @Suppress("UNUSED_EXPRESSION") cfg
     val v = Cfg.dbl(key)
+    // Shown at every step, saved once the steps stop, so holding + sends one save, not thirty
+    val job = remember { arrayOfNulls<kotlinx.coroutines.Job>(1) }
     SetRow(title, hint, enabled = enabled && on, top = top) {
         NumStepper(v, min, max, step, { x -> "%.${decimals}f".format(x / scale) + unit }, enabled && on) { x ->
-            scope.launch { Cfg.set(key to (if (decimals == 0 && scale == 1.0) x.toLong() else x)) }
+            val value: Any = if (decimals == 0 && scale == 1.0) x.toLong() else x
+            Cfg.preview(key, value)
+            job[0]?.cancel()
+            job[0] = scope.launch { kotlinx.coroutines.delay(350); Cfg.set(key to value) }
         }
     }
 }
@@ -315,3 +323,4 @@ fun Gap(h: Int = 8) = Spacer(Modifier.height(h.dp))
 
 @Composable
 fun HGap(w: Int = 8) = Spacer(Modifier.width(w.dp))
+val BackIcon = Icons.AutoMirrored.Filled.ArrowBack

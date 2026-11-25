@@ -128,7 +128,7 @@ private fun StripPanel(s: JSONObject) {
             BLUSH.forEach { h ->
                 Box(Modifier.weight(1f).height(30.dp).background(parseColor(h), RoundedCornerShape(2.dp))
                     .border(if (h.equals(col, true)) 2.dp else 1.dp, if (h.equals(col, true)) Hud.Text else Hud.Line, RoundedCornerShape(2.dp))
-                    .clickable(enabled = on) { scope.launch { Cfg.set("stripBlush" to h) } })
+                    .hudClick(enabled = on, pressed = 0.9f) { scope.launch { Cfg.set("stripBlush" to h) } })
             }
         }
         CfgStep("stripBlushMs", "Blush time", "With Stay while booped on, the fade after the paw lifts", 500.0, 10000.0, 250.0,
@@ -181,7 +181,7 @@ private fun BlushMapSheet(close: () -> Unit) {
                         val lit = map.getOrNull(i) == '1'
                         Box(Modifier.weight(1f).height(30.dp).background(if (lit) col else Hud.FieldBg, RoundedCornerShape(2.dp))
                             .border(1.dp, if (lit) col else Hud.Line2, RoundedCornerShape(2.dp))
-                            .clickable {
+                            .hudClick(pressed = 0.9f) {
                                 map = map.substring(0, i) + (if (lit) '0' else '1') + map.substring(i + 1)
                                 scope.launch { MaskLink.fetch("/strip?id=$i") }
                             }, contentAlignment = Alignment.Center) {
@@ -217,7 +217,7 @@ fun SensorsScreen() {
     HudColumn {
         Crumb("004", "Sensors")
         Panel("01", "Boop") {
-            CfgToggle("boopEna", "Boop face", "Change face when something touches the snout", top = false)
+            CfgToggle("boopEna", "React to boops", "Switch to the boop face when something touches the snout", top = false)
             val sig = s.optInt("boopSig"); val th = Cfg.int("boopThresh")
             Field {
                 LabVal("Closeness", if (!s.optBoolean("boop", true)) "NO SENSOR" else "$sig" + if (s.optBoolean("booping")) " · BOOP" else "")
