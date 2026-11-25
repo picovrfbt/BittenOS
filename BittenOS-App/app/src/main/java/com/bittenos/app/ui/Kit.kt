@@ -84,7 +84,7 @@ fun HudHeader(onMenu: () -> Unit, onRave: () -> Unit, rave: Boolean, sleeping: B
         IconBtn(Icons.Filled.Bedtime, if (sleeping) "Wake up" else "Sleeping face", onSleep, if (sleeping) a else Hud.Text2,
             lit = sleeping, enabled = online)
         IconBtn(Icons.Filled.PowerSettingsNew, if (display) "Panels off" else "Panels on", onPower,
-            if (display) a else Hud.Faint, lit = display, enabled = online)
+            if (display) a else Hud.Faint, lit = display && online, enabled = online)
     }
 }
 

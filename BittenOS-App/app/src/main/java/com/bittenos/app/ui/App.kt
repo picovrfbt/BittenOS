@@ -54,6 +54,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -214,6 +215,9 @@ private fun FacesPanel(conn: MaskLink.State.Connected?, s: JSONObject) {
     var busy by remember { mutableStateOf<String?>(null) }
     Panel("01", "Faces", Modifier.animateContentSize(tween(220)), trailing = { Mono("HOLD A FACE FOR OPTIONS", color = Hud.Faint, size = 9.sp) }) {
         if (faces.isEmpty()) Note(if (conn == null) "No faces seen yet. Join the mask's WiFi and they appear here." else "Loading faces…")
+        // Away: the faces stay visible (the last ones seen) but read as asleep
+        val away by androidx.compose.animation.core.animateFloatAsState(if (conn == null) 0.45f else 1f, tween(250), label = "away")
+        Column(Modifier.alpha(away)) {
         faces.chunked(4).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(bottom = Hud.TileGap), horizontalArrangement = Arrangement.spacedBy(Hud.TileGap)) {
                 row.forEach { f ->
@@ -254,6 +258,7 @@ private fun FacesPanel(conn: MaskLink.State.Connected?, s: JSONObject) {
         Box(Modifier.fillMaxWidth().height(34.dp).hudClick(enabled = conn != null, pressed = 0.98f) { Nav.web("/animator.html") }
             .border(1.dp, lerpColor(Hud.Bg, LocalAccent.current, 0.5f), RoundedCornerShape(2.dp)), contentAlignment = Alignment.Center) {
             Caps("+ New face", color = LocalAccent.current, size = 9.5.sp, weight = FontWeight.Bold)
+        }
         }
         if (conn != null && current.endsWith(".json") && Faces.canBlink(current)) {
             Gap(10)
@@ -615,6 +620,15 @@ private fun WebPage(path: String) {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         // Leaving the face maker: the faces may have changed
                         kotlinx.coroutines.MainScope().launch { Faces.refresh() }
+                    }
+                    // The page's own process died (out of memory, a crash in the web engine). Unhandled,
+                    // Android closes the whole app with it: step back out of the page instead.
+                    override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                        (view?.parent as? android.view.ViewGroup)?.removeView(view)
+                        view?.destroy()
+                        if (Nav.stack.last().startsWith("web:")) Nav.back()
+                        Toast.bad("The page stopped · open it again")
+                        return true
                     }
                 }
                 setBackgroundColor(android.graphics.Color.rgb(0x0B, 0x0F, 0x13))

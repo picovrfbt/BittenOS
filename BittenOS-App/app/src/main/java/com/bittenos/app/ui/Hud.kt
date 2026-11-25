@@ -77,6 +77,8 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.areSystemBarsVisible
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -526,8 +528,12 @@ fun Sheet(title: String, onClose: () -> Unit, titleColor: Color = LocalAccent.cu
             Box(Modifier.padding(top = 8.dp).size(36.dp, 3.dp).background(Hud.Line2))
         }) {
         // The sheet is a window of its own, and Android shows the phone's bars again for it: hide them
+        // and again whenever they come back (dragging the sheet can bring the navigation bar up)
         val view = LocalView.current
-        LaunchedEffect(Unit) {
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        val barsUp = WindowInsets.areSystemBarsVisible
+        LaunchedEffect(barsUp) {
+            if (barsUp) delay(150)
             (view.parent as? DialogWindowProvider)?.window?.let { w ->
                 WindowCompat.getInsetsController(w, w.decorView).apply {
                     systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

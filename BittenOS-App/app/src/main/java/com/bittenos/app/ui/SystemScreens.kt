@@ -366,7 +366,7 @@ fun RaveScreen() {
                     MaskLink.kick()
                 }
             }, Modifier.fillMaxWidth(), if (running) BtnKind.Plain else BtnKind.Pink, enabled = on, height = 52.dp, size = 12.sp)
-            Hint("Tap a face or the RAVE button again to leave it.", Modifier.padding(top = 8.dp))
+            Hint("It keeps going when you leave this page. Stop it here, or tap a face.", Modifier.padding(top = 8.dp))
         }
     }
 }
