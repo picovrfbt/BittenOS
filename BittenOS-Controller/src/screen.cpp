@@ -7,7 +7,11 @@
 
 //Kinds of element, and the lists the layout file names things by. The order matches
 //data/screen_render.js, so a layout means the same thing in the designer and here.
-enum : uint8_t { EL_TEXT, EL_VALUE, EL_BAR, EL_ICON, EL_RECT };
+enum : uint8_t { EL_TEXT, EL_VALUE, EL_BAR, EL_ICON, EL_RECT, EL_FACE };
+
+//The half-face widget: the viewer's left half of the face, panel numbers as data/visType.txt lays
+//them out (eye t13 t12 on top, nose t7 in the middle, maw t11-t8 along the bottom). -1 is a gap.
+static const int8_t HALF_FACE[3][4] = {{13, 12, -1, -1}, {-1, -1, -1, 7}, {11, 10, 9, 8}};
 
 static const char *const SOURCES[] = {"face", "boops", "wifiClients", "wifiName", "brightness", "uptime",
                                       "temp", "closeness", "shade", "tilt", "boopSensor", "displays",
@@ -65,6 +69,7 @@ static void loadElement(JsonObject o, uint8_t page) {
   else if(strcmp(type, "bar") == 0) e.type = EL_BAR;
   else if(strcmp(type, "icon") == 0) e.type = EL_ICON;
   else if(strcmp(type, "rect") == 0) e.type = EL_RECT;
+  else if(strcmp(type, "face") == 0) e.type = EL_FACE;
   else e.type = EL_TEXT;
   e.x = o["x"] | 0;
   e.y = o["y"] | 0;
@@ -275,6 +280,19 @@ void screenRender(uint8_t *buf, const ScreenData &d, int page) {
       if(e.marker && hasMark) {
         int mx = e.x + 2 + (int)lround(constrain(mark, 0.0f, 1.0f) * (inner - 1));
         for(int y = -1; y <= h; y++) setPixel(buf, mx, e.y + y);
+      }
+    } else if(e.type == EL_FACE) {
+      //One screen pixel (or a size x size block) per LED, with a one-pixel gap between panels
+      int s = e.size;
+      for(int py = 0; py < 3; py++) for(int px = 0; px < 4; px++) {
+        int p = HALF_FACE[py][px];
+        if(p < 0 || p >= 14) continue;
+        uint64_t w = d.panels[p];
+        int ox = e.x + px * (8 * s + 1), oy = e.y + py * (8 * s + 1);
+        for(int r = 0; r < 8; r++) for(int c = 0; c < 8; c++) {
+          if(!((w >> (r * 8 + c)) & 1)) continue;
+          for(int sy = 0; sy < s; sy++) for(int sx = 0; sx < s; sx++) setPixel(buf, ox + c * s + sx, oy + r * s + sy);
+        }
       }
     } else if(e.type == EL_RECT) {
       int w = max((int)e.w, 1), h = max((int)e.h, 1);

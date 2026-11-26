@@ -40,6 +40,9 @@ struct ScreenData {
   int micTrig = 10;     //the level the mouth starts moving at, same 0-100 scale
   bool speaking = false; //the mouth is moving right now
   bool milestone = false; //this boop hit the milestone, and the celebration is still running
+  //What the face panels show right now, one word per panel (byte r = row r, bit c = column c),
+  //for the half-face widget. Read back from the panels, so games and rave show as they are.
+  uint64_t panels[14] = {};
 };
 
 bool screenLoadLayout();          //reads /screen.json; false if there isn't a usable one

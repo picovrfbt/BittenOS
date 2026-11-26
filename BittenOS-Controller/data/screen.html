@@ -83,6 +83,7 @@
           <button class="btn" onclick="addEl('icon')">Icon</button>
           <button class="btn" onclick="addEl('rect')">Box</button>
           <button class="btn" onclick="addEl('line')">Line</button>
+          <button class="btn" onclick="addEl('face')">Half face</button>
         </div>
         <div class="row">
           <label class="chk">Panel
@@ -234,6 +235,7 @@
     if (el.type === 'value') return (S.SOURCES[el.source] || {label: '?'}).label;
     if (el.type === 'bar') return (S.BARS[el.source] || {label: '?'}).label + ' bar';
     if (el.type === 'icon') return el.icon + ' icon';
+    if (el.type === 'face') return 'what the face shows, left half';
     if (el.type === 'rect') return (el.h === 1 || el.w === 1 ? 'line' : el.fill ? 'filled box' : 'box') + ' ' + el.w + '×' + el.h;
     return el.type;
   }
@@ -276,6 +278,8 @@
       h += field('Size', '<select data-k="size" data-num>' + [1, 2, 3].map(n => '<option' + (n === el.size ? ' selected' : '') + ' value="' + n + '">' + n + '× (' + 8 * n + ' px tall)</option>').join('') + '</select>');
       h += field('Anchor', '<select data-k="align">' + opts({left: 1, center: 1, right: 1}, el.align || 'left', k => ({left: 'Left edge at x', center: 'Centred on x', right: 'Right edge at x'})[k]) + '</select>');
     }
+    if (el.type === 'face')
+      h += field('Size', '<select data-k="size" data-num>' + [1, 2].map(n => '<option' + (n === (el.size || 1) ? ' selected' : '') + ' value="' + n + '">' + n + '× (' + (32 * n + 3) + '×' + (24 * n + 2) + ' px)</option>').join('') + '</select>');
     if (el.type === 'icon') {
       h += field('Icon', '<select data-k="icon">' + opts(S.ICONS, el.icon, k => k) + '</select>');
       h += field('Size', '<select data-k="size" data-num>' + [1, 2, 3].map(n => '<option' + (n === el.size ? ' selected' : '') + ' value="' + n + '">' + n + '× (' + 8 * n + ' px)</option>').join('') + '</select>');
@@ -318,6 +322,7 @@
       icon: {type: 'icon', icon: 'heart', size: 1},
       rect: {type: 'rect', w: 30, h: 16, fill: false},
       line: {type: 'rect', w: 128, h: 1, fill: true, x: 0},
+      face: {type: 'face', size: 1},
     }[kind];
     els().push(Object.assign(base, el));
     select(els().length - 1);

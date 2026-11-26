@@ -86,7 +86,16 @@
     bar:   'Bar',
     icon:  'Icon',
     rect:  'Box / line',
+    face:  'Half face',
   };
+
+  // The half-face widget: the viewer's left half of the face, panels as data/visType.txt has them
+  // (eye t13 t12, nose t7, maw t11-t8). -1 is a gap. The mask draws what its panels show right now;
+  // the designer has no panels, so it draws the default face's first frame instead.
+  const HALF_FACE = [[13, 12, -1, -1], [-1, -1, -1, 7], [11, 10, 9, 8]];
+  const SAMPLE_PANELS = {13: 'c1efefcf8e000', 12: '30381f0f070100', 7: 'c0c0c0f878',
+    11: 'c0e0f0381c0e0300', 10: '70f9ffcf86000000', 9: '3e7fffe7c3800000', 8: '3e7fffe7c3800000'};
+  function faceSize(size) { return {w: 32 * size + 3, h: 24 * size + 2}; }
 
   const EXAMPLE_ELEMENTS = [
     {type: 'value', source: 'face', prefix: '', suffix: '', x: 64, y: 4, size: 2, align: 'center', show: 'notBooped'},
@@ -97,10 +106,7 @@
     {type: 'icon', icon: 'wifi', x: 52, y: 30, size: 1, show: 'always'},
     {type: 'value', source: 'wifiClients', prefix: '', suffix: '', x: 63, y: 30, size: 1, align: 'left', show: 'always'},
     {type: 'icon', icon: 'moon', x: 118, y: 30, size: 1, show: 'sleeping'},
-    {type: 'text', text: 'close', x: 2, y: 43, size: 1, align: 'left', show: 'always'},
-    {type: 'bar', source: 'closeness', x: 36, y: 44, w: 90, h: 6, marker: true, show: 'always'},
-    {type: 'text', text: 'shade', x: 2, y: 54, size: 1, align: 'left', show: 'always'},
-    {type: 'bar', source: 'shade', x: 36, y: 55, w: 90, h: 6, marker: true, show: 'always'},
+    {type: 'face', x: 46, y: 38, size: 1, show: 'always'},
   ];
 
   // The starting point: a status page, plus a boop page that takes over for a moment when booped
@@ -223,6 +229,16 @@
             for (let y = -1; y <= h; y++) set(mx, el.y + y);
           }
         }
+      } else if (el.type === 'face') {
+        const fs = faceSize(size);
+        box = {i, x: el.x | 0, y: el.y | 0, w: fs.w, h: fs.h, visible};
+        if (visible) HALF_FACE.forEach((row, py) => row.forEach((p, px) => {
+          if (p < 0) return;
+          const word = BigInt('0x' + ((d.panels && d.panels[p]) || SAMPLE_PANELS[p] || '0'));
+          const ox = (el.x | 0) + px * (8 * size + 1), oy = (el.y | 0) + py * (8 * size + 1);
+          for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if ((word >> BigInt(r * 8 + c)) & 1n)
+            for (let sy = 0; sy < size; sy++) for (let sx = 0; sx < size; sx++) set(ox + c * size + sx, oy + r * size + sy);
+        }));
       } else if (el.type === 'rect') {
         const w = Math.max(1, el.w | 0), h = Math.max(1, el.h | 0);
         box = {i, x: el.x | 0, y: el.y | 0, w, h, visible};

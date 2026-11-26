@@ -4638,6 +4638,14 @@ void screenTick() {
   //forever. The counter pop is the celebration: bound it to that, and the page's own linger then
   //carries it a moment further, the same way the boop page does.
   d.milestone = milestoneBoop && boopPhase() >= 0;
+  if(visorType == "MAX72XX") {           //the panels as they are lit, for the half-face widget
+    for(int p = 0; p < MATRIXESNUM && p < 14; p++) {
+      uint64_t w = 0;
+      for(int r = 0; r < 8; r++) for(int c = 0; c < 8; c++)
+        if(mx.getPoint(r, c + p * 8)) w |= 1ULL << (r * 8 + c);
+      d.panels[p] = w;
+    }
+  }
   //Pick the page. A page with a condition wins while that condition holds, and keeps the screen for
   //its linger time afterwards, so a boop page does not vanish the instant the paw lifts.
   int page = -1;

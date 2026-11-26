@@ -128,41 +128,10 @@
    "show": "always"
   },
   {
-   "type": "text",
-   "text": "close",
-   "x": 2,
-   "y": 36,
+   "type": "face",
+   "x": 46,
+   "y": 35,
    "size": 1,
-   "align": "left",
-   "show": "always"
-  },
-  {
-   "type": "bar",
-   "source": "closeness",
-   "x": 36,
-   "y": 37,
-   "w": 90,
-   "h": 6,
-   "marker": true,
-   "show": "always"
-  },
-  {
-   "type": "text",
-   "text": "shade",
-   "x": 2,
-   "y": 50,
-   "size": 1,
-   "align": "left",
-   "show": "always"
-  },
-  {
-   "type": "bar",
-   "source": "shade",
-   "x": 36,
-   "y": 51,
-   "w": 90,
-   "h": 6,
-   "marker": true,
    "show": "always"
   }
  ]
